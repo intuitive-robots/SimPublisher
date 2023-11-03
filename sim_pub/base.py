@@ -175,7 +175,7 @@ class ServerBase(abc.ABC):
         self._ws = None
         print(f"the connection to {ws.local_address} is closed")
 
-class ObjectSerializerBase(abc.ABC):
+class ObjectPublisherBase(abc.ABC):
     """
     A abstract class for serializing simulation objects to json, and 
     then transmit their state by the server.
@@ -189,11 +189,11 @@ class ObjectSerializerBase(abc.ABC):
     ) -> None:
         self.id: str = id
 
-    @abc.abstractclassmethod
+    @abc.abstractmethod
     def get_obj_param_dict(self) -> dict:
         raise NotImplemented
 
-    @abc.abstractclassmethod
+    @abc.abstractmethod
     def get_obj_state_dict(self) -> dict:
         raise NotImplemented
 

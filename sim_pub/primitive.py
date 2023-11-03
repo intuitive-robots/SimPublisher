@@ -2,7 +2,7 @@ import asyncio
 from websockets import server
 from time import localtime, strftime
 
-from .Base import ServerBase, ObjectSerializerBase
+from .base import ServerBase, ObjectPublisherBase
 
 class PrimitiveServer(ServerBase):
     """
@@ -42,12 +42,13 @@ class ObjectStreamer(PrimitiveServer):
     def __init__(
             self,
             dt: float =  0.05,
+            publisher_list: list[ObjectPublisherBase] = list(),
             host = "127.0.0.1", 
             port = 8052,
             on_stream: bool = False,
         ) -> None:
         super().__init__(host, port)
-        
+        self.publisher_list = publisher_list
         # flags
         self.on_stream = on_stream
 
@@ -60,9 +61,8 @@ class ObjectStreamer(PrimitiveServer):
 
         Returns:
             str: the data to be sent
-        """        
-        current_time = strftime("%Y-%m-%d %H:%M:%S", localtime())
-        return f"this is stream message {current_time}"
+        """
+        return [item.get_obj_state_dict() for item in self.publisher_list]
 
     def start_stream(self) -> None:
         """
@@ -112,7 +112,7 @@ class ObjectStreamer(PrimitiveServer):
                 pass
         self.on_close_stream()
 
-class ObjectSerializer(ObjectSerializerBase):
+class ObjectPublisher(ObjectPublisherBase):
     """
     A new class for serializing simulation objects to json, and 
     then transmit their state by the server.
@@ -125,8 +125,8 @@ class ObjectSerializer(ObjectSerializerBase):
     def __init__(
         self, 
         id: str,
-        parent: ObjectSerializerBase = None,
-        child: ObjectSerializerBase = None,
+        parent: ObjectPublisherBase = None,
+        child: ObjectPublisherBase = None,
     ) -> None:
         super().__init__(id)
         self.parent = parent
