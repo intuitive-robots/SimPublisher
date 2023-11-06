@@ -1,5 +1,3 @@
-
-
 def mj2unity_pos(pos):
     return [-pos[1], pos[2], pos[0]]
 

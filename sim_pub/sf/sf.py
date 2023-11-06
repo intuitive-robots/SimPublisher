@@ -1,30 +1,42 @@
 from websockets.server import WebSocketServer, WebSocketServerProtocol
 import asyncio
 import abc
+from json import loads
+from mujoco import MjData, MjModel, mj_name2id, mjtObj
+from alr_sim.core.sim_object import SimObject
+from alr_sim.core.Scene import Scene
+
+
+import mujoco
 
 from sim_pub.base import ObjectPublisherBase
 from sim_pub.primitive import ObjectStreamer
-from .utils import *
+from sim_pub.utils import *
+from sim_pub.geometry import *
 
 
 class SFObjectPublisher(ObjectPublisherBase):
 
     def __init__(
-        self, 
-        id, 
-        sim_obj,
-        scene,
+        self,
+        id: str,
+        sim_obj: SimObject,
+        scene: Scene,
     ) -> None:
         super().__init__(id)
         self.sim_obj = sim_obj
         self.scene = scene
 
-    @abc.abstractmethod
-    def get_obj_param_dict(self) -> dict:
-        raise NotImplemented
-
 class SFRigidBodyPublisher(SFObjectPublisher):
-    def __init__(self, sim_obj, scene) -> None:
+    def __init__(
+        self, 
+        sim_obj: SimObject, 
+        scene: Scene,
+        size: list[float] = [1, 1, 1],
+        rgba: list[float] = [-1, -1, -1, 1],
+        static: bool = False,
+        interactable: bool = False,
+    ) -> None:
         if hasattr(sim_obj, "name"):
             id = sim_obj.name
         elif hasattr(sim_obj, "object_name"):
@@ -33,15 +45,32 @@ class SFRigidBodyPublisher(SFObjectPublisher):
             raise Exception("Cannot find object name")
         super().__init__(id, sim_obj, scene)
         self.get_obj_pos_fct = self.scene.get_obj_pos
-        self.get_obj_quat = self.scene.get_obj_quat
+        self.get_obj_quat_fct = self.scene.get_obj_quat
 
     def get_obj_param_dict(self) -> dict:
-        return super().get_obj_param_dict()
+        return {
+            "Header": "initial_parameter",
+            "Data": {
+                "pos": list(mj2unity_pos(self.scene.get_obj_pos(obj))),
+                "rot": list(mj2unity_quat(self.scene.get_obj_quat(obj))),
+                "size": mj2unity_size(obj),
+                "rgba": [-1, -1, -1, 1] if not hasattr(obj, "rgba") else obj.rgba,
+                "rot_offset": [0, 0, 0]
+                if not hasattr(obj, "rot_offset")
+                else getattr(obj, "rot_offset"),
+            },
+        }
 
     def get_obj_state_dict(self) -> dict:
-        return super().get_obj_state_dict()
+        return {
+            "Header": "sim_state",
+            "data": {
+                "pos": list(mj2unity_pos(self.scene.get_obj_pos(self.obj))),
+                "rot": list(mj2unity_quat(self.scene.get_obj_quat(self.obj))),
+            }
+        }
 
-class SFRobotPublisher(ObjectPublisherBase):
+class SFPandaPublisher(SFObjectPublisher):
     pass
 
 
@@ -63,8 +92,9 @@ class SFObjectStreamer(ObjectStreamer):
         # defaule register function
         self.register_callback_dict = dict()
         self.register_callback(
-            start_stream=self.on_stream,
+            start_stream=self.start_stream,
             close_stream=self.close_stream,
+            manipulate_objects=self.update_manipulated_object,
         )
 
     def create_handler(self, ws: WebSocketServerProtocol):
@@ -73,38 +103,23 @@ class SFObjectStreamer(ObjectStreamer):
             asyncio.create_task(self.stream_handler(ws)),
         ]
 
-    def start_stream(self, *args, **kwargs):
-        print("Start stream to client")
-        self.send_dict(self.getInitParamDict())
-        self.on_stream = True
-
-    def close_stream(self, *args, **kwargs):
-        print("Close stream to client")
-        self.on_stream = False
-
-    async def stream_handler(self, ws: WebSocketServerProtocol):
-        while self.connected:
-            if not self.on_stream:
-                await asyncio.sleep(0.1)
-                continue
-            new_msg = self.getStateMsg()
-            try:
-                await self._send_dict_msg(new_msg, ws, 0.02)
-            except:
-                print("error occured when sending messages!!!!!")
-                self.connected = False
-                await ws.close()
-                break
-            finally:
-                pass
-        print("finish the stream handler")
+    async def on_start_stream(self):
+        await super().on_start_stream()
+        init_param_dict = {
+            "Header": "initial_parameter",
+            "Data": [item.get_obj_param_dict() for item in self.publisher_list],
+        }
+        await self._send_str_msg_on_loop(dict2encodedstr(init_param_dict))
 
     def register_callback(self, **kwargs):
         for k, cb in kwargs.items():
             self.register_callback_dict[k] = cb
 
+    async def process_message(self, msg: str) -> None:
+        await self.execute_callback(loads(msg))
+
     async def execute_callback(self, request: dict):
-        request_type = request["Type"]
+        request_type = request["message_type"]
         if request_type in self.register_callback_dict.keys():
             callback = self.register_callback_dict[request_type]
         else:
@@ -112,10 +127,12 @@ class SFObjectStreamer(ObjectStreamer):
             return
         callback(request)
 
-    def send_message(self, msg: str):
-        self.send_dict(
-            {
-                "Header": "text_message",
-                "TextMessage": msg,
-            }
-        )
+    def update_manipulated_object(self, msg):
+        for id, obj_data in msg["manipulationData"].items():
+            body_id = mj_name2id(self.scene.model, mjtObj.mjOBJ_BODY, id)
+            if obj_data is None:
+                self.scene.model.body_gravcomp[body_id] = 0
+                continue
+            data = obj_data["data"]
+            self.scene.set_obj_pos_and_quat(data["pos"], data["rot"], obj_name=id)
+            self.scene.model.body_gravcomp[body_id] = 1
