@@ -43,7 +43,7 @@ class ServerBase(abc.ABC):
             self.server_thread.join()
 
     @abc.abstractmethod
-    def process_message(self, msg:str) -> None:
+    async def process_message(self, msg:str):
         """
         Processing message when receives new messages from clients.
 
@@ -73,7 +73,7 @@ class ServerBase(abc.ABC):
         ws (server.WebSocketServerProtocol): WebSocketServerProtocol from websockets.
         """        
         async for msg in ws:
-            self.process_message(msg)
+            await self.process_message(msg)
 
     async def handler(self, ws: server.WebSocketServerProtocol):
         """
@@ -82,7 +82,7 @@ class ServerBase(abc.ABC):
         Args:
             ws (server.WebSocketServerProtocol): WebSocketServerProtocol from websockets.
         """        
-        self.on_conncet(ws)
+        await self.on_conncet(ws)
         _, pending = await asyncio.wait(
             self.create_handler(ws),
             return_when=asyncio.FIRST_COMPLETED,
@@ -90,7 +90,7 @@ class ServerBase(abc.ABC):
         for task in pending:
             task.cancel()
         await ws.close()
-        self.on_close(ws)
+        await self.on_close(ws)
 
     async def _expect_client(self):
         """
@@ -155,7 +155,7 @@ class ServerBase(abc.ABC):
         """        
         self._wsserver.close()
 
-    def on_conncet(self, ws: server.WebSocketServerProtocol) -> None:
+    async def on_conncet(self, ws: server.WebSocketServerProtocol) -> None:
         """
         This method will be executed once the connection is established.
 
@@ -165,7 +165,7 @@ class ServerBase(abc.ABC):
         print(f"connected by: {ws.local_address}")
         self._ws = ws
 
-    def on_close(self, ws: server.WebSocketServerProtocol) -> None:
+    async def on_close(self, ws: server.WebSocketServerProtocol) -> None:
         """
         This method will be executed when disconnected.
 

@@ -15,7 +15,7 @@ class PrimitiveServer(ServerBase):
     ) -> None:
         super().__init__(host, port)
 
-    def process_message(self, msg:str) -> None:  
+    async def process_message(self, msg:str):
         print(f"new message: {msg}")
 
     def create_handler(self, ws: server.WebSocketServerProtocol) -> list[asyncio.Task]:
@@ -79,13 +79,13 @@ class ObjectStreamer(PrimitiveServer):
         """        
         self.on_stream = False
 
-    def on_start_stream(self) -> None:
+    async def on_start_stream(self):
         """
         This method will be executed once the stream is started.
         """        
         print("start stream")
 
-    def on_close_stream(self) -> None:
+    async def on_close_stream(self):
         """
         This method will be executed once the stream is closed
         """        
@@ -98,8 +98,8 @@ class ObjectStreamer(PrimitiveServer):
 
         Args:
         ws (server.WebSocketServerProtocol): WebSocketServerProtocol from websockets.
-        """      
-        self.on_start_stream()
+        """
+        await self.on_start_stream()
         while self.on_stream:
             stream_data = self.update_stream_data()
             try:
@@ -110,7 +110,7 @@ class ObjectStreamer(PrimitiveServer):
                 break
             finally:
                 pass
-        self.on_close_stream()
+        await self.on_close_stream()
 
 class ObjectPublisher(ObjectPublisherBase):
     """
