@@ -51,13 +51,13 @@ class SFRigidBodyPublisher(SFObjectPublisher):
         return {
             "Header": "initial_parameter",
             "Data": {
-                "pos": list(mj2unity_pos(self.scene.get_obj_pos(obj))),
-                "rot": list(mj2unity_quat(self.scene.get_obj_quat(obj))),
-                "size": mj2unity_size(obj),
-                "rgba": [-1, -1, -1, 1] if not hasattr(obj, "rgba") else obj.rgba,
+                "pos": list(mj2unity_pos(self.scene.get_obj_pos(self.sim_obj))),
+                "rot": list(mj2unity_quat(self.scene.get_obj_quat(self.sim_obj))),
+                "size": mj2unity_size(self.sim_obj),
+                "rgba": [-1, -1, -1, 1] if not hasattr(self.sim_obj, "rgba") else self.sim_obj.rgba,
                 "rot_offset": [0, 0, 0]
-                if not hasattr(obj, "rot_offset")
-                else getattr(obj, "rot_offset"),
+                if not hasattr(self.sim_obj, "rot_offset")
+                else getattr(self.sim_obl, "rot_offset"),
             },
         }
 
