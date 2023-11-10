@@ -2,10 +2,11 @@ from websockets.server import WebSocketServer, WebSocketServerProtocol
 import asyncio
 import abc
 from json import loads
+from typing import TypedDict, Dict
+
 from mujoco import MjData, MjModel, mj_name2id, mjtObj
 from alr_sim.core.sim_object import SimObject
 from alr_sim.core.Scene import Scene
-
 
 import mujoco
 
@@ -13,7 +14,17 @@ from sim_pub.base import ObjectPublisherBase
 from sim_pub.primitive import ObjectStreamer
 from sim_pub.utils import *
 from sim_pub.geometry import *
+from .sf_msg import SFMsg
 
+class SFDataBlock(TypedDict):
+    Attr: Dict[str]
+    Data: Dict[float]
+
+SFDataFrame = Dict[str, SFDataBlock]
+    
+class SFMsg(TypedDict):
+    Header: str
+    DataFrame: SFDataFrame
 
 class SFObjectPublisher(ObjectPublisherBase):
 
@@ -47,10 +58,10 @@ class SFRigidBodyPublisher(SFObjectPublisher):
         self.get_obj_pos_fct = self.scene.get_obj_pos
         self.get_obj_quat_fct = self.scene.get_obj_quat
 
-    def get_obj_param_dict(self) -> dict:
+    def get_obj_param_dict(self) -> SFDataBlock:
         return {
             "Header": "initial_parameter",
-            "Data": {
+            "DataFrame": {
                 "pos": list(mj2unity_pos(self.get_obj_pos_fct(self.sim_obj))),
                 "rot": list(mj2unity_quat(self.get_obj_quat_fct(self.sim_obj))),
                 "size": mj2unity_size(self.sim_obj),
@@ -61,7 +72,7 @@ class SFRigidBodyPublisher(SFObjectPublisher):
             },
         }
 
-    def get_obj_state_dict(self) -> dict:
+    def get_obj_state_dict(self) -> SFDataBlock:
         return {
             "Header": "sim_state",
             "data": {
