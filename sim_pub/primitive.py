@@ -31,7 +31,7 @@ class PrimitiveServer(ServerBase):
         return [asyncio.create_task(self.receive_handler(ws))]
 
 
-class ObjectStreamer(PrimitiveServer):
+class SimStreamer(PrimitiveServer):
     """
     A basic server for streaming data and receiving messages.
 
@@ -134,5 +134,5 @@ class ObjectPublisher(ObjectPublisherBase):
 
 
 if __name__ == "__main__":
-    s = ObjectStreamer()
+    s = SimStreamer()
     s.start_server_thread(block=True)

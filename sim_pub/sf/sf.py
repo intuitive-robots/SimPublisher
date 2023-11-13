@@ -10,82 +10,14 @@ from alr_sim.core.Scene import Scene
 
 import mujoco
 
-from sim_pub.base import ObjectPublisherBase
-from sim_pub.primitive import ObjectStreamer
+from sim_pub.base import ObjectPublisherBase, SimPubDataBlock
+from sim_pub.primitive import SimStreamer
 from sim_pub.utils import *
 from sim_pub.geometry import *
-from .sf_msg import SFMsg
 
-class SFDataBlock(TypedDict):
-    Attr: Dict[str]
-    Data: Dict[float]
+from sf_simobj_publisher import SFObjectPublisher
 
-SFDataFrame = Dict[str, SFDataBlock]
-    
-class SFMsg(TypedDict):
-    Header: str
-    DataFrame: SFDataFrame
-
-class SFObjectPublisher(ObjectPublisherBase):
-
-    def __init__(
-        self,
-        id: str,
-        sim_obj: SimObject,
-        scene: Scene,
-    ) -> None:
-        super().__init__(id)
-        self.sim_obj = sim_obj
-        self.scene = scene
-
-class SFRigidBodyPublisher(SFObjectPublisher):
-    def __init__(
-        self, 
-        sim_obj: SimObject, 
-        scene: Scene,
-        size: list[float] = [1, 1, 1],
-        rgba: list[float] = [-1, -1, -1, 1],
-        static: bool = False,
-        interactable: bool = False,
-    ) -> None:
-        if hasattr(sim_obj, "name"):
-            id = sim_obj.name
-        elif hasattr(sim_obj, "object_name"):
-            id = getattr(sim_obj, "object_name")
-        else:
-            raise Exception("Cannot find object name")
-        super().__init__(id, sim_obj, scene)
-        self.get_obj_pos_fct = self.scene.get_obj_pos
-        self.get_obj_quat_fct = self.scene.get_obj_quat
-
-    def get_obj_param_dict(self) -> SFDataBlock:
-        return {
-            "Header": "initial_parameter",
-            "DataFrame": {
-                "pos": list(mj2unity_pos(self.get_obj_pos_fct(self.sim_obj))),
-                "rot": list(mj2unity_quat(self.get_obj_quat_fct(self.sim_obj))),
-                "size": mj2unity_size(self.sim_obj),
-                "rgba": [-1, -1, -1, 1] if not hasattr(self.sim_obj, "rgba") else self.sim_obj.rgba,
-                "rot_offset": [0, 0, 0]
-                if not hasattr(self.sim_obj, "rot_offset")
-                else getattr(self.sim_obl, "rot_offset"),
-            },
-        }
-
-    def get_obj_state_dict(self) -> SFDataBlock:
-        return {
-            "Header": "sim_state",
-            "data": {
-                "pos": list(mj2unity_pos(self.get_obj_pos_fct(self.obj))),
-                "rot": list(mj2unity_quat(self.get_obj_quat_fct(self.obj))),
-            }
-        }
-
-class SFPandaPublisher(SFObjectPublisher):
-    pass
-
-
-class SFObjectStreamer(ObjectStreamer):
+class SFSimStreamer(SimStreamer):
     
     def __init__(
             self, 
