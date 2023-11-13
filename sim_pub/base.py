@@ -4,6 +4,20 @@ from asyncio import sleep as async_sleep
 import threading
 import json
 import abc
+from typing import TypedDict, Dict, List
+
+
+class SimPubDataBlock(TypedDict):
+    str_dict: Dict[str, str]
+    list_dict: Dict[str, List[float]]
+    bool_dict: Dict[str, bool]
+
+SimPubData = Dict[str, SimPubDataBlock]
+
+
+class SimPubMsg(TypedDict):
+    header: str
+    data: SimPubData
 
 
 class ServerBase(abc.ABC):
