@@ -4,15 +4,33 @@ from asyncio import sleep as async_sleep
 import threading
 import json
 import abc
-from typing import TypedDict, Dict, List
+from typing import TypedDict, Dict, List, Union
+
+from sim_pub.utils import *
+
+class SimPubDataBlock(Dict[str, List[float]]):
+    def add_value(self, key: str, value: Union[str, List[float], bool]):
+        if type(value) is list:
+            self.add_float_list(key, value)
+        elif type(value) is str:
+            self.add_str(key, value)
+        elif type(value) is bool:
+            self.add_bool(key, value)
+        else:
+            raise TypeError
+
+    def add_str(self, key: str, value: str) -> None:
+        self[key] = string2floatlist(value)
+
+    def add_bool(self, key: str, value: bool) -> None:
+        self[key] = [1] if value else [0]
+
+    def add_float_list(self, key: str, value: List[float]) -> None:
+        self[key] = value
 
 
-class SimPubDataBlock(TypedDict):
-    str_dict: Dict[str, str]
-    list_dict: Dict[str, List[float]]
-    bool_dict: Dict[str, bool]
-
-SimPubData = Dict[str, SimPubDataBlock]
+class SimPubData(Dict[str, SimPubDataBlock]):
+    pass
 
 
 class SimPubMsg(TypedDict):
@@ -189,6 +207,7 @@ class ServerBase(abc.ABC):
         self._ws = None
         print(f"the connection to {ws.local_address} is closed")
 
+
 class ObjectPublisherBase(abc.ABC):
     """
     A abstract class for serializing simulation objects to json, and 
@@ -204,10 +223,13 @@ class ObjectPublisherBase(abc.ABC):
         self.id: str = id
 
     @abc.abstractmethod
-    def get_obj_param_dict(self) -> dict:
+    def update_obj_param_dict(self, data: SimPubData) -> None:
         raise NotImplemented
 
     @abc.abstractmethod
-    def get_obj_state_dict(self) -> dict:
+    def update_obj_state_dict(self, data: SimPubData) -> None:
         raise NotImplemented
 
+
+if __name__ == "__main__":
+    s = SimPubData()

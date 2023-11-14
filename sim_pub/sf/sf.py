@@ -2,26 +2,45 @@ from websockets.server import WebSocketServer, WebSocketServerProtocol
 import asyncio
 import abc
 from json import loads
-from typing import TypedDict, Dict
-
-from mujoco import MjData, MjModel, mj_name2id, mjtObj
-from alr_sim.core.sim_object import SimObject
-from alr_sim.core.Scene import Scene
-
+from typing import TypedDict, Dict, Union
 import mujoco
+from mujoco import MjData, MjModel, mj_name2id, mjtObj
 
-from sim_pub.base import ObjectPublisherBase, SimPubDataBlock
+from alr_sim.core.Scene import Scene
+from alr_sim.core.sim_object import SimObject
+from alr_sim.sims.universal_sim import PrimitiveObjects
+from alr_sim.sims.mj_beta.mj_utils.mj_scene_object import YCBMujocoObject
+from alr_sim.core.Robots import RobotBase
+
+from sim_pub.base import SimPubData, SimPubMsg
 from sim_pub.primitive import SimStreamer
 from sim_pub.utils import *
 from sim_pub.geometry import *
+from sf_simobj_publisher import *
 
-from sf_simobj_publisher import SFObjectPublisher
+class SFSimPubFactory:
+
+    def create_publisher(
+        self, 
+        sim_obj: Union[SimObject, RobotBase], 
+        scene: Scene, 
+        **kwargs
+    ) -> SFObjectPublisher:
+        if type(sim_obj) is PrimitiveObjects:
+            return SFPrimitiveObjectPublisher(sim_obj, scene, **kwargs)
+        elif type(sim_obj) is YCBMujocoObject:
+            return SFYCBObjectPublisher(sim_obj, scene, **kwargs)
+        elif type(sim_obj) is RobotBase:
+            SFPandaPublisher(sim_obj, scene, **kwargs)
+        else:
+            raise TypeError 
 
 class SFSimStreamer(SimStreamer):
     
     def __init__(
             self, 
             object_handler_list: list[SFObjectPublisher], 
+            scene: Scene,
             host="127.0.0.1", 
             port=8052,
         ) -> None:
@@ -29,6 +48,7 @@ class SFSimStreamer(SimStreamer):
 
         super().__init__()
         self._object_handler_dict = {handler.id: handler for handler in object_handler_list}
+        self.scene = scene
         # flags
         self.on_stream = False
 
@@ -48,11 +68,13 @@ class SFSimStreamer(SimStreamer):
 
     async def on_start_stream(self):
         await super().on_start_stream()
-        init_param_dict = {
-            "Header": "initial_parameter",
-            "Data": [item.get_obj_param_dict() for item in self.publisher_list],
-        }
-        await self._send_str_msg_on_loop(dict2encodedstr(init_param_dict))
+        init_param_msg = SimPubMsg()
+        init_param_msg["header"] = "initial_parameter"
+        data = SimPubData()
+        for item in self.publisher_list:
+            item.update_obj_param_dict(data)
+        init_param_msg["data"] = data
+        await self._send_str_msg_on_loop(dict2encodedstr(init_param_msg))
 
     def register_callback(self, **kwargs):
         for k, cb in kwargs.items():
