@@ -55,7 +55,7 @@ class SimStreamer(PrimitiveServer):
         # stream frequency
         self.dt = dt
 
-    def update_stream_data(self) -> str:
+    def get_stream_data(self) -> str:
         """
         Update data for stream.
 
@@ -101,7 +101,7 @@ class SimStreamer(PrimitiveServer):
         """
         await self.on_start_stream()
         while self.on_stream:
-            stream_data = self.update_stream_data()
+            stream_data = self.get_stream_data()
             try:
                 await self._send_str_msg_on_loop(stream_data, ws, dt)
             except:
