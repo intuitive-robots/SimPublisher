@@ -8,7 +8,7 @@ from mujoco import MjData, MjModel, mj_name2id, mjtObj
 
 from alr_sim.core.Scene import Scene
 from alr_sim.core.sim_object import SimObject
-from alr_sim.sims.universal_sim import PrimitiveObjects
+from alr_sim.sims.universal_sim.PrimitiveObjects import PrimitiveObject
 from alr_sim.sims.mj_beta.mj_utils.mj_scene_object import YCBMujocoObject
 from alr_sim.core.Robots import RobotBase
 
@@ -20,20 +20,22 @@ from sf_simobj_publisher import *
 
 class SFSimPubFactory:
 
+    _publisher_map: Dict[type, type] = {
+        PrimitiveObject: SFPrimitiveObjectPublisher,
+        YCBMujocoObject: SFYCBObjectPublisher,
+        RobotBase: SFPandaPublisher,
+    }
+
+    @classmethod
     def create_publisher(
-        self, 
+        cls, 
         sim_obj: Union[SimObject, RobotBase], 
         scene: Scene, 
         **kwargs
     ) -> SFObjectPublisher:
-        if type(sim_obj) is PrimitiveObjects:
-            return SFPrimitiveObjectPublisher(sim_obj, scene, **kwargs)
-        elif type(sim_obj) is YCBMujocoObject:
-            return SFYCBObjectPublisher(sim_obj, scene, **kwargs)
-        elif type(sim_obj) is RobotBase:
-            SFPandaPublisher(sim_obj, scene, **kwargs)
-        else:
-            raise TypeError 
+        pub_type = cls._publisher_map[sim_obj]
+        return pub_type(sim_obj, scene, **kwargs)
+
 
 class SFSimStreamer(SimStreamer):
     

@@ -223,11 +223,15 @@ class ObjectPublisherBase(abc.ABC):
         self.id: str = id
 
     @abc.abstractmethod
-    def update_obj_param_dict(self, data: SimPubData) -> None:
+    def create_sim_obj(self) -> None:
         raise NotImplemented
 
     @abc.abstractmethod
-    def update_obj_state_dict(self, data: SimPubData) -> None:
+    def update_obj_param(self, data: SimPubData) -> None:
+        raise NotImplemented
+
+    @abc.abstractmethod
+    def update_obj_state(self, data: SimPubData) -> None:
         raise NotImplemented
 
 
