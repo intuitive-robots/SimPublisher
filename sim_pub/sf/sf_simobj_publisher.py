@@ -1,11 +1,15 @@
 import abc
-from typing import Union
+from typing import Dict, Union
 
 from alr_sim.core.sim_object import SimObject
 from alr_sim.core.Robots import RobotBase
 from alr_sim.core.Scene import Scene
 from alr_sim.sims.universal_sim import PrimitiveObjects
+from alr_sim.sims.universal_sim.PrimitiveObjects import PrimitiveObject
 from alr_sim.sims.mj_beta.mj_utils.mj_scene_object import YCBMujocoObject
+from alr_sim.utils.sim_path import sim_framework_path
+from matplotlib.pyplot import cla
+from sim_pub import primitive
 
 from sim_pub.base import ObjectPublisherBase, SimPubDataBlock, SimPubData
 from sim_pub.primitive import SimStreamer
@@ -23,24 +27,31 @@ class SFObjectPublisher(ObjectPublisherBase):
 
     def __init__(
         self,
-        sim_obj: Union[SimObject, RobotBase],
         scene: Scene,
+        sim_obj: Union[SimObject, RobotBase] = None,
         **kwargs,
     ) -> None:
         super().__init__(id)
-        self.sim_obj = sim_obj
         self.scene = scene
-        param = SimPubDataBlock()
-        for k, v in kwargs.items():
-            param.add_value(k, v)
-        self.param = param
-
-    def update_obj_param_dict(self, data: SimPubData) -> None:
-        data[self.id] = self.param
+        self.param_dict: Dict[str, Union[str, List[float], bool]] = {
+            k: v for k, v in kwargs.items()
+        }
+        self.full_fill_param_dict()
+        if sim_obj is None:
+            self.create_sim_obj()
+        else:
+            self.sim_obj = sim_obj
 
     @abc.abstractmethod
-    def update_obj_state_dict(self, data: SimPubData) -> None:
+    def full_fill_param_dict(self):
         raise NotImplemented
+    
+
+    def update_obj_param_dict(self, data: SimPubData) -> None:
+        param = SimPubDataBlock()
+        for k, v in self.param_dict:
+            param.add_value(k, v)
+        data[self.id] = param
 
 
 class SFRigidBodyPublisher(SFObjectPublisher):
@@ -65,6 +76,11 @@ class SFRigidBodyPublisher(SFObjectPublisher):
 
         super().__init__(id, sim_obj, scene, **kwargs)
 
+    def full_fill_param_dict(self):
+        param = self.param_dict
+        param.setdefault("static", False)
+        param.setdefault("visual_only", False)
+        param.setdefault("interactable", False)
 
     def update_obj_state_dict(self, data: SimPubData) -> None:
         state = SimPubDataBlock()
@@ -76,36 +92,96 @@ class SFRigidBodyPublisher(SFObjectPublisher):
 class SFPrimitiveObjectPublisher(SFRigidBodyPublisher):
     
     def __init__(
-        self, sim_obj: PrimitiveObjects.PrimitiveObject, 
+        self, sim_obj: PrimitiveObject, 
         scene: Scene,
         **kwargs,
     ) -> None:
         super().__init__(sim_obj, scene, **kwargs)
-        size_list: List[float] = sim_obj.size
-        if type(sim_obj) is PrimitiveObjects.Box:
-            self.param.add_str("type", "Box")
-            self.param.add_str("size", [size_list[1] * 2, size_list[2] * 2, size_list[0] * 2])
-        elif type(sim_obj) is PrimitiveObjects.Sphere:
-            self.param.add_str("type", "Sphere")
-            self.param.add_str("size", [size_list[1], size_list[2], size_list[0]])
-        elif type(sim_obj) is PrimitiveObjects.Cylinder:
-            self.param.add_str("type", "Cylinder")
-            self.param.add_str("size", [size_list[1], size_list[2] * 2, size_list[0]])
-        else:
-            raise TypeError
+        self.update_obj_unity_size()
+
+    def create_primitive_obj_from_type(self, primitive_type: type) -> None:
+        self.sim_obj = primitive_type(
+            name = self.param_dict["obj_name"],
+            init_pos = self.param_dict["init_pos"],
+            init_quat = self.param_dict["init_quat"],
+            mass = 0.1,
+            size = self.param_dict["mj_size"],
+            rgba = self.param_dict["rgba"],
+            static = self.param_dict["static"],
+            visual_only = self.param_dict["visual_only"],
+        )
+
+
+class SFPrimitiveBoxPubliser(SFPrimitiveObjectPublisher):
+
+    def __init__(self, sim_obj: PrimitiveObject, scene: Scene, **kwargs) -> None:
+        super().__init__(sim_obj, scene, **kwargs)
+
+    def full_fill_param_dict(self):
+        mj_size = self.param_dict["mj_size"]
+        self.param_dict["unity_size"] = [mj_size[1] * 2, mj_size[2] * 2, mj_size[0] * 2]
+        super().full_fill_param_dict()
+
+    def create_sim_obj(self) -> None:
+        self.create_primitive_obj_from_type(PrimitiveObjects.Box)
+
+
+class SFPrimitiveSpherePubliser(SFPrimitiveObjectPublisher):
+
+    def __init__(self, sim_obj: PrimitiveObject, scene: Scene, **kwargs) -> None:
+        super().__init__(sim_obj, scene, **kwargs)
+
+    def full_fill_param_dict(self):
+        mj_size = self.param_dict["mj_size"]
+        self.param_dict["unity_size"] = [mj_size[1], mj_size[2], mj_size[0]]
+        super().full_fill_param_dict()
+
+    def create_sim_obj(self) -> None:
+        self.create_primitive_obj_from_type(PrimitiveObjects.Sphere)
+
+
+class SFPrimitiveCylinderPubliser(SFPrimitiveObjectPublisher):
+
+    def __init__(self, sim_obj: PrimitiveObject, scene: Scene, **kwargs) -> None:
+        super().__init__(sim_obj, scene, **kwargs)
+
+    def full_fill_param_dict(self):
+        mj_size = self.param_dict["mj_size"]
+        self.param_dict["unity_size"] = [mj_size[1], mj_size[2] * 2, mj_size[0]]
+        super().full_fill_param_dict()
+
+    def create_sim_obj(self) -> None:
+        self.create_primitive_obj_from_type(PrimitiveObjects.Cylinder)
 
 
 class SFYCBObjectPublisher(SFRigidBodyPublisher):
-    
+    _ycb_path = "../SFModels/YCB/models/ycb"
     def __init__(
         self, sim_obj: YCBMujocoObject, 
         scene: Scene, 
         **kwargs,
     ) -> None:
         super().__init__(sim_obj, scene, **kwargs)
-        self.param["rot_offset"] = [-90.0, 0.0, 90.0]
+        self.param.add_float_list([-90.0, 0.0, 90.0])
 
-class SFPandaPublisher(SFObjectPublisher):
+    def create_sim_obj(self) -> None:
+        self.sim_obj = YCBMujocoObject(
+            ycb_base_folder=sim_framework_path("../SF-ObjectDataset/YCB/"),
+            object_id = self.param_dict["obj_type"],
+            object_name = self.param_dict["obj_name"],
+            pos = self.param_dict["init_pos"],
+            quat = self.param_dict["init_quat"],
+            static = self.param_dict["static"],
+            alpha = self.param_dict["riga"][-1],
+            visual_only = self.param_dict["visual_only"],
+        )
+
+class SFRobotPubliser(SFObjectPublisher):
+    
+    def __init__(self, scene: Scene, sim_obj: RobotBase = None, **kwargs) -> None:
+        super().__init__(scene, sim_obj, **kwargs)
+
+class SFPandaPublisher(SFRobotPubliser):
     
     def __init__(
         self, 
@@ -115,10 +191,12 @@ class SFPandaPublisher(SFObjectPublisher):
     ) -> None:
         super().__init__(robot, scene, **kwargs)
 
-
     def update_obj_state_dict(self, data: SimPubData) -> None:
         state = SimPubDataBlock()
         joints = list(self.sim_obj.current_j_pos)
         joints.extend([self.sim_obj.gripper_width / 2, self.sim_obj.gripper_width / 2])
         state.add_str("joints", joints)
         data[self.id] = state
+
+    def create_sim_obj(self) -> None:
+        return super().create_sim_obj()

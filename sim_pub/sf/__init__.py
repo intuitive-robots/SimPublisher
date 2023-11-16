@@ -6,4 +6,4 @@ except ImportError as e:
     logging.getLogger(__name__).info(
         "No SimulationFramework installed. The support for SimulationFramework is not available."
     )
-from .sf import SFSimStreamer
+from .sf import *
