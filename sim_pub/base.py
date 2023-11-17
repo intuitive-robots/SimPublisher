@@ -218,9 +218,9 @@ class ObjectPublisherBase(abc.ABC):
     """    
     def __init__(
         self, 
-        id: str,
+        name: str,
     ) -> None:
-        self.id: str = id
+        self.name: str = name
 
     @abc.abstractmethod
     def create_sim_obj(self) -> None:
