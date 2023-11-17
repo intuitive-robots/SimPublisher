@@ -6,7 +6,7 @@ from typing import TypedDict, Dict, Union
 import mujoco
 from mujoco import MjData, MjModel, mj_name2id, mjtObj
 
-from alr_sim.core.Scene import Scene
+from alr_sim.sims.mj_beta import MjScene, MjRobot
 from alr_sim.core.sim_object import SimObject
 from alr_sim.sims.universal_sim.PrimitiveObjects import PrimitiveObject
 from alr_sim.sims.mj_beta.mj_utils.mj_scene_object import YCBMujocoObject
@@ -15,8 +15,9 @@ from alr_sim.core.Robots import RobotBase
 from sim_pub.base import SimPubData, SimPubMsg
 from sim_pub.primitive import SimStreamer
 from sim_pub.utils import *
-from sim_pub.geometry import *
-from sf_simobj_publisher import *
+
+from geometry import *
+from sfmj_simobj_publisher import *
 
 class SFSimPubFactory:
 
@@ -30,8 +31,8 @@ class SFSimPubFactory:
     def create_publisher(
         cls, 
         sim_obj: Union[SimObject, RobotBase], 
-        scene: Scene, 
-        **kwargs
+        scene: MjScene, 
+        **kwargs,
     ) -> SFObjectPublisher:
         pub_type = cls._publisher_map[sim_obj]
         return pub_type(sim_obj, scene, **kwargs)
@@ -49,7 +50,9 @@ class SFSimStreamer(SimStreamer):
         super().__init__(object_handler_list, host, port)
 
         super().__init__()
-        self._object_handler_dict = {handler.id: handler for handler in object_handler_list}
+        self._object_handler_dict = {
+            handler.id: handler for handler in object_handler_list
+        }
         self.scene = scene
         # flags
         self.on_stream = False
@@ -101,5 +104,7 @@ class SFSimStreamer(SimStreamer):
                 self.scene.model.body_gravcomp[body_id] = 0
                 continue
             data = obj_data["data"]
-            self.scene.set_obj_pos_and_quat(data["pos"], data["rot"], obj_name=id)
+            self.scene.set_obj_pos_and_quat(
+                data["pos"], data["rot"], obj_name=id
+            )
             self.scene.model.body_gravcomp[body_id] = 1

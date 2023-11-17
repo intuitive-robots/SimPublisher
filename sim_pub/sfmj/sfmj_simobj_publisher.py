@@ -3,7 +3,7 @@ from typing import Dict, Union
 
 from alr_sim.core.sim_object import SimObject
 from alr_sim.core.Robots import RobotBase
-from alr_sim.core.Scene import Scene
+from alr_sim.sims.mj_beta import MjScene
 from alr_sim.sims.universal_sim import PrimitiveObjects
 from alr_sim.sims.universal_sim.PrimitiveObjects import PrimitiveObject
 from alr_sim.sims.mj_beta.mj_utils.mj_scene_object import YCBMujocoObject
@@ -14,9 +14,8 @@ from sim_pub import primitive
 from sim_pub.base import ObjectPublisherBase, SimPubDataBlock, SimPubData
 from sim_pub.primitive import SimStreamer
 from sim_pub.utils import *
-from sim_pub.geometry import *
+from sim_pub.sfmj.geometry import *
 
-from sf import SFObjectPublisher
 
 class SFObjectPublisher(ObjectPublisherBase):
     """_summary_
@@ -27,23 +26,27 @@ class SFObjectPublisher(ObjectPublisherBase):
 
     def __init__(
         self,
-        scene: Scene,
+        name: str,
+        scene: MjScene,
         sim_obj: Union[SimObject, RobotBase] = None,
         **kwargs,
     ) -> None:
-        super().__init__(id)
+        super().__init__(name)
         self.scene = scene
         self.param_dict: Dict[str, Union[str, List[float], bool]] = {
             k: v for k, v in kwargs.items()
         }
-        self.full_fill_param_dict()
+        self.fullfill_default_param()
         if sim_obj is None:
             self.create_sim_obj()
         else:
             self.sim_obj = sim_obj
 
+    def update_param_from_dict(**kwargs):
+        pass
+
     @abc.abstractmethod
-    def full_fill_param_dict(self):
+    def fullfill_default_param(self):
         raise NotImplemented
     
 
@@ -70,7 +73,7 @@ class SFRigidBodyPublisher(SFObjectPublisher):
     def __init__(
         self, 
         sim_obj: SimObject, 
-        scene: Scene,
+        scene: MjScene,
         **kwargs,
     ) -> None:
 
@@ -93,7 +96,7 @@ class SFPrimitiveObjectPublisher(SFRigidBodyPublisher):
     
     def __init__(
         self, sim_obj: PrimitiveObject, 
-        scene: Scene,
+        scene: MjScene,
         **kwargs,
     ) -> None:
         super().__init__(sim_obj, scene, **kwargs)
@@ -114,7 +117,7 @@ class SFPrimitiveObjectPublisher(SFRigidBodyPublisher):
 
 class SFPrimitiveBoxPubliser(SFPrimitiveObjectPublisher):
 
-    def __init__(self, sim_obj: PrimitiveObject, scene: Scene, **kwargs) -> None:
+    def __init__(self, sim_obj: PrimitiveObject, scene: MjScene, **kwargs) -> None:
         super().__init__(sim_obj, scene, **kwargs)
 
     def full_fill_param_dict(self):
@@ -128,7 +131,7 @@ class SFPrimitiveBoxPubliser(SFPrimitiveObjectPublisher):
 
 class SFPrimitiveSpherePubliser(SFPrimitiveObjectPublisher):
 
-    def __init__(self, sim_obj: PrimitiveObject, scene: Scene, **kwargs) -> None:
+    def __init__(self, sim_obj: PrimitiveObject, scene: MjScene, **kwargs) -> None:
         super().__init__(sim_obj, scene, **kwargs)
 
     def full_fill_param_dict(self):
@@ -142,7 +145,7 @@ class SFPrimitiveSpherePubliser(SFPrimitiveObjectPublisher):
 
 class SFPrimitiveCylinderPubliser(SFPrimitiveObjectPublisher):
 
-    def __init__(self, sim_obj: PrimitiveObject, scene: Scene, **kwargs) -> None:
+    def __init__(self, sim_obj: PrimitiveObject, scene: MjScene, **kwargs) -> None:
         super().__init__(sim_obj, scene, **kwargs)
 
     def full_fill_param_dict(self):
@@ -178,7 +181,7 @@ class SFYCBObjectPublisher(SFRigidBodyPublisher):
 
 class SFRobotPubliser(SFObjectPublisher):
     
-    def __init__(self, scene: Scene, sim_obj: RobotBase = None, **kwargs) -> None:
+    def __init__(self, scene: MjScene, sim_obj: RobotBase = None, **kwargs) -> None:
         super().__init__(scene, sim_obj, **kwargs)
 
 class SFPandaPublisher(SFRobotPubliser):
@@ -186,7 +189,7 @@ class SFPandaPublisher(SFRobotPubliser):
     def __init__(
         self, 
         robot: RobotBase, 
-        scene: Scene, 
+        scene: MjScene, 
         **kwargs
     ) -> None:
         super().__init__(robot, scene, **kwargs)
