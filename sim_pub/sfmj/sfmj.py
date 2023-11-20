@@ -42,20 +42,21 @@ class SFSimStreamer(SimStreamer):
     
     def __init__(
             self, 
-            object_handler_list: list[SFObjectPublisher], 
-            scene: Scene,
-            host="127.0.0.1", 
-            port=8052,
+            object_publisher_list: list[SFObjectPublisher], 
+            scene: MjScene,
+            host = "127.0.0.1", 
+            port = 8052,
+            start_stream: bool = False,
         ) -> None:
-        super().__init__(object_handler_list, host, port)
+        super().__init__(object_publisher_list, host, port)
 
         super().__init__()
         self._object_handler_dict = {
-            handler.id: handler for handler in object_handler_list
+            handler.name: handler for handler in object_publisher_list
         }
         self.scene = scene
         # flags
-        self.on_stream = False
+        self.on_stream = start_stream
 
         # defaule register function
         self.register_callback_dict = dict()

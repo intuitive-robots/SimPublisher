@@ -1,15 +1,14 @@
 import abc
+from os import name
 from typing import Dict, Union
 
 from alr_sim.core.sim_object import SimObject
 from alr_sim.core.Robots import RobotBase
-from alr_sim.sims.mj_beta import MjScene
+from alr_sim.sims.mj_beta import MjScene, MjRobot
 from alr_sim.sims.universal_sim import PrimitiveObjects
 from alr_sim.sims.universal_sim.PrimitiveObjects import PrimitiveObject
 from alr_sim.sims.mj_beta.mj_utils.mj_scene_object import YCBMujocoObject
 from alr_sim.utils.sim_path import sim_framework_path
-from matplotlib.pyplot import cla
-from sim_pub import primitive
 
 from sim_pub.base import ObjectPublisherBase, SimPubDataBlock, SimPubData
 from sim_pub.primitive import SimStreamer
@@ -36,7 +35,7 @@ class SFObjectPublisher(ObjectPublisherBase):
         self.param_dict: Dict[str, Union[str, List[float], bool]] = {
             k: v for k, v in kwargs.items()
         }
-        self.fullfill_default_param()
+        self.set_up_default_param()
         if sim_obj is None:
             self.create_sim_obj()
         else:
@@ -46,7 +45,7 @@ class SFObjectPublisher(ObjectPublisherBase):
         pass
 
     @abc.abstractmethod
-    def fullfill_default_param(self):
+    def set_up_default_param(self):
         raise NotImplemented
     
 
@@ -77,7 +76,7 @@ class SFRigidBodyPublisher(SFObjectPublisher):
         **kwargs,
     ) -> None:
 
-        super().__init__(id, sim_obj, scene, **kwargs)
+        super().__init__(sim_obj.name, sim_obj, scene, **kwargs)
 
     def full_fill_param_dict(self):
         param = self.param_dict
@@ -161,7 +160,7 @@ class SFYCBObjectPublisher(SFRigidBodyPublisher):
     _ycb_path = "../SFModels/YCB/models/ycb"
     def __init__(
         self, sim_obj: YCBMujocoObject, 
-        scene: Scene, 
+        scene: MjScene, 
         **kwargs,
     ) -> None:
         super().__init__(sim_obj, scene, **kwargs)
@@ -188,7 +187,7 @@ class SFPandaPublisher(SFRobotPubliser):
     
     def __init__(
         self, 
-        robot: RobotBase, 
+        robot: MjRobot, 
         scene: MjScene, 
         **kwargs
     ) -> None:

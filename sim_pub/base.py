@@ -180,7 +180,6 @@ class ServerBase(abc.ABC):
         loop = self._wsserver.get_loop()
         loop.create_task(task)
 
-
     def close_server(self) -> None:
         """
         Stop and close the server.
