@@ -1,6 +1,6 @@
 import abc
 from os import name
-from typing import Dict, Union
+from typing import List, Dict, Union
 
 from alr_sim.core.sim_object import SimObject
 from alr_sim.core.Robots import RobotBase

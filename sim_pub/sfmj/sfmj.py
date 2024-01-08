@@ -28,14 +28,22 @@ class SFSimPubFactory:
     }
 
     @classmethod
-    def create_publisher(
+    def create_robot_publisher(
         cls, 
-        sim_obj: Union[SimObject, RobotBase], 
+        robot_obj: MjRobot, 
         scene: MjScene, 
         **kwargs,
     ) -> SFObjectPublisher:
-        pub_type = cls._publisher_map[sim_obj]
-        return pub_type(sim_obj, scene, **kwargs)
+        pub_type = cls._publisher_map[robot_obj]
+        return pub_type(robot_obj, scene, **kwargs)
+
+    def create_sim_obj_publisher(
+        cls,
+        sim_obj: SimObject, 
+        scene: MjScene, 
+        **kwargs,
+    ):
+        pass
 
 
 class SFSimStreamer(SimStreamer):
