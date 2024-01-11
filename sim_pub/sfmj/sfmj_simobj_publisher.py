@@ -12,7 +12,6 @@ from alr_sim.utils.sim_path import sim_framework_path
 
 from sim_pub.base import ObjectPublisherBase, SimPubDataBlock, SimPubData
 from sim_pub.primitive import SimStreamer
-from sim_pub.utils import *
 from sim_pub.sfmj.geometry import *
 
 
