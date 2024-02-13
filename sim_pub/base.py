@@ -6,7 +6,7 @@ import json
 import abc
 from typing import TypedDict, Dict, List, Union
 
-from sim_pub.utils import *
+# from sim_pub.utils import *
 
 class SimPubDataBlock(Dict[str, List[float]]):
     def add_value(self, key: str, value: Union[str, List[float], bool]):
@@ -19,8 +19,7 @@ class SimPubDataBlock(Dict[str, List[float]]):
         else:
             raise TypeError
 
-    def add_str(self, key: str, value: str) -> None:
-        self[key] = string2floatlist(value)
+
 
     def add_bool(self, key: str, value: bool) -> None:
         self[key] = [1] if value else [0]
