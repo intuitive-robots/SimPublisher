@@ -8,33 +8,54 @@ from typing import TypedDict, Dict, List, Union
 
 # from sim_pub.utils import *
 
-class SimPubDataBlock(Dict[str, List[float]]):
-    def add_value(self, key: str, value: Union[str, List[float], bool]):
-        if type(value) is list:
-            self.add_float_list(key, value)
-        elif type(value) is str:
-            self.add_str(key, value)
-        elif type(value) is bool:
-            self.add_bool(key, value)
-        else:
-            raise TypeError
+# class SimPubDataBlock(Dict[str, List[float]]):
+#     def add_value(self, key: str, value: Union[str, List[float], bool]):
+#         if type(value) is list:
+#             self.add_float_list(key, value)
+#         elif type(value) is str:
+#             self.add_str(key, value)
+#         elif type(value) is bool:
+#             self.add_bool(key, value)
+#         else:
+#             raise TypeError
 
 
 
-    def add_bool(self, key: str, value: bool) -> None:
-        self[key] = [1] if value else [0]
+#     def add_bool(self, key: str, value: bool) -> None:
+#         self[key] = [1] if value else [0]
 
-    def add_float_list(self, key: str, value: List[float]) -> None:
-        self[key] = value
+#     def add_float_list(self, key: str, value: List[float]) -> None:
+#         self[key] = value
 
+class ObjectParamData(Dict[str, str]):
+    pass
 
-class SimPubData(Dict[str, SimPubDataBlock]):
+class SimParamData(Dict[str, ObjectParamData]):
+    pass
+
+class ObjectStreamData(Dict[str, List[float]]):
     pass
 
 
-class SimPubMsg(TypedDict):
-    header: str
-    data: SimPubData
+class SimStreamData(Dict[str, ObjectStreamData]):
+    pass
+
+
+# class SimPubData(Dict[str, SimPubDataBlock]):
+#     pass
+
+
+class IRXRPack:
+    HEADER_SEPERATOR = ":::"
+
+    def __init__(self, header: str, msg: str) -> None:
+        self.header: str = header
+        self.msg: str = msg
+        
+    @staticmethod
+    def parse(pack: str):
+        header, msg = pack.split(IRXRPack.HEADER_SEPERATOR, maxsplit=2)
+        return IRXRPack(header, msg)
 
 
 class ServerBase(abc.ABC):
@@ -225,13 +246,14 @@ class ObjectPublisherBase(abc.ABC):
         raise NotImplemented
 
     @abc.abstractmethod
-    def update_obj_param(self, data: SimPubData) -> None:
+    def update_obj_param(self) -> ObjectParamData:
         raise NotImplemented
 
     @abc.abstractmethod
-    def update_obj_state(self, data: SimPubData) -> None:
+    def update_obj_state(self) -> ObjectStreamData:
         raise NotImplemented
 
 
 if __name__ == "__main__":
-    s = SimPubData()
+    # s = SimPubData()
+    pass
