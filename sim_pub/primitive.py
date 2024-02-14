@@ -2,6 +2,7 @@ import asyncio
 from websockets import server
 from time import localtime, strftime
 
+from .model_loader.loader import XMLFileLoader
 from .base import ServerBase, ObjectPublisherBase
 
 class PrimitiveServer(ServerBase):
@@ -55,14 +56,14 @@ class SimStreamer(PrimitiveServer):
         # stream frequency
         self.dt = dt
 
-    def get_stream_data(self) -> str:
+    def update_stream_data(self) -> str:
         """
         Update data for stream.
 
         Returns:
             str: the data to be sent
         """
-        return [item.get_obj_state_dict() for item in self.publisher_list]
+        return [item.update_obj_state() for item in self.publisher_list]
 
     def start_stream(self) -> None:
         """
@@ -101,9 +102,10 @@ class SimStreamer(PrimitiveServer):
         """
         await self.on_start_stream()
         while self.on_stream:
-            stream_data = self.get_stream_data()
+            stream_data = self.update_stream_data()
             try:
-                await self._send_str_msg_on_loop(stream_data, ws, dt)
+                pass
+                # await self._send_str_msg_on_loop(stream_data, ws, dt)
             except:
                 print("error occured when sending messages!!!!!")
                 await ws.close()
@@ -112,27 +114,28 @@ class SimStreamer(PrimitiveServer):
                 pass
         await self.on_close_stream()
 
-class ObjectPublisher(ObjectPublisherBase):
-    """
-    A new class for serializing simulation objects to json, and 
-    then transmit their state by the server.
+# class ObjectPublisher(ObjectPublisherBase):
+#     """
+#     A new class for serializing simulation objects to json, and 
+#     then transmit their state by the server.
 
-    Args:
-        id (str): the id of this object.
-        parent (ObjectSerializerBase, optional): the parent of this object. Defaults to None.
-        child (ObjectSerializerBase, optional): the child of this object. Defaults to None.
-    """    
-    def __init__(
-        self, 
-        id: str,
-        parent: ObjectPublisherBase = None,
-        child: ObjectPublisherBase = None,
-    ) -> None:
-        super().__init__(id)
-        self.parent = parent
-        self.child = child
+#     Args:
+#         id (str): the id of this object.
+#         parent (ObjectSerializerBase, optional): the parent of this object. Defaults to None.
+#         child (ObjectSerializerBase, optional): the child of this object. Defaults to None.
+#     """    
+#     def __init__(
+#         self, 
+#         id: str,
+#         parent: ObjectPublisherBase = None,
+#         child: ObjectPublisherBase = None,
+#     ) -> None:
+#         super().__init__(id)
+#         self.parent = parent
+#         self.child = child
 
 
 if __name__ == "__main__":
-    s = SimStreamer()
-    s.start_server_thread(block=True)
+    # s = SimStreamer()
+    # s.start_server_thread(block=True)
+    pass
