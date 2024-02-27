@@ -1,7 +1,15 @@
 import mujoco_py
+import os
+
+from sim_pub.model_loader import SceneLoader
 
 # Load the model from an XML file
-model = mujoco_py.load_model_from_path("/home/xinkai/project/SimPublisher/example/mujoco/pendulum.xml")
+model_path = os.path.join(os.path.dirname(__file__), "pendulum.xml")
+model = mujoco_py.load_model_from_path(model_path)
+
+scene_loader = SceneLoader()
+scene_loader.include_mjcf_file(model_path)
+
 sim = mujoco_py.MjSim(model)
 
 # Create a viewer to visualize the simulation

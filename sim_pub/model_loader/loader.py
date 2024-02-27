@@ -1,12 +1,14 @@
 import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import Element as XMLNode
 import abc
 from typing import TypedDict, Dict, List, Union
 import os
 import trimesh
 
-from sim_pub.base import ServerBase
-from sim_pub.model_loader.ucomponent import *
-from utils import singleton
+from ..base import ServerBase
+from .ucomponent import *
+
+from .utils import singleton
 
 def tree_to_list_dfs(
         root: UGameObject,
@@ -18,7 +20,6 @@ def tree_to_list_dfs(
     game_objects_list.append(EmptyGameObject)
     return game_objects_list
 
-
 class XMLFileLoader(abc.ABC):
 
     def __init__(
@@ -28,43 +29,73 @@ class XMLFileLoader(abc.ABC):
         ):
         # file_path = os.path.abspath(file_path)
         assert os.path.exists(file_path), f"The file '{file_path}' does not exist."
+        tree = ET.parse(file_path)
+        tree_root = tree.getroot()
         self.file_path = file_path
         self.root_object = root
         self.namespace = file_path
-        self.parse()
+        self.parse(tree_root)
 
     @abc.abstractmethod
-    def parse(self) -> str:
-        pass
+    def parse(self, root: ET.Element) -> str:
+        raise NotImplemented
 
 class MJCFLoader(XMLFileLoader):
 
-    def parse(self):
-        for worldbody in self.root.findall("worldbody"):
+    def parse(self, root: ET.Element) -> str:
+        for worldbody in root.findall("worldbody"):
             self.parse_worldbody(worldbody)
 
-    def parse_worldbody(self, worldbody: ET.ElementTree):
+    def parse_worldbody(self, worldbody: XMLNode):
         for body in worldbody.findall("body"):
-            game_object = self.parse_object(body)
+            game_object = self.parse_body(body)
             game_object.parent = self.root_object
 
-
-    def parse_object(self, object_element: ET.ElementTree) -> UGameObject:
-        game_object = UGameObject(object_element)
-        game_object.visual = self.parse_visual(object_element.find("gemo"))
-        for body in object_element.findall("body"):
-            child = self.parse_object(body)
+    def parse_body(self, body: XMLNode) -> UGameObject:
+        game_object = UGameObject(body)
+        print(game_object)
+        for geom in body.findall("geom"):
+            self.parse_geom(geom, game_object)
+        for body in body.findall("body"):
+            child = self.parse_body(body)
             child.parent = game_object
-            game_object.children.append(child)
+            game_object.add_child(child)
         return game_object
 
+    def parse_geom(self, geom: XMLNode, game_object: UGameObject) -> None:
+        geom_type = geom.get("type", "mesh")
+        visual = UVisual()
+        if geom_type == "sphere":
+            self.create_sphere(geom, visual)
+        elif geom_type == "box":
+            visual.type = UVisualType.BOX
+        elif geom_type == "capsule":
+            visual.type = UVisualType.CAPSULE
+        elif geom_type == "mesh":
+            pass
+        game_object.add_visual(visual)
 
-    def parse_visual(self, link: ET.ElementTree) -> UVisual:
+    def parse_mesh(self, link: XMLNode) -> UVisual:
         pass
 
-
-    def parse_joint(self, link: ET.ElementTree) -> UJoint:
+    def parse_joint(self, link: XMLNode) -> UJoint:
         pass
+
+    @staticmethod
+    def create_sphere(geom: XMLNode, visual: UVisual) -> None:
+        visual.type = UVisualType.SPHERE
+        if "size" in geom.attrib:
+            visual.scale = [float(geom["size"]), float(geom["size"]), float(geom["size"])]
+        pos = geom.get("pos", [0.0, 0.0, 0.0])
+        visual.pos = [pos[1], -pos[2], pos[0]]
+        rot = geom.get("rot", [0.0, 0.0, 0.0])
+        visual.pos = [rot[1], -rot[2], rot[0]]
+        if "fromto" in geom.attrib:
+            pass
+            # TODO: support for the fromto
+        # TODO: other tags for pos and rot
+
+    # TODO: create other shapes
 
 class URDFLoader(XMLFileLoader):
     pass
@@ -115,7 +146,8 @@ class AssetLibrary:
     #         material=convert_material(mesh.visual.material)
     #     )
 
-class ScenePublisher:
+@singleton
+class SceneLoader:
     def __init__(self) -> None:
         self.xml_file_loaders : List[XMLFileLoader] = list()
         self.asset_lib = AssetLibrary()
@@ -132,9 +164,9 @@ class ScenePublisher:
         # server.send_str_msg()
         # create new publishers and assign them to server
 
-if __name__ == "__main__":
-    model_pub = ModelPublisher()
-    model_pub.include_mjcf_file("../panda.xml")
+# if __name__ == "__main__":
+#     model_pub = ModelPublisher()
+#     model_pub.include_mjcf_file("../panda.xml")
     
     # print(tree)
     # urdf = URDFLoader(tree)
