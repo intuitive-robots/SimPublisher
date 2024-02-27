@@ -4,59 +4,8 @@ from asyncio import sleep as async_sleep
 import threading
 import json
 import abc
-from typing import TypedDict, Dict, List, Union
 
-# from sim_pub.utils import *
-
-# class SimPubDataBlock(Dict[str, List[float]]):
-#     def add_value(self, key: str, value: Union[str, List[float], bool]):
-#         if type(value) is list:
-#             self.add_float_list(key, value)
-#         elif type(value) is str:
-#             self.add_str(key, value)
-#         elif type(value) is bool:
-#             self.add_bool(key, value)
-#         else:
-#             raise TypeError
-
-
-
-#     def add_bool(self, key: str, value: bool) -> None:
-#         self[key] = [1] if value else [0]
-
-#     def add_float_list(self, key: str, value: List[float]) -> None:
-#         self[key] = value
-
-class ObjectParamData(Dict[str, str]):
-    pass
-
-class SimParamData(Dict[str, ObjectParamData]):
-    pass
-
-class ObjectStreamData(Dict[str, List[float]]):
-    pass
-
-
-class SimStreamData(Dict[str, ObjectStreamData]):
-    pass
-
-
-# class SimPubData(Dict[str, SimPubDataBlock]):
-#     pass
-
-
-class IRXRPack:
-    HEADER_SEPERATOR = ":::"
-
-    def __init__(self, header: str, msg: str) -> None:
-        self.header: str = header
-        self.msg: str = msg
-        
-    @staticmethod
-    def parse(pack: str):
-        header, msg = pack.split(IRXRPack.HEADER_SEPERATOR, maxsplit=2)
-        return IRXRPack(header, msg)
-
+from .msg import ObjData
 
 class ServerBase(abc.ABC):
     """
@@ -133,7 +82,7 @@ class ServerBase(abc.ABC):
 
         Args:
             ws (server.WebSocketServerProtocol): WebSocketServerProtocol from websockets.
-        """        
+        """
         await self.on_conncet(ws)
         _, pending = await asyncio.wait(
             self.create_handler(ws),
@@ -227,7 +176,7 @@ class ServerBase(abc.ABC):
         print(f"the connection to {ws.local_address} is closed")
 
 
-class ObjectPublisherBase(abc.ABC):
+class ObjPublisherBase(abc.ABC):
     """
     A abstract class for serializing simulation objects to json, and 
     then transmit their state by the server.
@@ -246,11 +195,11 @@ class ObjectPublisherBase(abc.ABC):
         raise NotImplemented
 
     @abc.abstractmethod
-    def update_obj_param(self) -> ObjectParamData:
+    def update_obj_param(self) -> ObjData:
         raise NotImplemented
 
     @abc.abstractmethod
-    def update_obj_state(self) -> ObjectStreamData:
+    def update_obj_state(self) -> ObjData:
         raise NotImplemented
 
 

@@ -3,7 +3,7 @@ from websockets import server
 from time import localtime, strftime
 
 from .model_loader.loader import XMLFileLoader
-from .base import ServerBase, ObjectPublisherBase
+from .base import ServerBase, ObjPublisherBase
 
 class PrimitiveServer(ServerBase):
     """
@@ -43,7 +43,7 @@ class SimStreamer(PrimitiveServer):
     def __init__(
             self,
             dt: float =  0.05,
-            publisher_list: list[ObjectPublisherBase] = list(),
+            publisher_list: list[ObjPublisherBase] = list(),
             host = "127.0.0.1", 
             port = 8052,
             on_stream: bool = False,
@@ -114,25 +114,25 @@ class SimStreamer(PrimitiveServer):
                 pass
         await self.on_close_stream()
 
-# class ObjectPublisher(ObjectPublisherBase):
-#     """
-#     A new class for serializing simulation objects to json, and 
-#     then transmit their state by the server.
+class ObjectPublisher(ObjPublisherBase):
+    """
+    A new class for serializing simulation objects to json, and 
+    then transmit their state by the server.
 
-#     Args:
-#         id (str): the id of this object.
-#         parent (ObjectSerializerBase, optional): the parent of this object. Defaults to None.
-#         child (ObjectSerializerBase, optional): the child of this object. Defaults to None.
-#     """    
-#     def __init__(
-#         self, 
-#         id: str,
-#         parent: ObjectPublisherBase = None,
-#         child: ObjectPublisherBase = None,
-#     ) -> None:
-#         super().__init__(id)
-#         self.parent = parent
-#         self.child = child
+    Args:
+        id (str): the id of this object.
+        parent (ObjectSerializerBase, optional): the parent of this object. Defaults to None.
+        child (ObjectSerializerBase, optional): the child of this object. Defaults to None.
+    """    
+    def __init__(
+        self, 
+        id: str,
+        parent: ObjPublisherBase = None,
+        child: ObjPublisherBase = None,
+    ) -> None:
+        super().__init__(id)
+        self.parent = parent
+        self.child = child
 
 
 if __name__ == "__main__":

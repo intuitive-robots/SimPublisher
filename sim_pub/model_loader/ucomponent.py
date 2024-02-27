@@ -2,8 +2,7 @@ from dataclasses import dataclass
 from xml.etree.ElementTree import Element as XMLNode
 from enum import Enum
 import abc
-from typing import Any, Dict, List, Optional, Tuple, TypeVar
-from matplotlib.pyplot import cla
+from typing import List, Optional, Tuple, TypeVar
 
 from utils import singleton
 
@@ -99,7 +98,6 @@ class EmptyGameObject(UGameObject):
 @singleton
 class SceneRoot(UGameObject):
 	pass
-
 
 class UJoint(UMetaEntity):
 	def __init__(self) -> None:
