@@ -5,7 +5,7 @@ import os
 import trimesh
 
 from sim_pub.base import ServerBase
-from sim_pub.model_loader.unity import *
+from sim_pub.model_loader.ucomponent import *
 from utils import singleton
 
 def tree_to_list_dfs(
@@ -24,7 +24,7 @@ class XMLFileLoader(abc.ABC):
     def __init__(
             self, 
             file_path: str, 
-            root: UGameObject = SceneRoot.instance()
+            root: UGameObject = SceneRoot()
         ):
         # file_path = os.path.abspath(file_path)
         assert os.path.exists(file_path), f"The file '{file_path}' does not exist."
@@ -33,7 +33,8 @@ class XMLFileLoader(abc.ABC):
         self.namespace = file_path
         self.parse()
 
-    def parse(self):
+    @abc.abstractmethod
+    def parse(self) -> str:
         pass
 
 class MJCFLoader(XMLFileLoader):
@@ -68,53 +69,56 @@ class MJCFLoader(XMLFileLoader):
 class URDFLoader(XMLFileLoader):
     pass
 
-# @singleton
-# class AssetLibrary:
+@singleton
+class AssetLibrary:
     
-#     def __init__(self) -> None:
-#         self.asset: dict[str, List[float]]
+    def __init__(self) -> None:
+        self.asset_path: dict[str, str]
         
-#     def include_stl_file(self, file_path):
-#         pass
+    def include_stl_file(self, file_path):
+        pass
 
-#     def include_dae_file(self, file_path):
-#         pass
+    def include_dae_file(self, file_path):
+        pass
 
-#     def convert_mesh(mesh : trimesh.base.Trimesh, matrix : np.ndarray, name : str) -> UMesh:
+    def load_asset(self, asset_id) -> str:
+        pass
+
+    # def convert_mesh(mesh : trimesh.base.Trimesh, matrix : np.ndarray, name : str) -> UMesh:
 
 
-#         verts = np.around(mesh.vertices, decimals=5) # load vertices with max 5 decimal points
-#         verts[:, 0] *= -1 # reverse x pos of every vertex
-#         verts = verts.tolist()
+    #     verts = np.around(mesh.vertices, decimals=5) # load vertices with max 5 decimal points
+    #     verts[:, 0] *= -1 # reverse x pos of every vertex
+    #     verts = verts.tolist()
 
-#         norms = np.around(mesh.vertex_normals, decimals=5) # load normals with max 5 decimal points
-#         norms[:, 0] *= -1 # reverse x pos of every normal
-#         norms = norms.tolist()
+    #     norms = np.around(mesh.vertex_normals, decimals=5) # load normals with max 5 decimal points
+    #     norms[:, 0] *= -1 # reverse x pos of every normal
+    #     norms = norms.tolist()
 
-#         indices = mesh.faces[:, [2, 1, 0]].flatten().tolist() # reverse winding order 
+    #     indices = mesh.faces[:, [2, 1, 0]].flatten().tolist() # reverse winding order 
 
-#         rot, pos = decompose_transform_matrix(matrix) # decompose matrix 
+    #     rot, pos = decompose_transform_matrix(matrix) # decompose matrix 
 
-#         # this needs to be tested
-#         pos = [-pos[1], pos[2], -pos[0]]
-#         rot = [-rot[1] - math.pi / 2, -rot[2], math.pi / 2 - rot[0] ]
-#         scale = [1, 1, 1]
+    #     # this needs to be tested
+    #     pos = [-pos[1], pos[2], -pos[0]]
+    #     rot = [-rot[1] - math.pi / 2, -rot[2], math.pi / 2 - rot[0] ]
+    #     scale = [1, 1, 1]
 
-#         return UMesh(
-#             name=name, 
-#             position=pos, 
-#             rotation=rot, 
-#             scale=scale, 
-#             indices=indices, 
-#             vertices=verts, 
-#             normals=norms, 
-#             material=convert_material(mesh.visual.material)
-#         )
+    #     return UMesh(
+    #         name=name, 
+    #         position=pos, 
+    #         rotation=rot, 
+    #         scale=scale, 
+    #         indices=indices, 
+    #         vertices=verts, 
+    #         normals=norms, 
+    #         material=convert_material(mesh.visual.material)
+    #     )
 
-class ModelPublisher:
+class ScenePublisher:
     def __init__(self) -> None:
         self.xml_file_loaders : List[XMLFileLoader] = list()
-        # self.asset_lib = AssetLibrary()
+        self.asset_lib = AssetLibrary()
 
     def include_urdf_file(self, file_path):
         self.xml_file_loaders.append(URDFLoader(file_path))
