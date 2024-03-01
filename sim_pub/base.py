@@ -110,7 +110,7 @@ class ServerBase(abc.ABC):
         print("server task finished")
 
     async def _send_str_msg_on_loop(
-        self, msg: str, 
+        self, msg: str | dict, 
         ws: server.WebSocketServerProtocol, 
         sleep_time: float = 0
     ):

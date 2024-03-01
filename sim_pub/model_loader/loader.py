@@ -3,21 +3,21 @@ from xml.etree.ElementTree import Element as XMLNode
 import abc
 from typing import TypedDict, Dict, List, Union
 import os
+from json import dumps
 import trimesh
 
 from ..base import ServerBase
 from .ucomponent import *
-
-from .utils import singleton
+from .utils import *
 
 def tree_to_list_dfs(
         root: UGameObject,
-        game_objects_list: list[UGameObject],
+        game_objects_list: list[UGameObject] = list(),
     ):
     for child in root.children:
         game_objects_list.append(child)
         tree_to_list_dfs(child)
-    game_objects_list.append(EmptyGameObject)
+    # game_objects_list.append(EmptyGameObject())
     return game_objects_list
 
 class XMLFileLoader(abc.ABC):
@@ -49,22 +49,25 @@ class MJCFLoader(XMLFileLoader):
     def parse_worldbody(self, worldbody: XMLNode):
         for body in worldbody.findall("body"):
             game_object = self.parse_body(body)
-            game_object.parent = self.root_object
+            self.root_object.add_child(game_object)
 
-    def parse_body(self, body: XMLNode) -> UGameObject:
-        game_object = UGameObject(body)
-        print(game_object)
-        for geom in body.findall("geom"):
-            self.parse_geom(geom, game_object)
+    def parse_body(self, body: XMLNode, parent: UGameObject = SceneRoot()) -> UGameObject:
+        # the basic data of body
+        game_object = UGameObject(get_name(body), parent)
+        game_object.pos = get_pos(body)
+        game_object.rot = get_rot(body)
+        # generate the children
+        # for geom in body.findall("geom"):
+        #     self.parse_geom(geom, game_object)
         for body in body.findall("body"):
-            child = self.parse_body(body)
+            child = self.parse_body(body, game_object)
             child.parent = game_object
             game_object.add_child(child)
         return game_object
 
     def parse_geom(self, geom: XMLNode, game_object: UGameObject) -> None:
         geom_type = geom.get("type", "mesh")
-        visual = UVisual()
+        visual = UVisual(get_name(geom))
         if geom_type == "sphere":
             self.create_sphere(geom, visual)
         elif geom_type == "box":
@@ -86,9 +89,9 @@ class MJCFLoader(XMLFileLoader):
         visual.type = UVisualType.SPHERE
         if "size" in geom.attrib:
             visual.scale = [float(geom["size"]), float(geom["size"]), float(geom["size"])]
-        pos = geom.get("pos", [0.0, 0.0, 0.0])
+        pos = get_pos(geom)
         visual.pos = [pos[1], -pos[2], pos[0]]
-        rot = geom.get("rot", [0.0, 0.0, 0.0])
+        rot = get_rot(geom)
         visual.pos = [rot[1], -rot[2], rot[0]]
         if "fromto" in geom.attrib:
             pass
@@ -106,10 +109,10 @@ class AssetLibrary:
     def __init__(self) -> None:
         self.asset_path: dict[str, str]
         
-    def include_stl_file(self, file_path):
+    def include_stl_file(self, file_name, file_path):
         pass
 
-    def include_dae_file(self, file_path):
+    def include_dae_file(self, file_name, file_path):
         pass
 
     def load_asset(self, asset_id) -> str:
@@ -158,9 +161,10 @@ class SceneLoader:
     def include_mjcf_file(self, file_path):
         self.xml_file_loaders.append(MJCFLoader(file_path))
 
-    def publish_models(self, server: ServerBase) -> None:
+    def generate_model_dict(self) -> dict:
         game_obj_list = tree_to_list_dfs(SceneRoot())
-        
+        print(game_obj_list)
+        return {obj.name: obj.to_dict() for obj in game_obj_list}
         # server.send_str_msg()
         # create new publishers and assign them to server
 

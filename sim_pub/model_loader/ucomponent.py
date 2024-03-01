@@ -1,10 +1,11 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
+from unicodedata import name
 from xml.etree.ElementTree import Element as XMLNode
 from enum import Enum
 import abc
 from typing import List, Optional, Tuple, TypeVar
 
-from .utils import singleton
+from .utils import get_name, singleton
 
 
 class UHeaderType(str, Enum):
@@ -39,23 +40,21 @@ class UMetaEntity(abc.ABC):
 		super().__init__()
 
 	@abc.abstractmethod
-	def to_string(self) -> str:
+	def to_dict(self) -> dict:
 		pass
 
 @dataclass
 class UComponent(UMetaEntity):
-	def to_string(self) -> str:
-		return super().to_string()
+	name: str
+	def to_dict(self) -> dict:
+		return asdict(self)
 
 class UMaterial(UComponent):
-
 	specular : List[float]
 	diffuse : List[float]
 	ambient : List[float]
 	glossiness : float
 
-	def to_string(self) -> str:
-		return super().to_string()
 
 class UMesh(UComponent):
   name : str
@@ -77,40 +76,49 @@ class UVisual(UComponent):
 
 class UGameObjectBase(UMetaEntity):
 
-	def __init__(self) -> None:
+	def __init__(self, name) -> None:
 		super().__init__()
+		self.name = name
 		self.pos: list[float] = [0, 0, 0]
 		self.rot: list[float] = [0, 0, 0]
 		self.static: bool = False
 		self.parent: UGameObjectBase
 
-	def to_string(self) -> str:
-		return super().to_string()
+	def to_dict(self) -> dict:
+		return {
+			"name": self.name,
+			"pos": self.pos,
+			"rot": self.rot,
+			"static": self.static,
+			"parent": self.parent.name,
+		}
 
 class UGameObject(UGameObjectBase):
 	def __init__(
 		self,
+		name,
 		parent: UGameObjectBase,
 	) -> None:
-		super().__init__()
+		super().__init__(name)
 		self.parent = parent
 		self.visual_child: UGameObject = None
 		self.children: List[UGameObjectBase] = list()
 
 	def add_child(self, child: UGameObjectBase) -> None:
 		self.children.append(child)
+		child.parent = self
 
 	def add_visual(self, visual: UVisual):
 		if self.visual_child is None:
-			self.visual_child = UGameObject(parent=self)
+			self.visual_child = UGameObject(get_name(visual), parent=self)
 		visual_object = UVisualGameObject(self.visual_child)
 		visual_object.visual = visual
 		self.visual_child.add_child(visual_object)
 
 
 class UVisualGameObject(UGameObject):
-	def __init__(self, parent: UGameObject) -> None:
-		super().__init__(parent)
+	def __init__(self, name, parent: UGameObject) -> None:
+		super().__init__(name, parent)
 		self.visual: UVisual
 
 @singleton
@@ -120,7 +128,7 @@ class EmptyGameObject(UGameObject):
 @singleton
 class SceneRoot(UGameObject):
 	def __init__(self) -> None:
-		super().__init__(parent=None)
+		super().__init__("SceneRoot", parent=None)
 
 
 class UJoint(UMetaEntity):
