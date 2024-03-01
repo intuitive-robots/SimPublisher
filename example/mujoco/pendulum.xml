@@ -1,4 +1,4 @@
-<mujoco model="example">
+<mujoco model="pendulum">
   <default>
     <geom rgba=".8 .6 .4 1"/>
   </default>
@@ -9,23 +9,18 @@
 
   <worldbody>
     <light pos="0 1 1" dir="0 -1 -1" diffuse="1 1 1"/>
-    <body pos="0 0 1">
-      <joint type="ball"/>
-      <geom type="capsule" size="0.06" fromto="0 0 0  0 0 -.4"/>
-      <body pos="0 0 -0.4">
-        <joint axis="0 1 0"/>
-        <joint axis="1 0 0"/>
-        <geom type="capsule" size="0.04" fromto="0 0 0  .3 0 0"/>
-        <body pos=".3 0 0">
-          <joint axis="0 1 0"/>
-          <joint axis="0 0 1"/>
-          <geom pos=".1 0 0" size="0.1 0.08 0.02" type="ellipsoid"/>
-          <site name="end1" pos="0.2 0 0" size="0.01"/>
-        </body>
+    <body name="capsule_0" pos="0 0 1">
+      <joint type="ball" pos="0 0 0.2" />
+      <geom type="capsule" size="0.06 0.2" />
+      <body name="capsule_1" pos="0 0 -0.4">
+        <joint axis="0 1 0" pos="0 0 0.15" />
+        <joint axis="1 0 0" pos="0 0 0.15"/>
+        <geom type="capsule" size="0.04 0.15"/>
+        <site name="end1" pos="0 0 -.15" size="0.01"/>
       </body>
     </body>
 
-    <body pos="0.3 0 0.1">
+    <body name="mass" pos="0.3 0 0.1">
       <joint type="free"/>
       <geom size="0.07 0.1" type="cylinder"/>
       <site name="end2" pos="0 0 0.1" size="0.01"/>
