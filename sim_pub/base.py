@@ -4,8 +4,9 @@ from asyncio import sleep as async_sleep
 import threading
 import json
 import abc
+from time import sleep as time_sleep
 
-from .msg import ObjData
+from .msg import ObjData, MsgPack
 
 class ServerBase(abc.ABC):
     """
@@ -42,6 +43,11 @@ class ServerBase(abc.ABC):
         self.server_thread.start()
         if block:
             self.server_thread.join()
+
+    def wait_for_connection(self) -> None:
+        while not self.on_connect:
+            time_sleep(0.2)
+        return 
 
     @abc.abstractmethod
     async def process_message(self, msg:str):
@@ -83,7 +89,7 @@ class ServerBase(abc.ABC):
         Args:
             ws (server.WebSocketServerProtocol): WebSocketServerProtocol from websockets.
         """
-        await self.on_conncet(ws)
+        await self.on_connect(ws)
         _, pending = await asyncio.wait(
             self.create_handler(ws),
             return_when=asyncio.FIRST_COMPLETED,
@@ -109,8 +115,8 @@ class ServerBase(abc.ABC):
         asyncio.run(self._expect_client())
         print("server task finished")
 
-    async def _send_str_msg_on_loop(
-        self, msg: str | dict, 
+    async def _send_msg_on_loop(
+        self, msg: MsgPack,
         ws: server.WebSocketServerProtocol, 
         sleep_time: float = 0
     ):
@@ -123,21 +129,21 @@ class ServerBase(abc.ABC):
             msg (str): message to be sent.
             ws (server.WebSocketServerProtocol): WebSocketServerProtocol from websockets.
             sleep_time (float, optional): sleep time after sending the message. Defaults to 0.
-        """        
-        await ws.send(str.encode(json.dumps(msg)))
+        """
+        await ws.send(str.encode(str(msg)))
         await async_sleep(sleep_time)
  
-    def send_str_msg(self, msg: str, sleep_time: float = 0) -> None:
+    def send_msg(self, msg: MsgPack, sleep_time: float = 0) -> None:
         """
-        Send a str message outside the server thread.
+        Send a message outside the server thread.
 
         Args:
-            msg (str): message to be sent.
+            msg (MsgPack): message to be sent.
             sleep_time (float, optional): sleep time after sending the message. Defaults to 0.
         """            
         if self._ws is None:
             return
-        self.create_new_task(self._send_str_msg_on_loop(msg, self._ws, sleep_time))
+        self.create_new_task(self._send_msg_on_loop(msg, self._ws, sleep_time))
 
     def create_new_task(self, task: asyncio.Task) -> None:
         """
@@ -155,7 +161,7 @@ class ServerBase(abc.ABC):
         """        
         self._wsserver.close()
 
-    async def on_conncet(self, ws: server.WebSocketServerProtocol) -> None:
+    async def on_connect(self, ws: server.WebSocketServerProtocol) -> None:
         """
         This method will be executed once the connection is established.
 
