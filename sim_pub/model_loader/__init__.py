@@ -1,1 +1,1 @@
-from .loader import SceneLoader
+from .mjcf_loader import MJCFImporter

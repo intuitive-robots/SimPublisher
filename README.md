@@ -15,6 +15,12 @@ Install the dependency
 pip install websockets
 ```
 
+Install this repo
+```
+cd [the path to this project]
+pip install -e .
+```
+
 ## Usage
 
 Primitive module is used as a basic implementation of server and streamer.

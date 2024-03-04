@@ -1,13 +1,12 @@
-from websockets import WebSocketServerProtocol
-from sim_pub.base import ObjPublisherBase
+from websockets.server import WebSocketServerProtocol
 
 from ..primitive import SimStreamer
-from ..model_loader import SceneLoader
+from ..model_loader import MJCFImporter
 
 class MujocoStreamer(SimStreamer):
     def __init__(self, model_path: str) -> None:
-        self.scene_loader = SceneLoader()
-        self.scene_loader.include_mjcf_file(model_path)
+        self.scene_loader = MJCFImporter()
+        self.scene_loader.include_xml_file(model_path)
         scene_msg = self.scene_loader.generate_scene_msg()
         super().__init__()
         
