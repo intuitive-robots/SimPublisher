@@ -81,7 +81,7 @@ class UGameObjectBase(UMetaEntity):
 		self.name = name
 		self.pos: list[float] = [0, 0, 0]
 		self.rot: list[float] = [0, 0, 0]
-		self.static: bool = False
+		self.moveable: bool = True
 		self.parent: UGameObjectBase
 
 	def to_dict(self) -> dict:
@@ -89,7 +89,7 @@ class UGameObjectBase(UMetaEntity):
 			"name": self.name,
 			"pos": self.pos,
 			"rot": self.rot,
-			"static": self.static,
+			"moveable": self.moveable,
 			"parent": self.parent.name,
 		}
 
@@ -115,7 +115,12 @@ class UGameObject(UGameObjectBase):
 		visual_object.visual = visual
 		self.visual_child.add_child(visual_object)
 
-
+	def to_dict(self) -> dict:
+		return {
+			**super().to_dict(),
+			"children": [child.name for child in self.children],
+		}
+  
 class UVisualGameObject(UGameObject):
 	def __init__(self, name, parent: UGameObject) -> None:
 		super().__init__(name, parent)

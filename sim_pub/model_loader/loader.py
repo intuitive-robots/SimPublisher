@@ -7,17 +7,19 @@ from json import dumps
 import trimesh
 
 from ..base import ServerBase
+from ..msg import MsgPack
 from .ucomponent import *
 from .utils import *
 
 def tree_to_list_dfs(
         root: UGameObject,
-        game_objects_list: list[UGameObject] = list(),
+        game_objects_list: list[UGameObject] = None,
     ):
+    if game_objects_list is None:
+        game_objects_list = list()
     for child in root.children:
         game_objects_list.append(child)
-        tree_to_list_dfs(child)
-    # game_objects_list.append(EmptyGameObject())
+        tree_to_list_dfs(child, game_objects_list)
     return game_objects_list
 
 class XMLFileLoader(abc.ABC):
@@ -161,10 +163,10 @@ class SceneLoader:
     def include_mjcf_file(self, file_path):
         self.xml_file_loaders.append(MJCFLoader(file_path))
 
-    def generate_model_dict(self) -> dict:
+    def generate_scene_msg(self) -> MsgPack:
         game_obj_list = tree_to_list_dfs(SceneRoot())
-        print(game_obj_list)
-        return {obj.name: obj.to_dict() for obj in game_obj_list}
+        scene_list = [obj.to_dict() for obj in game_obj_list]
+        return MsgPack("Scene_Model", dumps(scene_list))
         # server.send_str_msg()
         # create new publishers and assign them to server
 
