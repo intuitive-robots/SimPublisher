@@ -9,7 +9,6 @@ def singleton(cls):
     return get_instance
 
 
-
 def get_name(node: XMLNode, default_name: str = "default") -> str:
     return node.get("name", default_name)
 
@@ -18,3 +17,6 @@ def get_pos(node: XMLNode) -> list[float]:
 
 def get_rot(node: XMLNode) -> list[float]:
     return list(map(float, node.get("rot", "0.0 0.0 0.0").split()))
+
+def get_size(node: XMLNode) -> list[float]:
+    return list(map(float, node.get("size", "0.0 0.0 0.0").split()))

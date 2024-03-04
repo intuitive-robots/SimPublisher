@@ -70,9 +70,19 @@ class UMesh(UComponent):
 class UVisual(UComponent):
 	type : UVisualType
 	pos : List[float]
-	rot : List[float]
+	rot : List[float] = [0.0, 0.0, 0.0]
 	scale : List[float]
-	meshes : List[UMesh]
+	meshes : List[UMesh] = []
+	
+	def to_dict(self) -> dict:
+		return {
+			"name": self.name,
+			"type": self.type,
+			"pos": self.pos,
+			"rot": self.rot,
+			"scale" : self.scale,
+			"meshes" : self.meshes,
+		}
 
 class UGameObjectBase(UMetaEntity):
 
@@ -101,7 +111,7 @@ class UGameObject(UGameObjectBase):
 	) -> None:
 		super().__init__(name)
 		self.parent = parent
-		self.visual_child: UGameObject = None
+		self.visual: List[UVisual] = list()
 		self.children: List[UGameObjectBase] = list()
 
 	def add_child(self, child: UGameObjectBase) -> None:
@@ -109,16 +119,13 @@ class UGameObject(UGameObjectBase):
 		child.parent = self
 
 	def add_visual(self, visual: UVisual):
-		if self.visual_child is None:
-			self.visual_child = UGameObject(get_name(visual), parent=self)
-		visual_object = UVisualGameObject(self.visual_child)
-		visual_object.visual = visual
-		self.visual_child.add_child(visual_object)
+		self.visual.append(visual)
 
 	def to_dict(self) -> dict:
 		return {
 			**super().to_dict(),
 			"children": [child.name for child in self.children],
+			"visual": [item.to_dict() for item in self.visual]
 		}
   
 class UVisualGameObject(UGameObject):
