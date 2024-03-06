@@ -1,17 +1,27 @@
 <mujoco>
-    <default class="main">
-        <geom rgba="1 0 0 1"/>
-        <default class="sub">
-            <geom rgba="0 1 0 1"/>
+
+    <default>
+        <default class="red">
+            <geom rgba="1 0 0 1"/>
+            <default class="green">
+                <geom rgba="0 1 0 1"/>
+            </default>
+        </default>
+    </default>
+
+    <default>
+        <default class="x1">
+            <geom rgba="0 1 1 1"/>
         </default>
     </default>
 
     <worldbody>
-        <geom type="box"/>
-        <body childclass="sub">
-            <geom type="ellipsoid"/>
-            <geom type="sphere" rgba="0 0 1 1"/>
-            <geom type="cylinder" class="main"/>
+        <include file="included.xml"/>
+        <geom type="sphere" size="0.1" pos="0 0 0"/>
+        <body childclass="green">
+            <geom type="sphere" size="0.2" pos="0 0 0.5"/>
+            <geom type="sphere" rgba="0 0 1 1" size="0.3" pos="0 0.5 0"/>
+            <geom type="sphere" class="x1" size="0.4" pos="0.5 0 0"/>
         </body>
     </worldbody>
 </mujoco>

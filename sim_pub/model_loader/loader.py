@@ -29,17 +29,17 @@ class XMLLoader(abc.ABC):
             file_path: str,
         ):
         self.asset_lib: AssetLibrary = AssetLibrary()
-        self.include_xml_file(file_path)
+    #     self.include_xml_file(file_path)
+        self.file_path = file_path
+        root_xml = self.get_root_from_xml_file(file_path)
+        self.parse_xml(root_xml)
 
-    def include_xml_file(self, file_path: str, root: UGameObject = SceneRoot()) -> None:
+    def get_root_from_xml_file(self, file_path: str) -> XMLNode:
         file_path = os.path.abspath(file_path)
         assert os.path.exists(file_path), f"The file '{file_path}' does not exist."
         tree_xml = ET.parse(file_path)
-        root_xml = tree_xml.getroot()
-        self.file_path = file_path
-        self.root_object = root
-        self.namespace = file_path
-        self.parse_xml(root_xml)
+        return tree_xml.getroot()
+
 
     @abc.abstractmethod
     def parse_xml(self, root: ET.Element) -> str:

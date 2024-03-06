@@ -2,7 +2,7 @@ import asyncio
 from websockets import server
 from time import localtime, strftime
 
-from .model_loader.loader import XMLFileLoader
+from .model_loader.loader import XMLLoader
 from .base import ServerBase, ObjPublisherBase
 
 class PrimitiveServer(ServerBase):

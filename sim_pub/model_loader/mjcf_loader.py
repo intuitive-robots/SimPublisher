@@ -1,5 +1,5 @@
 import chunk
-from os import replace
+import os
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element as XMLNode
 from typing import List, Dict, Callable, Optional, Tuple, TypeVar
@@ -65,17 +65,27 @@ class MJCFLoader(XMLLoader):
         super().__init__(file_path)
 
 
-    def parse_xml(self, root_xml: ET.Element) -> str:
-        self.process_default_class(root_xml)
-        top_default_dict = self.default_class_dict[list(self.default_class_dict)[0]]
-        self.replace_class_defination(root_xml, top_default_dict)
+    def parse_xml(self, root_xml: XMLNode) -> str:
+        self.assembly_include_files(root_xml)
+        # self.process_default_class(root_xml)
+        # top_default_dict = self.default_class_dict[list(self.default_class_dict)[0]]
+        # self.replace_class_defination(root_xml, top_default_dict)
         tree = ET.ElementTree(root_xml)
         xml_str = ET.tostring(root_xml, encoding='utf8', method='xml').decode()
-
         print(xml_str)
         # TODO: replace all the class tag
         # for worldbody in root_xml.findall("worldbody"):
             # self._parse_worldbody(worldbody)
+
+    def assembly_include_files(self, root_xml: XMLNode) -> None:
+        for child in root_xml:
+            if child.tag != "include":
+                self.assembly_include_files(child)
+                continue
+            sub_xml_path = os.path.join(self.file_path, "..", child.attrib["file"])
+            sub_root_xml = self.get_root_from_xml_file(sub_xml_path)
+            root_xml.extend(sub_root_xml)
+            root_xml.remove(child)
 
     def process_default_class(self, xml: XMLNode, parent_dict: Dict[str, Dict[str, str]] = None):
         new_class_dict = {} if parent_dict is None else deepcopy(parent_dict)
