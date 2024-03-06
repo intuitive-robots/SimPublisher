@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass, asdict
 from unicodedata import name
 from xml.etree.ElementTree import Element as XMLNode
@@ -61,10 +62,11 @@ class UMesh(UComponent):
   pos : List[float]
   rot : List[float]
   scale : List[float]
-  indices : List[int]
-  vertices : List[List[float]]
-  normals : List[List[float]]
-  material : UMaterial = None
+#   TODO: using this data in the asset 
+#   indices : List[int]
+#   vertices : List[List[float]]
+#   normals : List[List[float]]
+  material : UMaterial
 
 
 class UVisual(UComponent):
@@ -81,18 +83,27 @@ class UVisual(UComponent):
 			"pos": self.pos,
 			"rot": self.rot,
 			"scale" : self.scale,
-			"meshes" : self.meshes,
+			"meshes" : [mesh.to_dict() for mesh in self.meshes],
 		}
 
-class UGameObjectBase(UMetaEntity):
+class UGameObject(UMetaEntity):
 
-	def __init__(self, name) -> None:
+	def __init__(self, name: str, parent: UGameObject) -> None:
 		super().__init__()
 		self.name = name
 		self.pos: list[float] = [0, 0, 0]
 		self.rot: list[float] = [0, 0, 0]
 		self.moveable: bool = True
-		self.parent: UGameObjectBase
+		self.visual: List[UVisual] = list()
+		self.parent: UGameObject = None
+		self.children: List[UGameObject] = list()
+
+	def set_parent(self, parent: UGameObject) -> None:
+		self.parent = parent
+		parent.children.append()
+
+	def add_visual(self, visual: UVisual):
+		self.visual.append(visual)
 
 	def to_dict(self) -> dict:
 		return {
@@ -101,41 +112,10 @@ class UGameObjectBase(UMetaEntity):
 			"rot": self.rot,
 			"moveable": self.moveable,
 			"parent": self.parent.name,
-		}
-
-class UGameObject(UGameObjectBase):
-	def __init__(
-		self,
-		name,
-		parent: UGameObjectBase,
-	) -> None:
-		super().__init__(name)
-		self.parent = parent
-		self.visual: List[UVisual] = list()
-		self.children: List[UGameObjectBase] = list()
-
-	def add_child(self, child: UGameObjectBase) -> None:
-		self.children.append(child)
-		child.parent = self
-
-	def add_visual(self, visual: UVisual):
-		self.visual.append(visual)
-
-	def to_dict(self) -> dict:
-		return {
-			**super().to_dict(),
 			"children": [child.name for child in self.children],
 			"visual": [item.to_dict() for item in self.visual]
 		}
-  
-class UVisualGameObject(UGameObject):
-	def __init__(self, name, parent: UGameObject) -> None:
-		super().__init__(name, parent)
-		self.visual: UVisual
 
-@singleton
-class EmptyGameObject(UGameObject):
-	pass
 
 @singleton
 class SceneRoot(UGameObject):

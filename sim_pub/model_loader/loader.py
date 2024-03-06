@@ -4,6 +4,7 @@ import abc
 from typing import TypedDict, Dict, List, Union
 import os
 from json import dumps
+from matplotlib.pyplot import cla
 import trimesh
 
 from ..msg import MsgPack
@@ -21,25 +22,34 @@ def tree_to_list_dfs(
         tree_to_list_dfs(child, game_objects_list)
     return game_objects_list
 
-class XMLFileLoader(abc.ABC):
+class XMLLoader(abc.ABC):
 
     def __init__(
             self, 
-            file_path: str, 
-            root: UGameObject = SceneRoot()
+            file_path: str,
         ):
-        # file_path = os.path.abspath(file_path)
+        self.asset_lib: AssetLibrary = AssetLibrary()
+        self.include_xml_file(file_path)
+
+    def include_xml_file(self, file_path: str, root: UGameObject = SceneRoot()) -> None:
+        file_path = os.path.abspath(file_path)
         assert os.path.exists(file_path), f"The file '{file_path}' does not exist."
-        tree = ET.parse(file_path)
-        tree_root = tree.getroot()
+        tree_xml = ET.parse(file_path)
+        root_xml = tree_xml.getroot()
         self.file_path = file_path
         self.root_object = root
         self.namespace = file_path
-        self.parse(tree_root)
+        self.parse_xml(root_xml)
 
     @abc.abstractmethod
-    def parse(self, root: ET.Element) -> str:
+    def parse_xml(self, root: ET.Element) -> str:
         raise NotImplemented
+
+    def generate_scene_msg(self) -> MsgPack:
+        game_obj_list = tree_to_list_dfs(SceneRoot())
+        scene_list = [obj.to_dict() for obj in game_obj_list]
+        return MsgPack("Scene_Model", dumps(scene_list))
+
 
 
 
@@ -50,7 +60,11 @@ class AssetLibrary:
     def __init__(self) -> None:
         self.asset_path: dict[str, str]
         
-    def include_stl_file(self, file_name, file_path):
+    def include_mesh(self, file_name, file_path):
+        pass
+
+    # TODO: Try to inplement it
+    def include_texture(self):
         pass
 
     def include_dae_file(self, file_name, file_path):
@@ -60,20 +74,6 @@ class AssetLibrary:
         pass
 
 
-# @singleton
-class SceneImporter:
-    def __init__(self) -> None:
-        self.xml_file_loaders : List[XMLFileLoader] = list()
-        self.asset_lib = AssetLibrary()
-
-    @abc.abstractclassmethod
-    def include_xml_file(self, file_path: str) -> None:
-        raise NotImplemented
-
-    def generate_scene_msg(self) -> MsgPack:
-        game_obj_list = tree_to_list_dfs(SceneRoot())
-        scene_list = [obj.to_dict() for obj in game_obj_list]
-        return MsgPack("Scene_Model", dumps(scene_list))
 
 
 # if __name__ == "__main__":

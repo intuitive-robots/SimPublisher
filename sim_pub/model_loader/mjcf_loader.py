@@ -1,12 +1,18 @@
+import chunk
+from os import replace
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element as XMLNode
-from typing import List, Optional, Tuple, TypeVar
+from typing import List, Dict, Callable, Optional, Tuple, TypeVar
+from copy import deepcopy
+from collections import OrderedDict
 
-from .loader import XMLFileLoader, SceneImporter
-from .ucomponent import UGameObject, SceneRoot 
+from .loader import XMLLoader
+from .ucomponent import UGameObject, SceneRoot
 from .ucomponent import UVisual, UVisualType
+from .ucomponent import UComponent
 from .ucomponent import UJoint
 from .utils import *
+from sim_pub.model_loader import ucomponent
 
 def set_sphere_mjcf(geom: XMLNode, visual: UVisual) -> None:
     visual.type = UVisualType.SPHERE
@@ -45,32 +51,96 @@ def ros2unity(array: List[float]):
     return [-array[1], array[2], array[0]]
     
 
-class MJCFLoader(XMLFileLoader):
+class MJCFLoader(XMLLoader):
 
-    def parse(self, root: ET.Element) -> str:
-        for worldbody in root.findall("worldbody"):
-            self.parse_worldbody(worldbody)
+    def __init__(self, file_path: str):
+        self.tag_func_dict: Dict[str, Callable[[XMLNode, UGameObject], UGameObject]] = {
+            "worldbody": self._parse_worldbody,
+            "body": self._parse_body,
+            "geom": self._parse_geom,
+            "mesh": self._parse_mesh,
+            "include": self._parse_include,
+        }
+        self.default_class_dict: OrderedDict[str, Dict[str, Dict[str, str]]] = OrderedDict()
+        super().__init__(file_path)
 
-    def parse_worldbody(self, worldbody: XMLNode):
+
+    def parse_xml(self, root_xml: ET.Element) -> str:
+        self.process_default_class(root_xml)
+        top_default_dict = self.default_class_dict[list(self.default_class_dict)[0]]
+        self.replace_class_defination(root_xml, top_default_dict)
+        tree = ET.ElementTree(root_xml)
+        xml_str = ET.tostring(root_xml, encoding='utf8', method='xml').decode()
+
+        print(xml_str)
+        # TODO: replace all the class tag
+        # for worldbody in root_xml.findall("worldbody"):
+            # self._parse_worldbody(worldbody)
+
+    def process_default_class(self, xml: XMLNode, parent_dict: Dict[str, Dict[str, str]] = None):
+        new_class_dict = {} if parent_dict is None else deepcopy(parent_dict)
+        if xml.tag == "default":
+            if "class" in xml.attrib:
+                self.default_class_dict[xml.attrib["class"]] = new_class_dict
+            for child in xml:
+                if child.tag == "default":
+                    continue
+                if child.tag not in new_class_dict.keys():
+                    new_class_dict[child.tag] = child.attrib
+                else:
+                    new_class_dict[child.tag].update(child.attrib)
+        for default in xml.findall("default"):
+            self.process_default_class(default, new_class_dict)
+        
+    def replace_class_defination(self, xml: XMLNode, parent_dict: Dict[str, Dict[str, str]]):
+        if xml.tag == "default":
+            return
+
+        # default_class = xml.attrib["class"] if "class" in xml.attrib.keys() else default_class
+        default_dict = self.default_class_dict[xml.attrib["class"]] if "class" in xml.attrib.keys() else parent_dict
+            # default_class = self.default_class_dict[xml.attrib["class"]]
+        # default_dict = self.default_class_dict[default_class]
+        if xml.tag in default_dict:
+            attrib = deepcopy(default_dict[xml.tag])
+            attrib.update(xml.attrib)
+            xml.attrib = attrib
+        if "childclass" in xml.attrib:
+            child_class = xml.attrib["childclass"]
+            parent_dict = self.default_class_dict[child_class]
+        for child in xml:
+            self.replace_class_defination(child, parent_dict)
+            # self.replace_class_defination(child, xml.attrib.get("childclass", default_class))
+
+    def _parse(self, xml_element: XMLNode, parent: UGameObject) -> None:
+        # parse itself
+        if "class" in xml_element.attrib.keys():
+            pass
+        if xml_element.tag not in self.tag_func_dict.keys():
+            return
+        self.tag_func_dict[xml_element.tag](xml_element, parent)
+        for xml_child in xml_element:
+            self._parse(xml_child, )
+
+    def _parse_include(self, parent: ET.Element) -> None:
+        self.parse_xml()
+
+    def _parse_asset(self, assets: XMLNode, parent: UGameObject) -> UGameObject:
+        return parent
+
+    def _parse_worldbody(self, worldbody: XMLNode):
         for body in worldbody.findall("body"):
-            game_object = self.parse_body(body)
+            game_object = self._parse_body(body)
             self.root_object.add_child(game_object)
 
-    def parse_body(self, body: XMLNode, parent: UGameObject = SceneRoot()) -> UGameObject:
+    def _parse_body(self, body: XMLNode, parent: UGameObject) -> UGameObject:
         # the basic data of body
         game_object = UGameObject(get_name(body), parent)
         game_object.pos = ros2unity(get_pos(body))
         game_object.rot = ros2unity(get_rot(body))
-        # generate the children
-        for geom in body.findall("geom"):
-            game_object.add_visual(self.parse_geom(geom))
-        for body in body.findall("body"):
-            child = self.parse_body(body, game_object)
-            child.parent = game_object
-            game_object.add_child(child)
+        game_object.set_parent(parent)
         return game_object
 
-    def parse_geom(self, geom: XMLNode) -> UVisual:
+    def _parse_geom(self, geom: XMLNode, parent: UGameObject) -> UGameObject:
         geom_type = geom.get("type", "mesh")
         visual = UVisual(get_name(geom))
         if geom_type == "sphere":
@@ -83,15 +153,12 @@ class MJCFLoader(XMLFileLoader):
             set_cylinder_mjcf(geom, visual)
         elif geom_type == "mesh":
             pass
-        return visual
+        parent.add_visual(visual)
+        return parent
 
-    def parse_mesh(self, link: XMLNode) -> UVisual:
-        pass
+    def _parse_mesh(self, mesh: XMLNode, parent: UGameObject) -> UGameObject:
+        if "name" not in mesh.attrib:
+            mesh.set("name", mesh.get("file").rsplit(".", 1)[0])
+        self.asset_lib.include_mesh(mesh.get("name"), mesh.get("file"))
 
-    def parse_joint(self, link: XMLNode) -> UJoint:
-        pass
 
-
-class MJCFImporter(SceneImporter):
-    def include_xml_file(self, file_path: str) -> None:
-        self.xml_file_loaders.append(MJCFLoader(file_path))
