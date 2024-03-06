@@ -1,1 +1,1 @@
-from .mjcf_loader import MJCFImporter
+from .mjcf_loader import MJCFLoader
