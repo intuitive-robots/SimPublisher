@@ -1,4 +1,4 @@
-import chunk
+from __future__ import annotations
 import os
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element as XMLNode
@@ -51,6 +51,57 @@ def ros2unity(array: List[float]):
     return [-array[1], array[2], array[0]]
     
 
+class MJCFDefault:
+    top: MJCFDefault = None
+    def __init__(
+            self,
+            parent_default: MJCFDefault,
+            xml: XMLNode,
+        ) -> None:
+        if MJCFDefault.top is None:
+            MJCFDefault.top = self
+        self.class_name: str = xml.attrib("class")
+        self.root_default: MJCFDefault = None
+        self.parent_default: MJCFDefault = None
+        self.default_dict: Dict[str, Dict[str, str]] = {}
+        self.inherit_fron_parent(parent_default, xml)
+
+    def inherit_fron_parent(
+            self,
+            parent_default: MJCFDefault,
+            xml: XMLNode,
+        ) -> None:
+
+        class_dict: Dict[str, Dict[str, str]] = deepcopy(parent_default.default_dict)       
+        for child in xml:
+            if child.tag == "default":
+                continue
+            if child.tag not in class_dict.keys():
+                class_dict[child.tag] = deepcopy(child.attrib)
+            else:
+                class_dict[child.tag].update(child.attrib)
+        self.default_dict = class_dict
+        
+        # if xml.tag == "default":
+        #     if "class" in xml.attrib:
+        #         self.default_class_dict[xml.attrib["class"]] = class_dict
+        #     for child in xml:
+        #         if child.tag == "default":
+        #             continue
+        #         if child.tag not in class_dict.keys():
+        #             class_dict[child.tag] = child.attrib
+        #         else:
+        #             class_dict[child.tag].update(child.attrib)
+        # for default in xml.findall("default"):
+        #     self.process_default_class(default, class_dict)
+
+    def update_attrib(self, xml: XMLNode) -> None:
+        if xml.tag in self.default_dict:
+            attrib = deepcopy(self.default_dict[xml.tag])
+            attrib.update(xml.attrib)
+            xml.attrib = attrib
+        return None
+
 class MJCFLoader(XMLLoader):
 
     def __init__(self, file_path: str):
@@ -61,13 +112,13 @@ class MJCFLoader(XMLLoader):
             "mesh": self._parse_mesh,
             "include": self._parse_include,
         }
-        self.default_class_dict: OrderedDict[str, Dict[str, Dict[str, str]]] = OrderedDict()
+        self.default_dict: Dict[str, MJCFDefault] = {}
         super().__init__(file_path)
 
 
     def parse_xml(self, root_xml: XMLNode) -> str:
         self.assembly_include_files(root_xml)
-        # self.process_default_class(root_xml)
+        self.process_default_class(root_xml)
         # top_default_dict = self.default_class_dict[list(self.default_class_dict)[0]]
         # self.replace_class_defination(root_xml, top_default_dict)
         tree = ET.ElementTree(root_xml)
@@ -87,20 +138,24 @@ class MJCFLoader(XMLLoader):
             root_xml.extend(sub_root_xml)
             root_xml.remove(child)
 
-    def process_default_class(self, xml: XMLNode, parent_dict: Dict[str, Dict[str, str]] = None):
-        new_class_dict = {} if parent_dict is None else deepcopy(parent_dict)
-        if xml.tag == "default":
-            if "class" in xml.attrib:
-                self.default_class_dict[xml.attrib["class"]] = new_class_dict
-            for child in xml:
-                if child.tag == "default":
-                    continue
-                if child.tag not in new_class_dict.keys():
-                    new_class_dict[child.tag] = child.attrib
-                else:
-                    new_class_dict[child.tag].update(child.attrib)
-        for default in xml.findall("default"):
-            self.process_default_class(default, new_class_dict)
+    def process_default_class(self, root_xml: XMLNode) -> None:
+        for default_xml in root_xml.findall("default"):
+            
+
+
+        # class_dict = {} if parent_dict is None else deepcopy(parent_dict)
+        # if xml.tag == "default":
+        #     if "class" in xml.attrib:
+        #         self.default_class_dict[xml.attrib["class"]] = class_dict
+        #     for child in xml:
+        #         if child.tag == "default":
+        #             continue
+        #         if child.tag not in class_dict.keys():
+        #             class_dict[child.tag] = child.attrib
+        #         else:
+        #             class_dict[child.tag].update(child.attrib)
+        # for default in xml.findall("default"):
+        #     self.process_default_class(default, class_dict)
         
     def replace_class_defination(self, xml: XMLNode, parent_dict: Dict[str, Dict[str, str]]):
         if xml.tag == "default":
