@@ -9,9 +9,6 @@
     <body>
         <geom type="sphere" size="0.6" pos="0 0 1"/>
     </body>
-    <body>
-        <geom type="sphere" size="0.6" pos="0 0 1"/>
-    </body>
 
     <!-- </worldbody> -->
 </mujoco>

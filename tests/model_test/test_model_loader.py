@@ -20,19 +20,19 @@ model = mujoco_py.load_model_from_path(model_path)
 # streamer.start_server_thread(block=False)
 
 
-# sim = mujoco_py.MjSim(model)
+sim = mujoco_py.MjSim(model)
 
-# # # Create a viewer to visualize the simulation
-# viewer = mujoco_py.MjViewer(sim)
+# # Create a viewer to visualize the simulation
+viewer = mujoco_py.MjViewer(sim)
 
-# # Simulate for 100 steps
-# for _ in range(100000):
-#     sim.step()
-#     viewer.render()
+# Simulate for 100 steps
+for _ in range(100000):
+    sim.step()
+    viewer.render()
 
-# print("Simulation done")
+print("Simulation done")
 
-loader = MJCFLoader(model_path)
+# loader = MJCFLoader(model_path)
 # [print(k, v) for k, v in loader.default_class_dict.items()]
 
 
