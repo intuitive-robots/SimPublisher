@@ -1,4 +1,5 @@
 from __future__ import annotations
+import abc
 import os
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element as XMLNode
@@ -55,16 +56,28 @@ class MJCFDefault:
     top: MJCFDefault = None
     def __init__(
             self,
-            parent_default: MJCFDefault,
             xml: XMLNode,
+            parent_default: MJCFDefault = None,
         ) -> None:
-        if MJCFDefault.top is None:
-            MJCFDefault.top = self
+        if parent_default is None:
+            top = self
+        # if MJCFDefault.top is None:
+        #     MJCFDefault.top = self
         self.class_name: str = xml.attrib("class")
-        self.root_default: MJCFDefault = None
         self.parent_default: MJCFDefault = None
-        self.default_dict: Dict[str, Dict[str, str]] = {}
+        self.class_dict: Dict[str, Dict[str, str]] = {}
         self.inherit_fron_parent(parent_default, xml)
+
+    def create_new_default(cls, xml, parent_defalut):
+        if cls.top is None:
+            cls.top = MJCFDefault()
+        if parent_defalut is None:
+            cls.top = None
+
+    def get_top(cls) -> MJCFDefault:
+        if cls.top is None:
+            cls.top = MJCFDefault()
+        return cls.top
 
     def inherit_fron_parent(
             self,
@@ -72,7 +85,7 @@ class MJCFDefault:
             xml: XMLNode,
         ) -> None:
 
-        class_dict: Dict[str, Dict[str, str]] = deepcopy(parent_default.default_dict)       
+        class_dict: Dict[str, Dict[str, str]] = deepcopy(parent_default.class_dict)       
         for child in xml:
             if child.tag == "default":
                 continue
@@ -111,6 +124,7 @@ class MJCFLoader(XMLLoader):
             "geom": self._parse_geom,
             "mesh": self._parse_mesh,
             "include": self._parse_include,
+            "default": self._processing_default,
         }
         self.default_dict: Dict[str, MJCFDefault] = {}
         super().__init__(file_path)
@@ -118,9 +132,9 @@ class MJCFLoader(XMLLoader):
 
     def parse_xml(self, root_xml: XMLNode) -> str:
         self.assembly_include_files(root_xml)
-        self.process_default_class(root_xml)
-        # top_default_dict = self.default_class_dict[list(self.default_class_dict)[0]]
-        # self.replace_class_defination(root_xml, top_default_dict)
+        self.load_default(root_xml)
+        self.replace_class_defination(root_xml, MJCFDefault.get_top())
+
         tree = ET.ElementTree(root_xml)
         xml_str = ET.tostring(root_xml, encoding='utf8', method='xml').decode()
         print(xml_str)
@@ -138,43 +152,22 @@ class MJCFLoader(XMLLoader):
             root_xml.extend(sub_root_xml)
             root_xml.remove(child)
 
-    def process_default_class(self, root_xml: XMLNode) -> None:
-        for default_xml in root_xml.findall("default"):
-            
-
-
-        # class_dict = {} if parent_dict is None else deepcopy(parent_dict)
-        # if xml.tag == "default":
-        #     if "class" in xml.attrib:
-        #         self.default_class_dict[xml.attrib["class"]] = class_dict
-        #     for child in xml:
-        #         if child.tag == "default":
-        #             continue
-        #         if child.tag not in class_dict.keys():
-        #             class_dict[child.tag] = child.attrib
-        #         else:
-        #             class_dict[child.tag].update(child.attrib)
-        # for default in xml.findall("default"):
-        #     self.process_default_class(default, class_dict)
+    def load_default(self, root_xml: XMLNode) -> None:
+        for xml in root_xml:
+            if xml.tag == "default":
+                self._processing_default(xml, MJCFDefault.get_top())
+            else:
+                self.load_default(xml)
         
-    def replace_class_defination(self, xml: XMLNode, parent_dict: Dict[str, Dict[str, str]]):
+    def replace_class_defination(self, xml: XMLNode, parent_default: MJCFDefault):
         if xml.tag == "default":
             return
-
-        # default_class = xml.attrib["class"] if "class" in xml.attrib.keys() else default_class
-        default_dict = self.default_class_dict[xml.attrib["class"]] if "class" in xml.attrib.keys() else parent_dict
-            # default_class = self.default_class_dict[xml.attrib["class"]]
-        # default_dict = self.default_class_dict[default_class]
-        if xml.tag in default_dict:
-            attrib = deepcopy(default_dict[xml.tag])
-            attrib.update(xml.attrib)
-            xml.attrib = attrib
-        if "childclass" in xml.attrib:
-            child_class = xml.attrib["childclass"]
-            parent_dict = self.default_class_dict[child_class]
+        default = self.default_dict[xml.attrib["class"]] if "class" in xml.attrib.keys() else parent_default
+        default.update_attrib(xml)
+        parent_default = self.default_dict[xml.attrib["childclass"]] if "childclass" in xml.attrib else parent_default
         for child in xml:
-            self.replace_class_defination(child, parent_dict)
-            # self.replace_class_defination(child, xml.attrib.get("childclass", default_class))
+            self.replace_class_defination(child, parent_default)
+
 
     def _parse(self, xml_element: XMLNode, parent: UGameObject) -> None:
         # parse itself
@@ -188,6 +181,12 @@ class MJCFLoader(XMLLoader):
 
     def _parse_include(self, parent: ET.Element) -> None:
         self.parse_xml()
+
+    def _processing_default(self, default_xml: XMLNode, parent_default: MJCFDefault) -> None:
+        default = MJCFDefault(default_xml, parent_default)
+        for default_child_xml in default_xml.findall("default"):
+            self._processing_default(default_child_xml, default)
+        return 
 
     def _parse_asset(self, assets: XMLNode, parent: UGameObject) -> UGameObject:
         return parent
