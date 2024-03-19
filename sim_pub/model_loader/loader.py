@@ -5,7 +5,7 @@ from typing import TypedDict, Dict, List, Union
 import os
 from json import dumps
 from matplotlib.pyplot import cla
-import trimesh
+# import trimesh
 
 from ..msg import MsgPack
 from .ucomponent import *

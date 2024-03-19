@@ -1,36 +1,40 @@
-import mujoco_py
-import os
-
-import sys
+import mujoco
 import os
 
 from sim_pub.model_loader import MJCFLoader
 from sim_pub.mujoco.mujoco_streamer import MujocoStreamer
 
 # Load the model from an XML file
-model_path = os.path.join(os.path.dirname(__file__), "tag_class_text.xml")
-model = mujoco_py.load_model_from_path(model_path)
+model_path = os.path.join(os.path.dirname(__file__), "../../models/static_scene/static_scene.xml")
+model_path = os.path.abspath(model_path)
+# # Create a viewer to visualize the simulation
+model = mujoco.MjModel.from_xml_path(model_path)
 
-# scene_importer = MJCFImporter()
-# scene_importer.include_xml_file(model_path)
+data = mujoco.MjData(model)
 
-# streamer = MujocoStreamer(model_path)
+# Make renderer, render and show the pixels
+renderer = mujoco.Renderer(model)
+# mujoco.mj_forward(model, data)
+# renderer.update_scene(data)
 
-# streamer.start_server_thread(block=True)
-# streamer.start_server_thread(block=False)
+# media.show_image(renderer.render())
 
-
-sim = mujoco_py.MjSim(model)
+# Create a simulation instance
+# sim = mujoco.MjSim(model)
 
 # # Create a viewer to visualize the simulation
-viewer = mujoco_py.MjViewer(sim)
+# viewer = mujoco.MjViewer(sim)
 
-# Simulate for 100 steps
-for _ in range(100000):
-    sim.step()
-    viewer.render()
+# Run the simulation for 1000 steps
+def step_fn(physics, random_state):
+    # Here you can apply forces, compute rewards, etc.
+    pass
 
-print("Simulation done")
+# Create a viewer and pass the physics and step function
+viewer.launch(model, step_fn)
+
+# # Close the viewer
+# viewer.close()
 
 # loader = MJCFLoader(model_path)
 # [print(k, v) for k, v in loader.default_class_dict.items()]
