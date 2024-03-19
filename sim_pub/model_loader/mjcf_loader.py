@@ -56,14 +56,16 @@ class MJCFDefault:
     top: MJCFDefault = None
     def __init__(
             self,
-            xml: XMLNode,
+            xml: XMLNode = None,
             parent_default: MJCFDefault = None,
         ) -> None:
         if parent_default is None:
             top = self
+            self.class_name = "top"
         # if MJCFDefault.top is None:
         #     MJCFDefault.top = self
         self.class_name: str = xml.attrib("class")
+        self.default_dict: Dict[str, Dict[str, str]] = dict()
         self.parent_default: MJCFDefault = None
         self.class_dict: Dict[str, Dict[str, str]] = {}
         self.inherit_fron_parent(parent_default, xml)
@@ -74,6 +76,7 @@ class MJCFDefault:
         if parent_defalut is None:
             cls.top = None
 
+    @classmethod
     def get_top(cls) -> MJCFDefault:
         if cls.top is None:
             cls.top = MJCFDefault()
@@ -81,8 +84,8 @@ class MJCFDefault:
 
     def inherit_fron_parent(
             self,
-            parent_default: MJCFDefault,
             xml: XMLNode,
+            parent_default: MJCFDefault,
         ) -> None:
 
         class_dict: Dict[str, Dict[str, str]] = deepcopy(parent_default.class_dict)       
