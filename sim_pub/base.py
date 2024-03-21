@@ -5,30 +5,45 @@ import threading
 import json
 import abc
 from time import sleep as time_sleep
+import zmq
+from zmq.asyncio import Context as AsyncContext
+from zmq.asyncio import Socket as AsyncSocket
 
 from .msg import ObjData, MsgPack
 
-class ServerBase(abc.ABC):
+BROADCAST_PORT = 5554
+REQ_PORT = 5555
+TOPIC_PORT = 5556
+UDP_PORT = 5557
+
+class SPBaseServer:
     """
-    A abstract class for all server running on a simulation environment.
+    A base class for all server running on a simulation environment.
 
     The server receives and sends messages to client by websockets.
 
     Args:
         host (str): the ip address of service
         port (str): the port of service
-    """    
+    """ 
     def __init__(
         self, 
         host: str, 
         port: str
     ) -> None:
 
-        self._ws: server.WebSocketServerProtocol = None
-        self._wsserver: server.WebSocketServer = None
-        self._server_future: asyncio.Future = None
+        self._context: AsyncContext = None
+        self._broadcast_socket: AsyncSocket = None
+        self._request_socket: AsyncSocket = None
+        self._response_socket: AsyncSocket = None
+        self._udp_socket: AsyncSocket = None
+
+        self._loop: asyncio.AbstractEventLoop = None
+
         self.host = host
         self.port = port
+        self.on_start: bool = False
+        self.socket_list: list[AsyncSocket] = list()
         
     def start_server_thread(self, block = False) -> None:
         """
@@ -38,7 +53,7 @@ class ServerBase(abc.ABC):
             block (bool, optional): main thread stop running and 
             wait for server thread. Defaults to False.
         """
-        self.server_thread = threading.Thread(target=self._start_server_task)
+        self.server_thread = threading.Thread(target=self._server_task)
         self.server_thread.daemon = True
         self.server_thread.start()
         if block:
@@ -59,7 +74,6 @@ class ServerBase(abc.ABC):
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
     def create_handler(self, ws: server.WebSocketServerProtocol) -> list[asyncio.Task]:
         """
         Create new tasks such as receiving and stream when start service.
@@ -70,7 +84,10 @@ class ServerBase(abc.ABC):
         Returns:
             list[asyncio.Task]: the list of new tasks
         """        
-        raise NotImplementedError
+        return [
+            asyncio.create_task(self._broadcast_handler()),
+            asyncio.create_task(self._request_handler()),
+        ]
 
     async def receive_handler(self, ws: server.WebSocketServerProtocol):
         """
@@ -89,7 +106,12 @@ class ServerBase(abc.ABC):
         Args:
             ws (server.WebSocketServerProtocol): WebSocketServerProtocol from websockets.
         """
+        self._loop = asyncio.get_event_loop()
         await self.on_connect(ws)
+        self._broadcast_socket = self._context.socket(zmq.PUB)
+        self._request_socket = self._context.socket(zmq.REQ)
+        self._response_socket = self._context.socket(zmq.REP)
+        self._udp_socket = self._context.socket(zmq.RADIO)
         _, pending = await asyncio.wait(
             self.create_handler(ws),
             return_when=asyncio.FIRST_COMPLETED,
@@ -99,24 +121,41 @@ class ServerBase(abc.ABC):
         await ws.close()
         await self.on_close(ws)
 
-    async def _expect_client(self):
+    async def _broadcast_handler(self):
         """
-        The coroutine task for running service on loop.
-        """        
-        self.stop = asyncio.Future()
-        async with server.serve(self.handler, self.host, self.port) as self._wsserver:
-            await self.stop
+        The coroutine task for broadcasting messages on loop.
+        """
+        
+        self._broadcast_socket.bind(f"tcp://{self.host}:{BROADCAST_PORT}")
+        while self.on_start:
+            await self._broadcast_socket.send_string(f"tcp://{self.host}:{BROADCAST_PORT}")
+            await async_sleep(5)
+        self._broadcast_socket.close()
 
-    def _start_server_task(self) -> None:
+    async def _request_handler(self):
+        """
+        The coroutine task for receiving request messages on loop.
+        """
+        self._request_socket = self._context.socket(zmq.REP)
+        self._request_socket.bind(f"tcp://{self.host}:{REQ_PORT}")
+        while self.on_start:
+            msg = await self._request_socket.recv_string()
+            await self._request_socket.send_string(msg)
+        self._request_socket.close()
+
+    def _server_task(self) -> None:
         """
         The thread task for running a service loop.
-        """        
+        """
         print(f"start a server on {self.host}:{self.port}")
-        asyncio.run(self._expect_client())
+        self._context = AsyncContext()
+        asyncio.run(self.handler())
+        self._context.term()
         print("server task finished")
 
     async def _send_msg_on_loop(
-        self, msg: MsgPack,
+        self, 
+        msg: MsgPack,
         ws: server.WebSocketServerProtocol, 
         sleep_time: float = 0
     ):
