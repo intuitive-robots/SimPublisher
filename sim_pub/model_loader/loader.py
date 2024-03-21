@@ -5,7 +5,8 @@ from typing import TypedDict, Dict, List, Union
 import os
 from json import dumps
 from matplotlib.pyplot import cla
-# import trimesh
+import trimesh
+from trimesh.base import Trimesh
 
 from ..msg import MsgPack
 from .ucomponent import *
@@ -29,8 +30,11 @@ class XMLLoader(abc.ABC):
             file_path: str,
         ):
         self.asset_lib: AssetLibrary = AssetLibrary()
-    #     self.include_xml_file(file_path)
         self.file_path = file_path
+        self.root_object = SceneRoot()
+        self.game_object_dict: Dict[str, UGameObject] = {
+            "SceneRoot": SceneRoot(),
+        }
         root_xml = self.get_root_from_xml_file(file_path)
         self.parse_xml(root_xml)
 
@@ -39,7 +43,6 @@ class XMLLoader(abc.ABC):
         assert os.path.exists(file_path), f"The file '{file_path}' does not exist."
         tree_xml = ET.parse(file_path)
         return tree_xml.getroot()
-
 
     @abc.abstractmethod
     def parse_xml(self, root: ET.Element) -> str:
@@ -52,18 +55,50 @@ class XMLLoader(abc.ABC):
 
 
 
+class Asset:
+    def __init__(self, file_path: str) -> None:
+        self.file_path = file_path
+        self.linked_objects: List[UGameObject] = list()
+
+    @abc.abstractclassmethod
+    def load_asset(self) -> str:
+        pass
+
+class STLAsset(Asset):
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        pass
+
+    def load_asset(self) -> str:
+        # trimesh.load(mesh.get("file"))
+        pass
+    
+class OBJAsset(Asset):
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        pass
+
+    def load_asset(self) -> str:
+        obj_meshes: List[Trimesh] = trimesh.load_mesh(self.file_path)
+        # for mesh in obj_meshes:
+        #     mesh.
 
 
 @singleton
 class AssetLibrary:
     
     def __init__(self) -> None:
-        self.asset_path: dict[str, str]
+        self.asset_path: dict[str, Asset] = dict()
         
-    def include_mesh(self, file_name, file_path):
-        pass
+    def include_stl(self, asset_id, file_path) -> None:
+        self.asset_path[asset_id] = STLAsset(file_path)
+        return
 
-    # TODO: Try to inplement it
+    def include_obj(self, asset_id, file_path) -> None:
+        self.asset_path[asset_id] = OBJAsset(file_path)
+        return
+        
+    # TODO: Try to implement it
     def include_texture(self):
         pass
 
@@ -71,7 +106,8 @@ class AssetLibrary:
         pass
 
     def load_asset(self, asset_id) -> str:
-        pass
+        for asset in self.asset_path.values():
+            asset.load_asset()
 
 
 

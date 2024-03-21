@@ -6,12 +6,13 @@ from xml.etree.ElementTree import Element as XMLNode
 from typing import List, Dict, Callable, Optional, Tuple, TypeVar
 from copy import deepcopy
 from collections import OrderedDict
+import trimesh
 
 from .loader import XMLLoader
 from .ucomponent import UGameObject, SceneRoot
 from .ucomponent import UVisual, UVisualType
 from .ucomponent import UComponent
-from .ucomponent import UJoint
+from .ucomponent import UMesh, UMaterial
 from .utils import *
 from sim_pub.model_loader import ucomponent
 
@@ -48,6 +49,23 @@ def set_capsule_mjcf(geom: XMLNode, visual: UVisual) -> None:
     rot = get_rot(geom)
     visual.pos = [-rot[1], rot[2], rot[0]]
 
+def set_plane_mjcf(geom: XMLNode, visual: UVisual) -> None:
+    visual.type = UVisualType.PLANE
+    size = get_size(geom)
+    visual.scale = [size[0], size[1], 1]
+    pos = get_pos(geom)
+    visual.pos = [-pos[1], pos[2], pos[0]]
+    rot = get_rot(geom)
+    visual.pos = [-rot[1], rot[2], rot[0]]
+
+def set_mesh_mjcf(geom: XMLNode, visual: UVisual) -> None:
+    visual.type = UVisualType.MESH
+    # visual.mesh = geom.get("file")
+    pos = get_pos(geom)
+    visual.pos = [-pos[1], pos[2], pos[0]]
+    rot = get_rot(geom)
+    visual.pos = [-rot[1], rot[2], rot[0]]
+
 def ros2unity(array: List[float]):
     return [-array[1], array[2], array[0]]
     
@@ -57,24 +75,24 @@ class MJCFDefault:
     def __init__(
             self,
             xml: XMLNode = None,
-            parent_default: MJCFDefault = None,
+            parent: MJCFDefault = None,
         ) -> None:
-        if parent_default is None:
-            top = self
-            self.class_name = "top"
-        # if MJCFDefault.top is None:
-        #     MJCFDefault.top = self
-        self.class_name: str = xml.attrib("class")
-        self.default_dict: Dict[str, Dict[str, str]] = dict()
-        self.parent_default: MJCFDefault = None
-        self.class_dict: Dict[str, Dict[str, str]] = {}
-        self.inherit_fron_parent(parent_default, xml)
+        self._dict: Dict[str, Dict[str, str]] = dict()
+        if parent is None:
+            MJCFDefault.top = self
+            self.class_name = "main"
+        else:
+            self.class_name: str = xml.attrib["class"]
+            self.inherit_fron_parent(xml, parent)
 
-    def create_new_default(cls, xml, parent_defalut):
-        if cls.top is None:
-            cls.top = MJCFDefault()
-        if parent_defalut is None:
-            cls.top = None
+    def update(self, xml: XMLNode) -> None:
+        for child in xml:
+            if child.tag == "default":
+                continue
+            if child.tag not in self._dict.keys():
+                self._dict[child.tag] = child.attrib
+            else:
+                self._dict[child.tag].update(child.attrib)
 
     @classmethod
     def get_top(cls) -> MJCFDefault:
@@ -85,35 +103,22 @@ class MJCFDefault:
     def inherit_fron_parent(
             self,
             xml: XMLNode,
-            parent_default: MJCFDefault,
+            parent: MJCFDefault,
         ) -> None:
 
-        class_dict: Dict[str, Dict[str, str]] = deepcopy(parent_default.class_dict)       
+        default_dict: Dict[str, Dict[str, str]] = deepcopy(parent._dict)       
         for child in xml:
             if child.tag == "default":
                 continue
-            if child.tag not in class_dict.keys():
-                class_dict[child.tag] = deepcopy(child.attrib)
+            if child.tag not in default_dict.keys():
+                default_dict[child.tag] = deepcopy(child.attrib)
             else:
-                class_dict[child.tag].update(child.attrib)
-        self.default_dict = class_dict
-        
-        # if xml.tag == "default":
-        #     if "class" in xml.attrib:
-        #         self.default_class_dict[xml.attrib["class"]] = class_dict
-        #     for child in xml:
-        #         if child.tag == "default":
-        #             continue
-        #         if child.tag not in class_dict.keys():
-        #             class_dict[child.tag] = child.attrib
-        #         else:
-        #             class_dict[child.tag].update(child.attrib)
-        # for default in xml.findall("default"):
-        #     self.process_default_class(default, class_dict)
+                default_dict[child.tag].update(child.attrib)
+        self._dict = default_dict
 
-    def update_attrib(self, xml: XMLNode) -> None:
-        if xml.tag in self.default_dict:
-            attrib = deepcopy(self.default_dict[xml.tag])
+    def replace_class_attrib(self, xml: XMLNode) -> None:
+        if xml.tag in self._dict:
+            attrib = deepcopy(self._dict[xml.tag])
             attrib.update(xml.attrib)
             xml.attrib = attrib
         return None
@@ -126,8 +131,6 @@ class MJCFLoader(XMLLoader):
             "body": self._parse_body,
             "geom": self._parse_geom,
             "mesh": self._parse_mesh,
-            "include": self._parse_include,
-            "default": self._processing_default,
         }
         self.default_dict: Dict[str, MJCFDefault] = {}
         super().__init__(file_path)
@@ -135,15 +138,14 @@ class MJCFLoader(XMLLoader):
 
     def parse_xml(self, root_xml: XMLNode) -> str:
         self.assembly_include_files(root_xml)
-        self.load_default(root_xml)
+        self.import_default(root_xml)
         self.replace_class_defination(root_xml, MJCFDefault.get_top())
-
+        self._parse(root_xml, self.root_object)
+        # for game_object in self.game_object_dict.values():
+        #     print(game_object.to_dict())
         tree = ET.ElementTree(root_xml)
         xml_str = ET.tostring(root_xml, encoding='utf8', method='xml').decode()
-        print(xml_str)
-        # TODO: replace all the class tag
-        # for worldbody in root_xml.findall("worldbody"):
-            # self._parse_worldbody(worldbody)
+        # print(xml_str)
 
     def assembly_include_files(self, root_xml: XMLNode) -> None:
         for child in root_xml:
@@ -155,56 +157,66 @@ class MJCFLoader(XMLLoader):
             root_xml.extend(sub_root_xml)
             root_xml.remove(child)
 
-    def load_default(self, root_xml: XMLNode) -> None:
+    def import_default(self, root_xml: XMLNode) -> None:
         for xml in root_xml:
             if xml.tag == "default":
-                self._processing_default(xml, MJCFDefault.get_top())
+                self._parse_default(xml)
             else:
-                self.load_default(xml)
+                self.import_default(xml)
+        default_xmls = root_xml.findall('default')
+        for default_xml in default_xmls:
+            root_xml.remove(default_xml)
         
-    def replace_class_defination(self, xml: XMLNode, parent_default: MJCFDefault):
+    def replace_class_defination(self, xml: XMLNode, parent: MJCFDefault):
         if xml.tag == "default":
             return
-        default = self.default_dict[xml.attrib["class"]] if "class" in xml.attrib.keys() else parent_default
-        default.update_attrib(xml)
-        parent_default = self.default_dict[xml.attrib["childclass"]] if "childclass" in xml.attrib else parent_default
+        default = self.default_dict[xml.attrib["class"]] if "class" in xml.attrib.keys() else parent
+        default.replace_class_attrib(xml)
+        parent = self.default_dict[xml.attrib["childclass"]] if "childclass" in xml.attrib else parent
         for child in xml:
-            self.replace_class_defination(child, parent_default)
+            self.replace_class_defination(child, parent)
 
 
     def _parse(self, xml_element: XMLNode, parent: UGameObject) -> None:
-        # parse itself
-        if "class" in xml_element.attrib.keys():
-            pass
-        if xml_element.tag not in self.tag_func_dict.keys():
-            return
-        self.tag_func_dict[xml_element.tag](xml_element, parent)
+        if xml_element.tag in self.tag_func_dict.keys():
+            parent = self.tag_func_dict[xml_element.tag](xml_element, parent)
         for xml_child in xml_element:
-            self._parse(xml_child, )
+            # print(xml_child.tag, parent)
+            self._parse(xml_child, parent)
 
     def _parse_include(self, parent: ET.Element) -> None:
         self.parse_xml()
 
-    def _processing_default(self, default_xml: XMLNode, parent_default: MJCFDefault) -> None:
-        default = MJCFDefault(default_xml, parent_default)
+    def _parse_default(self, default_xml: XMLNode, parent: MJCFDefault = None) -> None:
+        if parent is None:
+            default = MJCFDefault.get_top()
+            default.update(default_xml)
+        else:
+            default = MJCFDefault(default_xml, parent)
+            self.default_dict[default.class_name] = default
         for default_child_xml in default_xml.findall("default"):
-            self._processing_default(default_child_xml, default)
+            self._parse_default(default_child_xml, default)
         return 
 
     def _parse_asset(self, assets: XMLNode, parent: UGameObject) -> UGameObject:
+        for asset in assets:
+            if asset.tag == "mesh":
+                self._parse_mesh(asset, parent)
+            elif asset.tag == "material":
+                self._parse_material(asset, parent)
+            else:
+                print("Unknown asset type")
         return parent
 
-    def _parse_worldbody(self, worldbody: XMLNode):
-        for body in worldbody.findall("body"):
-            game_object = self._parse_body(body)
-            self.root_object.add_child(game_object)
+    def _parse_worldbody(self, worldbody: XMLNode, parent: UGameObject) -> UGameObject:
+        return parent
 
     def _parse_body(self, body: XMLNode, parent: UGameObject) -> UGameObject:
         # the basic data of body
         game_object = UGameObject(get_name(body), parent)
         game_object.pos = ros2unity(get_pos(body))
         game_object.rot = ros2unity(get_rot(body))
-        game_object.set_parent(parent)
+        self.game_object_dict[game_object.name] = game_object
         return game_object
 
     def _parse_geom(self, geom: XMLNode, parent: UGameObject) -> UGameObject:
@@ -218,14 +230,30 @@ class MJCFLoader(XMLLoader):
             set_capsule_mjcf(geom, visual)
         elif geom_type == "cylinder":
             set_cylinder_mjcf(geom, visual)
+        elif geom_type == "plane":
+            set_plane_mjcf(geom, visual)
         elif geom_type == "mesh":
-            pass
+            set_mesh_mjcf(geom, visual)
+        else:
+            raise ValueError(f"Unknown geom type: {geom_type}")
         parent.add_visual(visual)
         return parent
 
     def _parse_mesh(self, mesh: XMLNode, parent: UGameObject) -> UGameObject:
+        mesh_name, mesh_type = mesh.get("file").rsplit(".", 1)
         if "name" not in mesh.attrib:
-            mesh.set("name", mesh.get("file").rsplit(".", 1)[0])
-        self.asset_lib.include_mesh(mesh.get("name"), mesh.get("file"))
+            mesh.set("name", mesh_name)
+        if mesh_type == "stl":
+            self.asset_lib.include_stl(mesh_name, mesh_type)
+        elif mesh_type == "obj":
+            self.asset_lib.include_obj(mesh_name, mesh_type)
+        else:
+            print("Unknown mesh type")
+        return parent
 
-
+    def _parse_material(self, material: XMLNode, parent: UGameObject) -> UGameObject:
+        # assert "name" in material.attrib, "The material must have a name."
+        # u_material = UMaterial(material.get("name"))
+        # u_material.ambient = material.get("ambient", )
+        # u_material.glossiness
+        return parent
