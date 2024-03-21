@@ -5,8 +5,7 @@ from ..model_loader import MJCFLoader
 
 class MujocoStreamer(SimStreamer):
     def __init__(self, model_path: str) -> None:
-        self.scene_loader = MJCFLoader()
-        self.scene_loader.include_xml_file(model_path)
+        self.scene_loader = MJCFLoader(model_path)
         scene_msg = self.scene_loader.generate_scene_msg()
         super().__init__()
         

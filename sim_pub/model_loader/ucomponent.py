@@ -66,15 +66,16 @@ class UMesh(UComponent):
 #   indices : List[int]
 #   vertices : List[List[float]]
 #   normals : List[List[float]]
-  material : UMaterial
+#   material : UMaterial
 
 
 class UVisual(UComponent):
 	type : UVisualType
-	pos : List[float]
+	pos : List[float] = [0.0, 0.0, 0.0]
 	rot : List[float] = [0.0, 0.0, 0.0]
-	scale : List[float]
-	meshes : List[UMesh] = []
+	scale : List[float] = [1.0, 1.0, 1.0]
+	mesh : UMesh = None
+	material : UMaterial = None
 	
 	def to_dict(self) -> dict:
 		return {
@@ -83,7 +84,7 @@ class UVisual(UComponent):
 			"pos": self.pos,
 			"rot": self.rot,
 			"scale" : self.scale,
-			"meshes" : [mesh.to_dict() for mesh in self.meshes],
+			"mesh" :  None if self.mesh is None else self.mesh.to_dict(),
 		}
 
 class UGameObject(UMetaEntity):
@@ -95,17 +96,16 @@ class UGameObject(UMetaEntity):
 		self.rot: list[float] = [0, 0, 0]
 		self.moveable: bool = True
 		self.visual: List[UVisual] = list()
-		self.parent: UGameObject = None
+		self.parent: UGameObject = parent
 		self.children: List[UGameObject] = list()
-
-	def set_parent(self, parent: UGameObject) -> None:
-		self.parent = parent
-		parent.children.append()
+		if parent is not None:
+			parent.children.append(self)
 
 	def add_visual(self, visual: UVisual):
 		self.visual.append(visual)
 
 	def to_dict(self) -> dict:
+		# print(self.name)
 		return {
 			"name": self.name,
 			"pos": self.pos,
@@ -122,6 +122,14 @@ class SceneRoot(UGameObject):
 	def __init__(self) -> None:
 		super().__init__("SceneRoot", parent=None)
 
+	def to_dict(self) -> dict:
+		return {
+			"name": self.name,
+			"pos": self.pos,
+			"rot": self.rot,
+			"children": [child.name for child in self.children],
+			"visual": [item.to_dict() for item in self.visual]
+		}
 
 class UJoint(UMetaEntity):
 	def __init__(self) -> None:
