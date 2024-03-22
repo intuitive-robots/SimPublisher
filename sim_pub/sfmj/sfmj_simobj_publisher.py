@@ -10,8 +10,8 @@ from alr_sim.sims.universal_sim.PrimitiveObjects import PrimitiveObject
 from alr_sim.sims.mj_beta.mj_utils.mj_scene_object import YCBMujocoObject
 from alr_sim.utils.sim_path import sim_framework_path
 
-from sim_pub.base import ObjectPublisherBase, SimPubDataBlock, SimPubData
-from sim_pub.primitive import SimStreamer
+from sim_pub.server.base import ObjectPublisherBase, SimPubDataBlock, SimPubData
+from sim_pub.server.ws.WsServer import SimStreamer
 from sim_pub.sfmj.geometry import *
 
 

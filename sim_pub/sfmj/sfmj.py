@@ -12,8 +12,8 @@ from alr_sim.sims.universal_sim.PrimitiveObjects import PrimitiveObject
 from alr_sim.sims.mj_beta.mj_utils.mj_scene_object import YCBMujocoObject
 from alr_sim.core.Robots import RobotBase
 
-from sim_pub.base import SimPubData, SimPubMsg
-from sim_pub.primitive import SimStreamer
+from sim_pub.server.base import SimPubData, SimPubMsg
+from sim_pub.server.ws.WsServer import SimStreamer
 from sim_pub.utils import *
 
 from geometry import *
