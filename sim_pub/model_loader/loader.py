@@ -8,7 +8,7 @@ from matplotlib.pyplot import cla
 import trimesh
 from trimesh.base import Trimesh
 
-from ..msg import MsgPack
+from ..server.msg import MsgPack
 from .ucomponent import *
 from .utils import *
 
