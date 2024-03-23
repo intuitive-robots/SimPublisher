@@ -42,10 +42,6 @@ class ServerBase(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def send_request(self, msg: str) -> str:
-        raise NotImplementedError
-
-    @abc.abstractmethod
     def close_server(self) -> None:
         """
         Stop and close the server.

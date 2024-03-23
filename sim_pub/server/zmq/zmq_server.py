@@ -1,8 +1,10 @@
+from abc import ABCMeta
 import asyncio
 from asyncio import sleep as async_sleep
 import zmq
 from zmq.asyncio import Context as AsyncContext
 from zmq.asyncio import Socket as AsyncSocket
+from typing import List, Tuple
 
 from ..base import ServerBase
 
@@ -21,8 +23,10 @@ class ZMQServer(ServerBase):
         self._context: AsyncContext = None
         self._broadcast_socket: AsyncSocket = None
         self._request_socket: AsyncSocket = None
-        self._response_socket: AsyncSocket = None
+        self._topic_socket: AsyncSocket = None
         self._udp_socket: AsyncSocket = None
+
+        self._client_list: List[Tuple[str, str]] = list()
 
     async def handler(self):
         """
@@ -83,3 +87,16 @@ class ZMQServer(ServerBase):
         if self._response_socket is None:
             return
         self._loop.create_task(self._response_socket.send_string(msg))
+
+        return self._loop.create_task(self._response_socket.recv_string())
+    
+
+    def register_client(self, client_id: str, client_address: str) -> None:
+        """
+        Register a client to the server.
+
+        Args:
+            client_id (str): client id.
+            client_address (str): client address.
+        """
+        self._client_list.append((client_id, client_address))
