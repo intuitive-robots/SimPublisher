@@ -1,6 +1,6 @@
 from websockets.server import WebSocketServerProtocol
 
-from ..server.ws.WsServer import SimStreamer
+from ..server.ws.ws_server import SimStreamer
 from ..model_loader import MJCFLoader
 
 class MujocoStreamer(SimStreamer):
