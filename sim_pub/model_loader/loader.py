@@ -31,7 +31,6 @@ class XMLLoader(abc.ABC):
         ):
         self.xml_path = xml_path
         self.xml_floder = os.path.abspath(os.path.join(self.xml_path, ".."))
-        self.asset_lib: AssetLibrary = AssetLibrary(self.xml_floder)
         self.root_object = SceneRoot()
         self.game_object_dict: Dict[str, UGameObject] = {
             "SceneRoot": SceneRoot(),
@@ -90,22 +89,16 @@ class AssetLibrary:
     def __init__(self, asset_path: str) -> None:
         self._assets: dict[str, Asset] = dict()
         self.asset_path = asset_path
-        print(self.asset_path)
 
-    def check_asset_path(self, file_path: str) -> str:
-        file_path = os.path.abspath(file_path)
-        if not os.path.exists(file_path):
-            file_path = os.path.join(self.asset_path, file_path)
-        # print(self.asset_path, file_path)
-        return file_path
+    # def check_asset_path(self, file_path: str) -> None:
+    #     assert os.path.exists(file_path), f"The file '{file_path}' does not exist."
+    #     return 
 
-    def include_stl(self, asset_id, file_name) -> None:
-        file_path = self.check_asset_path(file_path)
+    def include_stl(self, asset_id, file_path) -> None:
         self._assets[asset_id] = STLAsset(asset_id, file_path)
         return
 
     def include_obj(self, asset_id, file_path) -> None:
-        file_path = self.check_asset_path(file_path)
         self._assets[asset_id] = OBJAsset(asset_id, file_path)
         return
         

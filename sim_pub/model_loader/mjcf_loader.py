@@ -5,7 +5,7 @@ from xml.etree.ElementTree import Element as XMLNode
 from typing import List, Dict, Callable
 from copy import deepcopy
 
-from .loader import XMLLoader
+from .loader import AssetLibrary, XMLLoader
 from .ucomponent import UGameObject, SceneRoot
 from .ucomponent import UVisual, UVisualType
 from .ucomponent import UMesh, UMaterial
@@ -66,6 +66,23 @@ class MJCFDefault:
         return None
 
 
+class MJCFAssetLibrary(AssetLibrary):
+
+    def __init__(self, xml_path: str) -> None:
+        super().__init__(os.path.abspath(os.path.join(xml_path, "..")))
+
+    def set_sub_asset_path(self, sub_path: str) -> None:
+        self.asset_path = os.path.join(self.asset_path, sub_path)
+        return
+
+    def include_obj(self, asset_id, file_path) -> None:
+        file_path = os.path.join(self.asset_path, file_path)
+        return super().include_obj(asset_id, file_path)
+
+    def include_stl(self, asset_id, file_path) -> None:
+        file_path = os.path.join(self.asset_path, file_path)
+        return super().include_stl(asset_id, file_path)
+
 class MJCFLoader(XMLLoader):
     GeomTypeMap: Dict[str, UVisualType] = {
         "box": UVisualType.CUBE,
@@ -91,19 +108,17 @@ class MJCFLoader(XMLLoader):
             "geom": self._parse_geom,
         }
         self.default_dict: Dict[str, MJCFDefault] = {}
+        self.asset_lib: MJCFAssetLibrary = MJCFAssetLibrary(file_path)
         super().__init__(file_path)
 
-    def parse_xml(self, root_xml: XMLNode) -> str:
+    def parse_xml(self, root_xml: XMLNode) -> None:
         self.assembly_include_files(root_xml)
-        top_default = self.export_default(root_xml)
-        self.import_default(root_xml, top_default)
+        self.import_compiler(root_xml)
+        self.export_default(root_xml)
+        self.import_default(root_xml)
         self.load_asset(root_xml)
         self._parse(root_xml, self.root_object)
-        # for game_object in self.game_object_dict.values():
-        #     print(game_object.to_dict())
-        # tree = ET.ElementTree(root_xml)
-        # xml_str = ET.tostring(root_xml, encoding='utf8', method='xml').decode()
-        # print(xml_str)
+        return
 
     def assembly_include_files(self, root_xml: XMLNode) -> None:
         for child in root_xml:
@@ -114,8 +129,17 @@ class MJCFLoader(XMLLoader):
             sub_root_xml = self.get_root_from_xml_file(sub_xml_path)
             root_xml.extend(sub_root_xml)
             root_xml.remove(child)
+        return
 
-    def export_default(self, root_xml: XMLNode) -> MJCFDefault:
+    def import_compiler(self, root_xml: XMLNode) -> None:
+        for compiler in root_xml.findall("compiler"):
+            if "assetdir" in compiler.attrib.keys():
+                self.asset_lib.set_sub_asset_path(compiler.attrib["assetdir"])
+            if "meshdir" in compiler.attrib.keys():
+                self.asset_lib.set_sub_asset_path(compiler.attrib["meshdir"])
+        return
+
+    def export_default(self, root_xml: XMLNode):
         for xml in root_xml:
             if xml.tag == "default":
                 self._parse_default(xml)
@@ -124,7 +148,7 @@ class MJCFLoader(XMLLoader):
         default_xmls = root_xml.findall('default')
         for default_xml in default_xmls:
             root_xml.remove(default_xml)
-        return MJCFDefault.Top
+        return 
 
     def _parse_default(self, default_xml: XMLNode, parent: MJCFDefault = None) -> None:
         if parent is None:
@@ -137,9 +161,11 @@ class MJCFLoader(XMLLoader):
             self._parse_default(default_child_xml, default)
         return 
 
-    def import_default(self, xml: XMLNode, parent: MJCFDefault) -> None:
+    def import_default(self, xml: XMLNode, parent: MJCFDefault = None) -> None:
         if xml.tag == "default":
             return
+        if parent is None:
+            parent = MJCFDefault.Top
         default = self.default_dict[xml.attrib["class"]] if "class" in xml.attrib.keys() else parent
         default.replace_class_attrib(xml)
         parent = self.default_dict[xml.attrib["childclass"]] if "childclass" in xml.attrib else parent
@@ -183,7 +209,6 @@ class MJCFLoader(XMLLoader):
         if xml_element.tag in self.tag_func_dict.keys():
             parent = self.tag_func_dict[xml_element.tag](xml_element, parent)
         for xml_child in xml_element:
-            # print(xml_child.tag, parent)
             self._parse(xml_child, parent)
         return 
 
