@@ -6,7 +6,7 @@ from enum import Enum
 import abc
 from typing import List, Optional, Tuple, TypeVar
 
-from .utils import get_name, singleton
+from .utils import singleton
 
 
 class UHeaderType(str, Enum):
@@ -28,13 +28,12 @@ class UJointType(str, Enum):
 
 
 class UVisualType(str, Enum):
-	GEOMETRIC = "GEOMETRIC"
-	BOX       = "BOX"
-	SPHERE    = "SPHERE"
-	CYLINDER  = "CYLINDER"
-	CAPSULE   = "CAPSULE"
-	PLANE     = "PLANE"
-	MESH      = "MESH"
+	CUBE = "CUBE"
+	SPHERE = "SPHERE"
+	CYLINDER = "CYLINDER"
+	CAPSULE = "CAPSULE"
+	PLANE = "PLANE"
+	MESH = "MESH"
 
 class UMetaEntity(abc.ABC):
 	def __init__(self) -> None:
@@ -58,22 +57,19 @@ class UMaterial(UComponent):
 
 
 class UMesh(UComponent):
-  name : str
-  pos : List[float]
-  rot : List[float]
-  scale : List[float]
-#   TODO: using this data in the asset 
-#   indices : List[int]
-#   vertices : List[List[float]]
-#   normals : List[List[float]]
-#   material : UMaterial
+	name : str
+
+	def to_dict(self) -> str:
+		return self.name
+
 
 
 class UVisual(UComponent):
-	type : UVisualType
+	type : UVisualType = None
 	pos : List[float] = [0.0, 0.0, 0.0]
 	rot : List[float] = [0.0, 0.0, 0.0]
 	scale : List[float] = [1.0, 1.0, 1.0]
+	rgba : List[float] = [1.0, 1.0, 1.0, 1.0]
 	mesh : UMesh = None
 	material : UMaterial = None
 	
@@ -85,6 +81,7 @@ class UVisual(UComponent):
 			"rot": self.rot,
 			"scale" : self.scale,
 			"mesh" :  None if self.mesh is None else self.mesh.to_dict(),
+			"material" : None if self.material is None else self.material.to_dict()
 		}
 
 class UGameObject(UMetaEntity):

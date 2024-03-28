@@ -27,21 +27,22 @@ class XMLLoader(abc.ABC):
 
     def __init__(
             self, 
-            file_path: str,
+            xml_path: str,
         ):
-        self.asset_lib: AssetLibrary = AssetLibrary()
-        self.file_path = file_path
+        self.xml_path = xml_path
+        self.xml_floder = os.path.abspath(os.path.join(self.xml_path, ".."))
+        self.asset_lib: AssetLibrary = AssetLibrary(self.xml_floder)
         self.root_object = SceneRoot()
         self.game_object_dict: Dict[str, UGameObject] = {
             "SceneRoot": SceneRoot(),
         }
-        root_xml = self.get_root_from_xml_file(file_path)
+        root_xml = self.get_root_from_xml_file(xml_path)
         self.parse_xml(root_xml)
 
-    def get_root_from_xml_file(self, file_path: str) -> XMLNode:
-        file_path = os.path.abspath(file_path)
-        assert os.path.exists(file_path), f"The file '{file_path}' does not exist."
-        tree_xml = ET.parse(file_path)
+    def get_root_from_xml_file(self, xml_path: str) -> XMLNode:
+        xml_path = os.path.abspath(xml_path)
+        assert os.path.exists(xml_path), f"The file '{xml_path}' does not exist."
+        tree_xml = ET.parse(xml_path)
         return tree_xml.getroot()
 
     @abc.abstractmethod
@@ -53,20 +54,21 @@ class XMLLoader(abc.ABC):
         scene_list = [obj.to_dict() for obj in game_obj_list]
         return MsgPack("Scene_Model", dumps(scene_list))
 
-
-
 class Asset:
-    def __init__(self, file_path: str) -> None:
+    def __init__(self, asset_id: str, file_path: str) -> None:
+        self.id = asset_id
         self.file_path = file_path
-        self.linked_objects: List[UGameObject] = list()
 
     @abc.abstractclassmethod
     def load_asset(self) -> str:
         pass
+    
+    def __str__(self) -> str:
+        return f"Asset: {self.id} Path: {self.file_path}"
 
 class STLAsset(Asset):
-    def __init__(self, file_path: str) -> None:
-        super().__init__(file_path)
+    def __init__(self, asset_id: str, file_path: str) -> None:
+        super().__init__(asset_id, file_path)
         pass
 
     def load_asset(self) -> str:
@@ -74,8 +76,8 @@ class STLAsset(Asset):
         pass
     
 class OBJAsset(Asset):
-    def __init__(self, file_path: str) -> None:
-        super().__init__(file_path)
+    def __init__(self, asset_id: str, file_path: str) -> None:
+        super().__init__(asset_id, file_path)
         pass
 
     def load_asset(self) -> str:
@@ -83,31 +85,43 @@ class OBJAsset(Asset):
         # for mesh in obj_meshes:
         #     mesh.
 
-
-@singleton
 class AssetLibrary:
     
-    def __init__(self) -> None:
-        self.asset_path: dict[str, Asset] = dict()
-        
-    def include_stl(self, asset_id, file_path) -> None:
-        self.asset_path[asset_id] = STLAsset(file_path)
+    def __init__(self, asset_path: str) -> None:
+        self._assets: dict[str, Asset] = dict()
+        self.asset_path = asset_path
+        print(self.asset_path)
+
+    def check_asset_path(self, file_path: str) -> str:
+        file_path = os.path.abspath(file_path)
+        if not os.path.exists(file_path):
+            file_path = os.path.join(self.asset_path, file_path)
+        # print(self.asset_path, file_path)
+        return file_path
+
+    def include_stl(self, asset_id, file_name) -> None:
+        file_path = self.check_asset_path(file_path)
+        self._assets[asset_id] = STLAsset(asset_id, file_path)
         return
 
     def include_obj(self, asset_id, file_path) -> None:
-        self.asset_path[asset_id] = OBJAsset(file_path)
+        file_path = self.check_asset_path(file_path)
+        self._assets[asset_id] = OBJAsset(asset_id, file_path)
         return
         
     # TODO: Try to implement it
     def include_texture(self):
         pass
 
+    # TODO: Try to implement it
     def include_dae_file(self, file_name, file_path):
         pass
 
     def load_asset(self, asset_id) -> str:
-        for asset in self.asset_path.values():
-            asset.load_asset()
+        if asset_id in self._assets.keys():
+            print(f"Asset {asset_id} already loaded.")
+            return
+        return self._assets[asset_id].load_asset()
 
 
 
