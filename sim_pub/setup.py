@@ -4,5 +4,5 @@ setup(
     name='sim_pub',
     version='0.1',
     packages=find_packages(),
-    install_requires=[],
+    install_requires=["zmq", "trimesh", "dm_control", "pillow", "numpy"],
 )
