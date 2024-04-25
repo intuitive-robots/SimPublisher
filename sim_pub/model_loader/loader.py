@@ -1,140 +1,127 @@
 import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import Element as XMLNode
 import abc
 from typing import TypedDict, Dict, List, Union
 import os
+from json import dumps
+from matplotlib.pyplot import cla
 import trimesh
+from trimesh.base import Trimesh
 
-from sim_pub.base import ServerBase
-from sim_pub.model_loader.ucomponent import *
-from utils import singleton
+from ..server.msg import MsgPack
+from .ucomponent import *
+from .utils import *
 
 def tree_to_list_dfs(
         root: UGameObject,
-        game_objects_list: list[UGameObject],
+        game_objects_list: list[UGameObject] = None,
     ):
+    if game_objects_list is None:
+        game_objects_list = list()
     for child in root.children:
         game_objects_list.append(child)
-        tree_to_list_dfs(child)
-    game_objects_list.append(EmptyGameObject)
+        tree_to_list_dfs(child, game_objects_list)
     return game_objects_list
 
-
-class XMLFileLoader(abc.ABC):
+class XMLLoader(abc.ABC):
 
     def __init__(
             self, 
-            file_path: str, 
-            root: UGameObject = SceneRoot()
+            xml_path: str,
         ):
-        # file_path = os.path.abspath(file_path)
-        assert os.path.exists(file_path), f"The file '{file_path}' does not exist."
-        self.file_path = file_path
-        self.root_object = root
-        self.namespace = file_path
-        self.parse()
+        self.xml_path = xml_path
+        self.xml_floder = os.path.abspath(os.path.join(self.xml_path, ".."))
+        self.root_object = SceneRoot()
+        self.game_object_dict: Dict[str, UGameObject] = {
+            "SceneRoot": SceneRoot(),
+        }
+        root_xml = self.get_root_from_xml_file(xml_path)
+        self.parse_xml(root_xml)
+
+    def get_root_from_xml_file(self, xml_path: str) -> XMLNode:
+        xml_path = os.path.abspath(xml_path)
+        assert os.path.exists(xml_path), f"The file '{xml_path}' does not exist."
+        tree_xml = ET.parse(xml_path)
+        return tree_xml.getroot()
 
     @abc.abstractmethod
-    def parse(self) -> str:
+    def parse_xml(self, root: ET.Element) -> str:
+        raise NotImplemented
+
+    def generate_scene_msg(self) -> MsgPack:
+        game_obj_list = tree_to_list_dfs(SceneRoot())
+        scene_list = [obj.to_dict() for obj in game_obj_list]
+        return MsgPack("Scene_Model", dumps(scene_list))
+
+class Asset:
+    def __init__(self, asset_id: str, file_path: str) -> None:
+        self.id = asset_id
+        self.file_path = file_path
+
+    @abc.abstractclassmethod
+    def load_asset(self) -> str:
+        pass
+    
+    def __str__(self) -> str:
+        return f"Asset: {self.id} Path: {self.file_path}"
+
+class STLAsset(Asset):
+    def __init__(self, asset_id: str, file_path: str) -> None:
+        super().__init__(asset_id, file_path)
         pass
 
-class MJCFLoader(XMLFileLoader):
-
-    def parse(self):
-        for worldbody in self.root.findall("worldbody"):
-            self.parse_worldbody(worldbody)
-
-    def parse_worldbody(self, worldbody: ET.ElementTree):
-        for body in worldbody.findall("body"):
-            game_object = self.parse_object(body)
-            game_object.parent = self.root_object
-
-
-    def parse_object(self, object_element: ET.ElementTree) -> UGameObject:
-        game_object = UGameObject(object_element)
-        game_object.visual = self.parse_visual(object_element.find("gemo"))
-        for body in object_element.findall("body"):
-            child = self.parse_object(body)
-            child.parent = game_object
-            game_object.children.append(child)
-        return game_object
-
-
-    def parse_visual(self, link: ET.ElementTree) -> UVisual:
+    def load_asset(self) -> str:
+        # trimesh.load(mesh.get("file"))
+        pass
+    
+class OBJAsset(Asset):
+    def __init__(self, asset_id: str, file_path: str) -> None:
+        super().__init__(asset_id, file_path)
         pass
 
+    def load_asset(self) -> str:
+        obj_meshes: List[Trimesh] = trimesh.load_mesh(self.file_path)
+        # for mesh in obj_meshes:
+        #     mesh.
 
-    def parse_joint(self, link: ET.ElementTree) -> UJoint:
-        pass
-
-class URDFLoader(XMLFileLoader):
-    pass
-
-@singleton
 class AssetLibrary:
     
-    def __init__(self) -> None:
-        self.asset_path: dict[str, str]
+    def __init__(self, asset_path: str) -> None:
+        self._assets: dict[str, Asset] = dict()
+        self.asset_path = asset_path
+
+    # def check_asset_path(self, file_path: str) -> None:
+    #     assert os.path.exists(file_path), f"The file '{file_path}' does not exist."
+    #     return 
+
+    def include_stl(self, asset_id, file_path) -> None:
+        self._assets[asset_id] = STLAsset(asset_id, file_path)
+        return
+
+    def include_obj(self, asset_id, file_path) -> None:
+        self._assets[asset_id] = OBJAsset(asset_id, file_path)
+        return
         
-    def include_stl_file(self, file_path):
+    # TODO: Try to implement it
+    def include_texture(self):
         pass
 
-    def include_dae_file(self, file_path):
+    # TODO: Try to implement it
+    def include_dae_file(self, file_name, file_path):
         pass
 
     def load_asset(self, asset_id) -> str:
-        pass
+        if asset_id in self._assets.keys():
+            print(f"Asset {asset_id} already loaded.")
+            return
+        return self._assets[asset_id].load_asset()
 
-    # def convert_mesh(mesh : trimesh.base.Trimesh, matrix : np.ndarray, name : str) -> UMesh:
 
 
-    #     verts = np.around(mesh.vertices, decimals=5) # load vertices with max 5 decimal points
-    #     verts[:, 0] *= -1 # reverse x pos of every vertex
-    #     verts = verts.tolist()
 
-    #     norms = np.around(mesh.vertex_normals, decimals=5) # load normals with max 5 decimal points
-    #     norms[:, 0] *= -1 # reverse x pos of every normal
-    #     norms = norms.tolist()
-
-    #     indices = mesh.faces[:, [2, 1, 0]].flatten().tolist() # reverse winding order 
-
-    #     rot, pos = decompose_transform_matrix(matrix) # decompose matrix 
-
-    #     # this needs to be tested
-    #     pos = [-pos[1], pos[2], -pos[0]]
-    #     rot = [-rot[1] - math.pi / 2, -rot[2], math.pi / 2 - rot[0] ]
-    #     scale = [1, 1, 1]
-
-    #     return UMesh(
-    #         name=name, 
-    #         position=pos, 
-    #         rotation=rot, 
-    #         scale=scale, 
-    #         indices=indices, 
-    #         vertices=verts, 
-    #         normals=norms, 
-    #         material=convert_material(mesh.visual.material)
-    #     )
-
-class ScenePublisher:
-    def __init__(self) -> None:
-        self.xml_file_loaders : List[XMLFileLoader] = list()
-        self.asset_lib = AssetLibrary()
-
-    def include_urdf_file(self, file_path):
-        self.xml_file_loaders.append(URDFLoader(file_path))
-
-    def include_mjcf_file(self, file_path):
-        self.xml_file_loaders.append(MJCFLoader(file_path))
-
-    def publish_models(self, server: ServerBase) -> None:
-        game_obj_list = tree_to_list_dfs(SceneRoot())
-        
-        # server.send_str_msg()
-        # create new publishers and assign them to server
-
-if __name__ == "__main__":
-    model_pub = ModelPublisher()
-    model_pub.include_mjcf_file("../panda.xml")
+# if __name__ == "__main__":
+#     model_pub = ModelPublisher()
+#     model_pub.include_mjcf_file("../panda.xml")
     
     # print(tree)
     # urdf = URDFLoader(tree)

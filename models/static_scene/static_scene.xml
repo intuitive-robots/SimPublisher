@@ -1,0 +1,27 @@
+<!-- This model is for test mjcf parser -->
+<mujoco model="static scene">
+
+    <default>
+        <default class="sphere">
+            <geom type="sphere" size="0.2"/>
+            <default class="red_sphere">
+                <geom rgba="1 0 0 1"/>
+            </default>
+            <default class="green_sphere">
+                <geom rgba="0 1 0 1"/>
+            </default>
+            <default class="blue_sphere">
+                <geom rgba="0 0 1 1"/>
+            </default>
+        </default>
+    </default>
+
+    <worldbody>
+        <geom class="red_sphere" pos="0 0 0"/>
+        <body name="body_0">
+            <geom class="blue_sphere" pos="0 1 0"/>
+            <include file="included_scene.xml"/>
+        </body>
+    </worldbody>
+
+</mujoco>
