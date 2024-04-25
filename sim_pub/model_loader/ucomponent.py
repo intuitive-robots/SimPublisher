@@ -1,10 +1,12 @@
-from dataclasses import dataclass
+from __future__ import annotations
+from dataclasses import dataclass, asdict
+from unicodedata import name
 from xml.etree.ElementTree import Element as XMLNode
 from enum import Enum
 import abc
 from typing import List, Optional, Tuple, TypeVar
 
-from utils import singleton
+from .utils import singleton
 
 
 class UHeaderType(str, Enum):
@@ -26,78 +28,105 @@ class UJointType(str, Enum):
 
 
 class UVisualType(str, Enum):
-	GEOMETRIC = "GEOMETRIC"
-	BOX       = "BOX"
-	SPHERE    = "SPHERE"
-	CYLINDER  = "CYLINDER"
-	CAPSULE   = "CAPSULE"
-	PLANE     = "PLANE"
-	MESH      = "MESH"
+	CUBE = "CUBE"
+	SPHERE = "SPHERE"
+	CYLINDER = "CYLINDER"
+	CAPSULE = "CAPSULE"
+	PLANE = "PLANE"
+	MESH = "MESH"
 
 class UMetaEntity(abc.ABC):
 	def __init__(self) -> None:
 		super().__init__()
 
 	@abc.abstractmethod
-	def to_string(self) -> str:
+	def to_dict(self) -> dict:
 		pass
 
 @dataclass
 class UComponent(UMetaEntity):
-	pass
+	name: str
+	def to_dict(self) -> dict:
+		return asdict(self)
 
 class UMaterial(UComponent):
-
 	specular : List[float]
 	diffuse : List[float]
 	ambient : List[float]
 	glossiness : float
 
-	def to_string(self) -> str:
-		return super().to_string()
 
 class UMesh(UComponent):
-  name : str
-  pos : List[float]
-  rot : List[float]
-  scale : List[float]
-  indices : List[int]
-  vertices : List[List[float]]
-  normals : List[List[float]]
-  material : UMaterial = None
+	name : str
+
+	def to_dict(self) -> str:
+		return self.name
+
 
 
 class UVisual(UComponent):
-	type : UVisualType
-	pos : List[float]
-	rot : List[float]
-	scale : List[float]
-	meshes : List[UMesh]
-
+	type : UVisualType = None
+	pos : List[float] = [0.0, 0.0, 0.0]
+	rot : List[float] = [0.0, 0.0, 0.0]
+	scale : List[float] = [1.0, 1.0, 1.0]
+	rgba : List[float] = [1.0, 1.0, 1.0, 1.0]
+	mesh : UMesh = None
+	material : UMaterial = None
+	
+	def to_dict(self) -> dict:
+		return {
+			"name": self.name,
+			"type": self.type,
+			"pos": self.pos,
+			"rot": self.rot,
+			"scale" : self.scale,
+			"mesh" :  None if self.mesh is None else self.mesh.to_dict(),
+			"material" : None if self.material is None else self.material.to_dict()
+		}
 
 class UGameObject(UMetaEntity):
 
-	def __init__(
-			self
-			) -> None:
+	def __init__(self, name: str, parent: UGameObject) -> None:
 		super().__init__()
+		self.name = name
 		self.pos: list[float] = [0, 0, 0]
 		self.rot: list[float] = [0, 0, 0]
-		self.visual : UVisual
-		self.parent: UGameObject = SceneRoot.instance()
-		self.children: List[UMetaEntity] = list()
+		self.moveable: bool = True
+		self.visual: List[UVisual] = list()
+		self.parent: UGameObject = parent
+		self.children: List[UGameObject] = list()
+		if parent is not None:
+			parent.children.append(self)
 
-	def to_string(self) -> str:
-		return super().to_string()
+	def add_visual(self, visual: UVisual):
+		self.visual.append(visual)
 
+	def to_dict(self) -> dict:
+		# print(self.name)
+		return {
+			"name": self.name,
+			"pos": self.pos,
+			"rot": self.rot,
+			"moveable": self.moveable,
+			"parent": self.parent.name,
+			"children": [child.name for child in self.children],
+			"visual": [item.to_dict() for item in self.visual]
+		}
 
-@singleton
-class EmptyGameObject(UGameObject):
-	pass
 
 @singleton
 class SceneRoot(UGameObject):
-	pass
+	def __init__(self) -> None:
+		super().__init__("SceneRoot", parent=None)
+
+	def to_dict(self) -> dict:
+		return {
+			"name": self.name,
+			"pos": self.pos,
+			"rot": self.rot,
+			"children": [child.name for child in self.children],
+			"visual": [item.to_dict() for item in self.visual]
+		}
 
 class UJoint(UMetaEntity):
 	def __init__(self) -> None:
