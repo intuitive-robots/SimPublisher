@@ -60,3 +60,9 @@ class SimPublisher:
 
   def get_scene(self) -> UScene:
     return self.scene
+  
+  def register_stream_handler(self, tag : str, func):
+    self.streaming_thread.register(tag, func)
+
+  def push_stream(self, tag : str, data):
+    self.streaming_thread.push(tag, data)
