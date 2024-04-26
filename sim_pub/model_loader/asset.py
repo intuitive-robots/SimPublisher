@@ -122,7 +122,7 @@ class AssetLoader:
           if tex_data.shape[1] == 3: # upscaling RGB
             rgba = np.zeros((tex_data.shape[0], tex_data.shape[1] + 1), dtype=np.uint8)
             rgba[:, :3] = tex_data  # Copy the RGB values
-            rgba[:, 3] = 255  # Set the alpha channel to 255 (fully opaque)
+            rgba[:, 3] = 255  # Set the alpha channel to 
             tex_data = rgba
           texture._data = tex_data.flatten().tobytes()
 
@@ -149,12 +149,14 @@ class AssetLoader:
 
   
     def load_visual(visual : mjcf.Element) -> Optional[UVisual]:    
+      
       if visual.group is not None and visual.group > 2: return None # get a better way to figure this out 
+
       type = UVisualType(visual.type.upper()) if visual.type else UVisualType.SPHERE
       transform = UTransform(position=mj2pos(visual.pos), rotation=mj2euler(quat2euler(visual.quat)), scale = mj2scale(visual.size))
 
       return UVisual(
-        name="joint-" + (visual.name or visual.tag),
+        name=visual.name or visual.tag,
         type=type,
         transform=transform,
         asset=visual.mesh.file.prefix if type == UVisualType.MESH else None, # this is a unique file id specified by mujoco
