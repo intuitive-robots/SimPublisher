@@ -83,6 +83,7 @@ class UTexture(UAsset): # https://mujoco.readthedocs.io/en/latest/XMLreference.h
   gridsize : np.ndarray[np.int32] = field(default_factory=lambda: np.array([1, 1]))
   _data : bytes | None = None
   
+
 """
 Scene data
 """
@@ -93,32 +94,33 @@ class UVisual:
   asset : str
   material : str
   transform : UTransform
+  color : list[float]
 
 
 @dataclass 
 class UJoint:  
   name : str
   transform : UTransform
-  link : "ULink"
+  link : "UBody"
 
-  type : UJointType = UJointType.SLIDE
+  type : UJointType = UJointType.FIXED
   maxrot : float = 0.0
   minrot : float = 0.0
   axis : list[float] = field(default_factory=lambda: np.array([0, 0, 0]))
 
 
 @dataclass
-class ULink:
+class UBody:
   name : str
   visuals : list[UVisual]
   joints : list[UJoint]
 
-  def get_joints(self) -> list[UJoint]:
-    joints = list(self.joints)
+  def get_joints(self, include : set[UJointType] = {type for type in UJointType}, exclude : set[UJointType] = {UJointType.FIXED}) -> list[UJoint]:
+    joints = [joint for joint in self.joints if joint.type not in exclude and joint.type in include]
     found = [joint.link for joint in self.joints]
     while found and (current := found.pop()):
       connected_joints = current.joints
-      joints += connected_joints
+      joints += [joint for joint in connected_joints if joint.type not in exclude and joint.type in include]
       found += [joint.link for joint in connected_joints]
     return joints
 
@@ -127,4 +129,4 @@ class ULink:
 class UScene:
   id : str
   assets : dict[str, UAsset]
-  objects : list[ULink]
+  objects : list[UBody]

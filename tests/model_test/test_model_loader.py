@@ -1,6 +1,6 @@
 import os
 
-from sim_pub.model_loader import MJCFLoader
+from simpub.model_loader import MJCFLoader
 
 
 def test_load_model_parse(model_path: str) -> MJCFLoader:

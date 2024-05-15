@@ -6,6 +6,8 @@ from typing import Optional
 
 
 class DiscoveryThread:
+
+  BROADCAST_MASK = "255.255.255.255"
   
   def __init__(self, message : str, port : int , intervall=2):
     self.port = port
@@ -13,13 +15,14 @@ class DiscoveryThread:
     self.intervall = intervall
     self.message = message.encode()
     self.thread = Thread(target=self._loop)
-    self.socket = socket(AF_INET, SOCK_DGRAM) #create UDP socket
-    self.socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1) #this is a broadcast socket
+
 
   def _loop(self):
+    conn = socket(AF_INET, SOCK_DGRAM) #create UDP socket
+    conn.setsockopt(SOL_SOCKET, SO_BROADCAST, 1) # this is a broadcast socket
     print("* Discovery is running on port", self.port)
     while self.running:
-      self.socket.sendto(self.message, ("255.255.255.255", self.port))
+      conn.sendto(self.message, (DiscoveryThread.BROADCAST_MASK, self.port))
       sleep(self.intervall)
   
   def start(self):

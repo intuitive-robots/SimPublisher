@@ -7,6 +7,7 @@ How does pub / sub work in zmq:
 
 import queue
 from typing import Any, Callable, Optional
+from simpub.serialize import serialize_data
 import zmq
 from threading import Thread
 
@@ -16,7 +17,6 @@ class StreamingThread:
     self.zmq_context = context
     self.port = port
     self.running = False
-    self.handlers : dict[str, Callable] = dict()
     self.payload = queue.Queue()
 
   def start(self):
@@ -25,16 +25,11 @@ class StreamingThread:
     
   def stop(self):
     self.running = False
+    self.payload.put("END")
     self.thread.join()
   
-  def register(self, tag : str, action : Callable[[zmq.Socket, str, Any], None]):
-    self.handlers[tag] = action
-
-  def push(self, tag : str, data):
-    if tag not in self.handlers:
-      raise RuntimeError("Pushed invalid tag", tag)
-    
-    self.payload.put((tag, data))
+  def publish(self, data):
+    self.payload.put(data)
 
   def _loop(self):
     pub_socket : zmq.Socket = self.zmq_context.socket(zmq.PUB)
@@ -45,6 +40,8 @@ class StreamingThread:
     
     print("* Streaming is running on port", self.port)
     while self.running: 
-      tag, data = self.payload.get() # This blocks until data is available
-        
-      self.handlers[tag](pub_socket,tag, data)
+      data = self.payload.get() # This blocks until data is available
+      pub_socket.send_string(serialize_data(data)) 
+    
+    
+    pub_socket.close()
