@@ -2,7 +2,7 @@ import io
 import math
 from pathlib import Path
 from typing import Optional
-from udata import UMesh, USubMesh, UTransform
+from simpub.udata import UMesh, USubMesh, UTransform
 import numpy as np  
 import trimesh
 
@@ -64,12 +64,12 @@ class MeshLoader:
     bin_data += indices.tobytes() 
 
     ## Texture coords
+    uv_layout = 0, 0
     if tex_coords is not None:
+      tex_coords[:, 1] = 1 - tex_coords[:, 1]
       uvs = tex_coords.flatten() 
       uv_layout = len(bin_data), uvs.shape[0]
       bin_data += uvs.tobytes()
-    else:
-      uv_layout = 0, 0
 
     umesh = USubMesh(
       name="geometry_0",

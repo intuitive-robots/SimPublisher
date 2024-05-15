@@ -1,8 +1,9 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='sim_pub',
+    name='simpub',
     version='0.1',
-    packages=find_packages(),
     install_requires=["zmq", "trimesh", "dm_control", "pillow", "numpy"],
+    include_package_data=True,
+    packages = ['simpub', 'simpub.connection', 'simpub.model_loader']
 )
