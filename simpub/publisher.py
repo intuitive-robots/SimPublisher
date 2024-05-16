@@ -19,7 +19,7 @@ import numpy as np
 
 
 class SimPublisher:
-  FPS = 30
+  FPS = 20
   def __init__(
       self, 
       scene : SimScene, 
@@ -58,13 +58,10 @@ class SimPublisher:
     self.id = random.randint(100_000, 999_999)
 
     discovery_message = f"HDAR:{self.id}:{serialize_data(discovery_data)}"
-
     self.discovery_thread = DiscoveryThread(discovery_message, discovery_port, discovery_interval)  
 
     self.running = False
-
     self.thread = Thread(target=self._loop)
-
     self.tracked_joints = dict()
 
 
@@ -147,7 +144,8 @@ class SimPublisher:
         time.sleep(1 / self.FPS - diff)
       
       last = time.monotonic()
-      msg = { obj.name : { joint.name : np.array(self.update_joint(joint.name)) for joint in obj.get_joints() } for obj in self.scene.objects}
-      
+      msg = dict()
+      msg["data"] = {obj.name : { joint.name : np.array(self.update_joint(joint.name)) for joint in obj.get_joints() } for obj in self.scene.objects}
+      msg["time"] = time.monotonic()
       msg = serialize_data(msg)
       self.publish(msg)
