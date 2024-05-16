@@ -5,17 +5,9 @@ How does req / rep work in zmq:
 - https://learning-0mq-with-pyzmq.readthedocs.io/en/latest/pyzmq/patterns/client_server.html
 """
 
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 import zmq
 from threading import Thread
-
-from simpub.udata import UAsset, UAssetType, UMesh, UScene
-
-import json
-import numpy as np
-import dataclasses as DC
-
-from simpub.serialize import serialize_data
 
 
 class ServiceThread: 
@@ -24,9 +16,7 @@ class ServiceThread:
     self._actions : dict = {}
     self.zmq_context = context
     self.port = port
-    self.running = True
-
-  
+    self.running = True  
 
   def start(self):
     self.thread.start()
