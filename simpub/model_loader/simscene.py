@@ -1,14 +1,17 @@
 import io
+import math
 import random 
 from pathlib import Path
-
 import numpy as np
-
-import math
-from simpub.udata import *
-from dm_control import mjcf
 from PIL import Image
+from hashlib import md5
+
+from dm_control import mjcf
+
+from simpub.udata import *
 from simpub.model_loader.mesh_loader import MeshLoader
+
+
 
 def mj2quat(quat):
     # note that the order is "[x, y, z, w]"
@@ -20,7 +23,7 @@ def mj2pos(pos):
 
 def mj2euler(rot): 
   if rot is None: return np.array([0, 0, 0])
-  return np.array([rot[1], -rot[2], -rot[0]])
+  return np.array([-rot[1], -rot[2], -rot[0]])
 
 def mj2scale(scale):
   if scale is None: return np.array([1, 1, 1])
@@ -126,7 +129,7 @@ class SimScene:
 
       mesh : UMesh = MeshLoader.fromBytes(child.file.contents, mesh_type=child.file.extension[1:])
       mesh.tag = child.name or child.file.prefix
-  
+
       for submesh in mesh.submeshes:
         submesh.name = mesh.tag
         if child.scale is not None:
@@ -156,6 +159,7 @@ class SimScene:
             rgba[:, 3] = 255  # Set the alpha channel to 
             tex_data = rgba
           texture._data = tex_data.flatten().tobytes()
+          texture._data = md5(texture._data).hexdigest()
 
       self.textures[texture.tag] = texture
 
@@ -177,7 +181,6 @@ class SimScene:
 
   
     def load_visual(visual : mjcf.Element) -> Optional[UVisual]:    
-      
       if visual.group is not None and visual.group > 2: return None # find a better way to figure this out 
 
       type = UVisualType(visual.type.upper()) if visual.type else UVisualType.SPHERE
@@ -192,21 +195,20 @@ class SimScene:
       )
     
     def load_joint(root : mjcf.Element):
-
+      
       ujoint =  UJoint(
         name=root.name or root.tag,
         link=load_link(root),
-        transform=UTransform(position=mj2pos(root.pos), rotation=mj2euler(quat2euler(root.quat))),
+        transform=UTransform(position=mj2pos(root.pos), rotation=mj2euler(quat2euler(root.quat)))
       )
 
-      joints = root.get_children("joint")
 
+      joints = root.get_children("joint")
       freejoint = root.get_children("freejoint")
       # TODO: There could be multiple joints attached to each body, chaining them together should work 
       # https://mujoco.readthedocs.io/en/stable/modeling.html#kinematic-tree
       if freejoint is not None:
         joint = freejoint
-
         ujoint.type = UJointType.FREE
 
       elif len(joints) > 0: 

@@ -16,10 +16,10 @@ import random
 import time
 
 import numpy as np
-
+import os
 
 class SimPublisher:
-  FPS = 20
+  FPS = 10
   def __init__(
       self, 
       scene : SimScene, 
@@ -46,7 +46,6 @@ class SimPublisher:
     self.service_thread.register_action("SCENE_INFO", self.on_scene_request)
     self.service_thread.register_action("ASSET_INFO", self.on_asset_request)
     self.service_thread.register_action("ASSET_DATA", self.on_asset_data_request)
-    self.service_thread.register_action("INITIAL_STATE", self.on_initial_state_request)
 
     self.streaming_thread = StreamingThread(zmqContext, port=streaming_port)
 
@@ -67,16 +66,13 @@ class SimPublisher:
 
   def start(self):
     self.service_thread.start()
-    self.streaming_thread.start()
-    self.discovery_thread.start()
-    
+    self.discovery_thread.start()    
     self.running = True
 
     self.thread.start()
 
   def shutdown(self):
     self.discovery_thread.stop()
-    self.streaming_thread.stop()
     self.service_thread.stop()
 
     self.running = False
@@ -104,13 +100,7 @@ class SimPublisher:
     obj, func = self.tracked_joints[joint_name]
 
     value = func(obj) 
-    return [value] if isinstance(value, float) else value
-
-  
-  def on_initial_state_request(self, socket : zmq.Socket, arg : str):
-    init_dat = { obj.name : [self.update_joint(joint.name) for joint in obj.get_joints()] for obj in self.scene.objects }
-    msg = serialize_data(init_dat)
-    socket.send_string(msg)
+    return value
 
   def on_scene_request(self, socket : zmq.Socket, tag : str):
     socket.send_string(self.scene_message)
@@ -142,10 +132,9 @@ class SimPublisher:
       diff = time.monotonic() - last 
       if diff < 1 / self.FPS: 
         time.sleep(1 / self.FPS - diff)
-      
+
       last = time.monotonic()
       msg = dict()
       msg["data"] = {obj.name : { joint.name : np.array(self.update_joint(joint.name)) for joint in obj.get_joints() } for obj in self.scene.objects}
       msg["time"] = time.monotonic()
-      msg = serialize_data(msg)
       self.publish(msg)

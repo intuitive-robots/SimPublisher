@@ -53,8 +53,9 @@ class USubMesh:
 @dataclass
 class UMesh(UAsset):
   submeshes : list[USubMesh]
-  type = UAssetType.MESH
   _data : bytes
+  type = UAssetType.MESH
+  hash : str = ""
 
 @dataclass
 class UMaterial(UAsset): # https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset-material
@@ -81,6 +82,7 @@ class UTexture(UAsset): # https://mujoco.readthedocs.io/en/latest/XMLreference.h
   rgb2 : np.ndarray[np.float32] = field(default_factory=lambda:np.array([0.5, 0.5, 0.5]))
   markrgb : np.ndarray[np.int32] = field(default_factory=lambda: np.array([0, 0, 0]))
   gridsize : np.ndarray[np.int32] = field(default_factory=lambda: np.array([1, 1]))
+  hash : str = ""
   _data : bytes | None = None
   
 
