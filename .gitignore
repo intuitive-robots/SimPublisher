@@ -5,7 +5,8 @@ __pycache__/
 
 main.py
 scenes/
-
+models copy/
+test.py
 # C extensions
 *.so
 

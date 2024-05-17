@@ -6,6 +6,8 @@ from simpub.udata import UMesh, USubMesh, UTransform
 import numpy as np  
 import trimesh
 
+from hashlib import md5
+
 
 def mat2transform(matrix):
   u, *_ = np.linalg.svd(matrix[:3, :3])
@@ -27,7 +29,7 @@ class MeshLoader:
     
 
   def fromBytes(content : bytes, mesh_type : str) -> UMesh:
-
+    hash = md5(content).hexdigest()
     with io.BytesIO(content) as data:
       mesh : trimesh.Trimesh = trimesh.load(data, file_type=mesh_type, texture=True)
 
@@ -42,7 +44,8 @@ class MeshLoader:
     return UMesh(
       tag=None,
       _data=data,
-      submeshes=[submesh]
+      submeshes=[submesh],
+      hash=hash,
     )
 
   def _build_mesh(indices, vertices, norms, tex_coords) -> USubMesh:
