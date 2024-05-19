@@ -4,9 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 import simpub
-from matplotlib import scale
-from simpub.transform import euler2mat
-from simpub.simdata import SimMesh, SimTexture, SimTransform
+from simpub.simdata import SimMesh, SimTexture
 import numpy as np  
 import trimesh
 

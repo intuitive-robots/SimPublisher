@@ -13,13 +13,13 @@ scene = [scene for scene in Path("scenes").rglob("*/scene.xml")][int(sys.argv[1]
 
 
 # scene = "scenes/anybotics_anymal_c/scene.xml"
-scene = "scenes/anybotics_anymal_b/scene.xml"
+# scene = "scenes/anybotics_anymal_b/scene.xml"
 # scene = "scenes/franka_emika_panda/scene.xml"
 print("Loading scene", str(scene))
 
 scene = SimScene.from_file(str(scene))
 
-publisher = SimPublisher(scene, service_port=SERVICE_PORT, streaming_port=STREAMING_PORT, discovery_port=DISCOVERY_PORT)
+publisher = SimPublisher(scene)
 publisher.start()
 
 while True:
