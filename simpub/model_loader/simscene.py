@@ -7,7 +7,7 @@ from hashlib import md5
 
 from simpub import mjcf
 
-from simpub.udata import *
+from simpub.simdata import *
 from simpub.model_loader.asset_loader import MeshLoader, TextureLoader
 
 from simpub.transform import mj2euler, mj2pos, mj2scale, quat2euler
@@ -15,12 +15,14 @@ from scipy.spatial.transform import Rotation as Rot
 
 class SimScene:
   def __init__(self) -> None:
+
     self.id = str(random.randint(int(1e9), int(1e10 - 1))) # [100.000.000, 999.999.999]
-    self._worldbody : UBody = None
-    self.loaded = False
-    self.meshes : dict[str, UMesh] = {}
-    self.materials : dict[str, UMaterial] = {}
-    self.textures : dict[str, UTexture] = {}
+    
+    self._worldbody : SimBody = None
+    self._assets : dict[SimAssetType, dict[str, SimAsset]] = dict()
+
+    for type in SimAssetType:
+      self.assets[type] = dict()
 
     self.xml_string : str
     self.xml_assets : dict
@@ -47,22 +49,14 @@ class SimScene:
 
     return scene
   
-  def toUScene(self) -> UScene:
-    self.loaded = True
-    return UScene(
-      assets= { 
-        **{f"{mesh.type.name}:{mesh.tag}" : mesh for mesh in self.meshes.values() },
-        **{f"{material.type.name}:{material.tag}" : material for material in self.materials.values()},
-        **{f"{texture.type.name}:{texture.tag}" : texture  for texture in self.textures.values()} 
-      },
-      id=self.id, 
-      worldbody=self.worldbody
-    )
-  
   @property
-  def worldbody(self) -> UBody:
+  def worldbody(self) -> SimBody:
     return self._worldbody
       
+
+  @property
+  def assets(self) -> dict[SimAssetType, dict[str, SimAsset]]:
+    return self._assets
   
   """
   MJCF file loading with dm_control.mjcf
@@ -80,25 +74,6 @@ class SimScene:
     self.xml_string = data.to_xml_string()
     self.xml_assets = data.get_assets()
 
-    def load_material(material : mjcf.Element):
-      color = material.rgba if material.rgba is not None else np.array([1, 1, 1, 1])
-      asset = UMaterial(
-        tag=material.name,
-        color=color,
-        emissionColor=((material.emission or 0.0) * color),   
-        specular=material.specular or 0.5,
-        shininess=material.shininess or 0.5,
-        reflectance=material.reflectance or 0.0
-      )
-
-      if material.texture: 
-        asset.texture = material.texture.name
-      
-      if material.texrepeat is not None:
-        asset.texsize = material.texrepeat
-
-      self.materials[asset.tag] = asset
-
     # commit all the default values
     for tag in { "geom", "mesh", "joint", "body", "material"}: # Add whatever you are using
       for elem in data.find_all(tag):
@@ -115,16 +90,33 @@ class SimScene:
             mesh_type=child.file.extension[1:], 
             scale=child.scale
           )
-          self.meshes[mesh.tag] = mesh
+          self._assets[SimAssetType.MESH][mesh.tag] = mesh
         case "material":
-          load_material(child)
+          color = child.rgba if child.rgba is not None else np.array([1, 1, 1, 1])
+          asset = SimMaterial(
+            tag=child.name,
+            color=color,
+            emissionColor=((child.emission or 0.0) * color),   
+            specular=child.specular or 0.5,
+            shininess=child.shininess or 0.5,
+            reflectance=child.reflectance or 0.0
+          )
+
+          if child.texture: 
+            asset.texture = child.texture.name
+          
+          if child.texrepeat is not None:
+            asset.texsize = child.texrepeat
+
+          self._assets[SimAssetType.MATERIAL][asset.tag] = asset
+
         case "texture":
           if child.builtin != "none" and child.builtin is not None:
             texture = TextureLoader.fromBuiltin(child.name or child.type, child.builtin, child.rgb1)
           else:
             texture = TextureLoader.fromBytes(child.name or child.type, child.file.contents, child.type or "cube", child.rgb1)
 
-          self.textures[texture.tag] = texture
+          self._assets[SimAssetType.TEXTURE][texture.tag] = texture
 
     def rotation_from_object(obj : mjcf.Element) -> np.ndarray: # https://mujoco.readthedocs.io/en/stable/modeling.html#frame-orientations
 
@@ -135,7 +127,6 @@ class SimScene:
       zaxis = getattr(obj, "zaxis", None)
 
       result : np.ndarray
-
       if quat is not None:
         result = quat2euler(quat)
       elif axisangle is not None:
@@ -145,7 +136,7 @@ class SimScene:
           case "xyz":
             result = euler
           case "zyx":
-            result = x[::-1]
+            result = euler[::-1]
       elif xyaxes is not None:
         x = xyaxes[:3]
         y = xyaxes[3:6]
@@ -160,32 +151,33 @@ class SimScene:
       
 
   
-    def load_visual(visual : mjcf.Element) -> Optional[UVisual]:    
+    def load_visual(visual : mjcf.Element) -> Optional[SimVisual]:    
       if visual.group is not None and visual.group > 2: return None # find a better way to figure this out 
 
 
-      type = UVisualType(visual.type.upper()) if visual.type else UVisualType.SPHERE
+      type = SimVisualType(visual.type.upper()) if visual.type else SimVisualType.SPHERE
 
-      transform = UTransform(
+      transform = SimTransform(
         position=mj2pos(visual.pos), 
         rotation=rotation_from_object(visual), 
         scale=np.abs(mj2scale(visual.size))
       )
-      return UVisual(
+
+      return SimVisual(
         name=visual.name or visual.tag,
         type=type,
         transform=transform,
-        asset=(visual.mesh.name or visual.mesh.file.prefix) if type == UVisualType.MESH else None, # this is a unique file id specified by mujoco
+        asset=(visual.mesh.name or visual.mesh.file.prefix) if type == SimVisualType.MESH else None, # this is a unique file id specified by mujoco
         material=visual.material.name if visual.material else None,
-        color=visual.rgba if visual.rgba is not None else np.array([0, 0, 0, 1])
+        color=visual.rgba if visual.rgba is not None else np.array([1, 1, 1, 1])
       )
     
     def load_joint(root : mjcf.Element):
       
-      ujoint =  UJoint(
+      ujoint =  SimJoint(
         name=root.name or root.tag,
         body=load_body(root),
-        transform=UTransform(
+        transform=SimTransform(
           position=mj2pos(root.pos), 
           rotation=rotation_from_object(root)
         )
@@ -198,7 +190,7 @@ class SimScene:
       # https://mujoco.readthedocs.io/en/stable/modeling.html#kinematic-tree
       if freejoint is not None:
         joint = freejoint
-        ujoint.type = UJointType.FREE
+        ujoint.type = SimJointType.FREE
       elif len(joints) > 0: 
         joint = joints[0]
         ujoint.name = joint.name or ujoint.name
@@ -206,16 +198,16 @@ class SimScene:
         ujoint.transform.rotation += rotation_from_object(joint)
 
         if joint.range is not None:
-          ujoint.minrot = joint.range[0]
-          ujoint.maxrot = joint.range[1]
+          ujoint.minrot = math.degrees(joint.range[0])
+          ujoint.maxrot = math.degrees(joint.range[1])
       
-        ujoint.type = UJointType((joint.type or "hinge").upper())
+        ujoint.type = SimJointType((joint.type or "hinge").upper())
         ujoint.axis = mj2pos(joint.axis)
 
       return ujoint
 
-    def load_body(body : mjcf.Element) -> UBody:
-      return UBody(
+    def load_body(body : mjcf.Element) -> SimBody:
+      return SimBody(
         name=body.name if hasattr(body, "name") else "worldbody",
         joints=[load_joint(b) for b in body.body],
         visuals=[visual for geom in body.get_children("geom") if (visual := load_visual(geom)) is not None], # this is hacky is there a better way to detect if a geom is collision or visual 

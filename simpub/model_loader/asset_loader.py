@@ -6,7 +6,7 @@ from typing import Optional
 import simpub
 from matplotlib import scale
 from simpub.transform import euler2mat
-from simpub.udata import UMesh, UTexture, UTransform
+from simpub.simdata import SimMesh, SimTexture, SimTransform
 import numpy as np  
 import trimesh
 
@@ -32,7 +32,7 @@ class TextureLoader:
     tex_data = img.tobytes()
     texture_hash = md5(tex_data).hexdigest()
 
-    return UTexture(
+    return SimTexture(
       tag = name,
       width = width,
       height= height,
@@ -53,7 +53,7 @@ class TextureLoader:
     tex_data = img.tobytes()
     texture_hash = md5(tex_data).hexdigest()
 
-    return UTexture(
+    return SimTexture(
       tag = name,
       width = width,
       height= height,
@@ -77,25 +77,23 @@ class TextureLoader:
 
 class MeshLoader:
   @staticmethod
-  def fromFile(file : str | Path, mesh_type : Optional[str] = None, name : Optional[str] = None, **kwargs) -> UMesh: 
+  def fromFile(file : str | Path, mesh_type : Optional[str] = None, name : Optional[str] = None, **kwargs) -> SimMesh: 
     path = Path(file) if isinstance(file, str) else file
     return MeshLoader.fromBytes(name or file.name, path.read_bytes(), mesh_type or path.suffix[1:], **kwargs)
        
 
   @staticmethod
-  def fromString(name : str, content : str, mesh_type : str, **kwargs) -> UMesh:
+  def fromString(name : str, content : str, mesh_type : str, **kwargs) -> SimMesh:
     return MeshLoader.fromBytes(content.encode(), mesh_type, **kwargs)
     
 
   @staticmethod
-  def fromBytes(name : str, content : bytes, mesh_type : str, **kwargs) -> UMesh:
+  def fromBytes(name : str, content : bytes, mesh_type : str, **kwargs) -> SimMesh:
     
     with io.BytesIO(content) as data:
       mesh : trimesh.Trimesh = trimesh.load(data, file_type=mesh_type, texture=True)
       if kwargs.get("scale") is not None: mesh.apply_scale(kwargs["scale"])
-      mat = trimesh.transformations.euler_matrix(-math.pi / 2.0, 0, -math.pi / 2.0)
-      mesh.apply_transform(mat)
-
+      mesh.apply_transform(trimesh.transformations.euler_matrix(math.pi, math.pi / 2.0, -math.pi / 2.0))
 
     indices = mesh.faces.astype(np.int32)
     vertices = mesh.vertices.astype(np.float32)
@@ -107,7 +105,7 @@ class MeshLoader:
     
 
   @staticmethod
-  def _build_mesh(indices, vertices, norms, tex_coords, name, hash, **kwargs) -> UMesh:
+  def _build_mesh(indices, vertices, norms, tex_coords, name, hash, **kwargs) -> SimMesh:
     bin_data = bytes()
 
     ## Vertices
@@ -135,7 +133,7 @@ class MeshLoader:
 
     hash = md5(bin_data).hexdigest()
 
-    return UMesh(
+    return SimMesh(
       tag=name,
       hash=hash,
       indicesLayout=indices_layout, 

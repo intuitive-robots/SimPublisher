@@ -4,7 +4,7 @@ from typing import Any, Callable, Optional
 
 from .serialize import serialize_data
 
-from .udata import UAsset, UMesh, UScene
+from .simdata import SimAsset, SimAssetType, SimMesh
 from simpub.connection.discovery import DiscoveryThread
 from simpub.connection.streaming import StreamingThread
 from simpub.connection.service import ServiceThread
@@ -29,14 +29,13 @@ class SimPublisher:
       ) -> None:
     
 
-    self.scene = scene.toUScene()
 
     zmqContext = zmq.Context()  
 
-    
+    self.scene = scene
     self.scene_message = serialize_data({
       "id" : scene.id,
-      "assets" : list(self.scene.assets.keys()),
+      "assets" : [f"{type.value}:{tag}" for type, dict in self.scene.assets.items() for tag in dict],
       "worldbody" : scene.worldbody
     })    
 
@@ -85,7 +84,7 @@ class SimPublisher:
     self.running = False
     self.thread.join()
 
-  def get_scene(self) -> UScene:
+  def get_scene(self) -> SimScene:
     return self.scene
 
   def publish(self, data : Any):
@@ -113,22 +112,25 @@ class SimPublisher:
     socket.send_string(self.scene_message)
   
   def _on_asset_request(self, socket : zmq.Socket, tag : str):
-    if tag not in self.scene.assets: 
+    type, name = tag.split(":")
+    type = SimAssetType(type)
+    if type not in self.scene.assets or name not in self.scene.assets[type]: 
       print("Received invalid tag", tag)
       socket.send_string("INVALID")
       return 
     
-    asset : UAsset = self.scene.assets[tag]
+    asset : SimAsset = self.scene.assets[type][name]
     socket.send_string(serialize_data(asset))
   
   def _on_asset_data_request(self, socket : zmq.Socket, tag : str):
-    if tag not in self.scene.assets:
+    type, name = tag.split(":")
+    type = SimAssetType(type)
+    if type not in self.scene.assets or name not in self.scene.assets[type]:  
       print("Received invalid tag", tag)
       socket.send_string("INVALID")
       return 
-
-  
-    asset : UMesh = self.scene.assets[tag]
+    
+    asset : SimAsset = self.scene.assets[type][name]
     socket.send(asset._data)
 
   def _loop(self):
