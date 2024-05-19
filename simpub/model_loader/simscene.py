@@ -10,7 +10,7 @@ from simpub import mjcf
 from simpub.simdata import *
 from simpub.model_loader.asset_loader import MeshLoader, TextureLoader
 
-from simpub.transform import mj2euler, mj2pos, mj2scale, quat2euler
+from simpub.transform import mat2euler, mj2euler, mj2pos, mj2scale, quat2euler
 from scipy.spatial.transform import Rotation as Rot
 
 class SimScene:
@@ -141,7 +141,8 @@ class SimScene:
         x = xyaxes[:3]
         y = xyaxes[3:6]
         z = np.cross(x, y)
-        result = Rot.from_matrix(np.array([x, y, z]).T).as_euler("xyz")
+        result = mat2euler(np.array([x, y, z]).T)
+        # result = Rot.from_matrix().as_euler("xyz")
       elif zaxis is not None:
         raise NotImplementedError()
       else:
@@ -193,16 +194,22 @@ class SimScene:
         ujoint.type = SimJointType.FREE
       elif len(joints) > 0: 
         joint = joints[0]
+        ujoint.axis = mj2pos(joint.axis or np.array([1, 0, 0]))
         ujoint.name = joint.name or ujoint.name
         ujoint.transform.position += mj2pos(joint.pos)
         ujoint.transform.rotation += rotation_from_object(joint)
+        ujoint.type = SimJointType((joint.type or "hinge").upper())
+
+        if joint.ref is not None:
+          ujoint.initial = joint.ref
 
         if joint.range is not None:
           ujoint.minrot = math.degrees(joint.range[0])
           ujoint.maxrot = math.degrees(joint.range[1])
+
+        if ujoint.type is SimJointType.BALL:
+          print("Warning: Ball joints in the scene are currently not supported")
       
-        ujoint.type = SimJointType((joint.type or "hinge").upper())
-        ujoint.axis = mj2pos(joint.axis)
 
       return ujoint
 

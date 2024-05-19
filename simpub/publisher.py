@@ -19,18 +19,19 @@ import numpy as np
 
 class SimPublisher:
   FPS = 10
-  def __init__(
-      self, 
-      scene : SimScene, 
-      discovery_port : int,
-      service_port : Optional[int] = None, 
-      streaming_port : Optional[int] = None, 
-      discovery_interval : Optional[int] = 2
-      ) -> None:
+  SERVICE_PORT = 5521  # this port is configured in the firewall
+  DISCOVERY_PORT = 5520
+  STREAMING_PORT = 5522
+  def __init__(self, scene : SimScene, discovery_interval : Optional[int] = 2) -> None:
     
+    self.discovery_interval = discovery_interval
 
+    self.zmqContext = zmq.Context()  
+    self.id = random.randint(100_000, 999_999)
 
-    zmqContext = zmq.Context()  
+    self.running = False
+    self.thread = Thread(target=self._loop)
+    self.tracked_joints = dict()
 
     self.scene = scene
     self.scene_message = serialize_data({
@@ -39,42 +40,25 @@ class SimPublisher:
       "worldbody" : scene.worldbody
     })    
 
-    with open("dump.json", "w") as fp:
-      fp.write(serialize_data({
-      "id" : scene.id,
-      "assets" : list(self.scene.assets.keys()),
-      "worldbody" : scene.worldbody
-    }, indent =2))
 
+  def start(self):
 
-    self.service_thread = ServiceThread(zmqContext, port=service_port)
+    discovery_data = dict()
+    discovery_data["SERVICE"] = self.SERVICE_PORT
+    discovery_data["STREAMING"] = self.STREAMING_PORT
+    discovery_message = f"HDAR:{self.id}:{serialize_data(discovery_data)}"
+
+    self.service_thread = ServiceThread(self.zmqContext, port=self.SERVICE_PORT)
+    self.streaming_thread = StreamingThread(self.zmqContext, port=self.STREAMING_PORT)
+    self.discovery_thread = DiscoveryThread(discovery_message, self.DISCOVERY_PORT, self.discovery_interval)  
     
     self.service_thread.register_action("SCENE_INFO", self._on_scene_request)
     self.service_thread.register_action("ASSET_INFO", self._on_asset_request)
     self.service_thread.register_action("ASSET_DATA", self._on_asset_data_request)
 
-    self.streaming_thread = StreamingThread(zmqContext, port=streaming_port)
-
-    discovery_data = {
-      "SERVICE" : self.service_thread.port,
-      "STREAMING" : self.streaming_thread.port,
-    }
-
-    self.id = random.randint(100_000, 999_999)
-
-    discovery_message = f"HDAR:{self.id}:{serialize_data(discovery_data)}"
-    self.discovery_thread = DiscoveryThread(discovery_message, discovery_port, discovery_interval)  
-
-    self.running = False
-    self.thread = Thread(target=self._loop)
-    self.tracked_joints = dict()
-
-
-  def start(self):
+    self.running = True
     self.service_thread.start()
     self.discovery_thread.start()    
-    self.running = True
-
     self.thread.start()
 
   def shutdown(self):
@@ -100,11 +84,8 @@ class SimPublisher:
     
     return decorator
   
-  def update_joint(self, joint_name : str, return_diff : bool = True):
-    if joint_name not in self.tracked_joints: return 0
-
+  def update_joint(self, joint_name : str):
     obj, func = self.tracked_joints[joint_name]
-
     value = func(*obj) 
     return value
 
@@ -144,6 +125,6 @@ class SimPublisher:
 
       last = time.monotonic()
       msg = dict()
-      msg["data"] = {joint.name : np.array(self.update_joint(joint.name)) for joint in self.scene.worldbody.get_joints() }
+      msg["data"] = {joint_name : np.array(self.update_joint(joint_name)) for joint_name in self.tracked_joints }
       msg["time"] = time.monotonic()
       self.publish(msg)

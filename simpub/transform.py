@@ -1,13 +1,17 @@
 
 import numpy as np
 
-def mat2transform(matrix):
+def mat2euler(matrix):
   u, *_ = np.linalg.svd(matrix[:3, :3])
   pitch = np.arctan2(-u[2, 0], np.sqrt(u[2, 1]**2 + u[2, 2]**2))
   roll = np.arctan2(u[2, 1], u[2, 2])
   yaw = np.arctan2(-u[1, 0], u[0, 0])
+  return np.array([roll, pitch, yaw])
+
+
+def mat2transform(matrix):
   pos = matrix[:3, 3]
-  return np.array([roll, pitch, yaw]), pos 
+  return mat2euler(matrix[:3, :3]), pos 
 
 def mj2quat(quat):
   return np.array([quat[2], -quat[3], -quat[1], quat[0]], dtype=np.float32)

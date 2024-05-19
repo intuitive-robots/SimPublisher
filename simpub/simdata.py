@@ -85,11 +85,12 @@ class SimVisual:
 class SimJoint:  
   name : str
   transform : SimTransform
-  body : "SimBody"
+  body : "SimBody" 
 
-  type : SimJointType = SimJointType.FIXED
+  initial : float = 0.0
   maxrot : float = 0.0
   minrot : float = 0.0
+  type : SimJointType = SimJointType.FIXED
   axis : list[float] = field(default_factory=lambda: np.array([0, 0, 0]))
 
 
@@ -99,11 +100,11 @@ class SimBody:
   visuals : list[SimVisual]
   joints : list[SimJoint]
 
-  def get_joints(self, include : set[SimJointType] = {type for type in SimJointType}, exclude : set[SimJointType] = {SimJointType.FIXED}) -> list[SimJoint]:
-    joints = [joint for joint in self.joints if joint.type not in exclude and joint.type in include]
+  def get_joints(self, select: set[SimJointType] = {type for type in SimJointType}) -> list[SimJoint]:
+    joints = [joint for joint in self.joints if joint.type in select]
     found = [joint.body for joint in self.joints]
     while found and (current := found.pop()):
       connected_joints = current.joints
-      joints += [joint for joint in connected_joints if joint.type not in exclude and joint.type in include]
+      joints += [joint for joint in connected_joints if joint.type in select]
       found += [joint.body for joint in connected_joints]
     return joints
