@@ -9,14 +9,13 @@ from simpub.connection.discovery import DiscoveryThread
 from simpub.connection.streaming import StreamingThread
 from simpub.connection.service import ServiceThread
 
-from simpub.model_loader.simscene import SimScene, mj2euler, mj2pos, mj2scale, quat2euler
+from simpub.model_loader.simscene import SimScene
 
 import zmq
 import random 
 import time
 
 import numpy as np
-import os
 
 class SimPublisher:
   FPS = 10
@@ -38,14 +37,22 @@ class SimPublisher:
     self.scene_message = serialize_data({
       "id" : scene.id,
       "assets" : list(self.scene.assets.keys()),
-      "objects" : scene.objects
+      "worldbody" : scene.worldbody
     })    
+
+    with open("dump.json", "w") as fp:
+      fp.write(serialize_data({
+      "id" : scene.id,
+      "assets" : list(self.scene.assets.keys()),
+      "worldbody" : scene.worldbody
+    }, indent =2))
+
 
     self.service_thread = ServiceThread(zmqContext, port=service_port)
     
-    self.service_thread.register_action("SCENE_INFO", self.on_scene_request)
-    self.service_thread.register_action("ASSET_INFO", self.on_asset_request)
-    self.service_thread.register_action("ASSET_DATA", self.on_asset_data_request)
+    self.service_thread.register_action("SCENE_INFO", self._on_scene_request)
+    self.service_thread.register_action("ASSET_INFO", self._on_asset_request)
+    self.service_thread.register_action("ASSET_DATA", self._on_asset_data_request)
 
     self.streaming_thread = StreamingThread(zmqContext, port=streaming_port)
 
@@ -99,13 +106,13 @@ class SimPublisher:
 
     obj, func = self.tracked_joints[joint_name]
 
-    value = func(obj) 
+    value = func(*obj) 
     return value
 
-  def on_scene_request(self, socket : zmq.Socket, tag : str):
+  def _on_scene_request(self, socket : zmq.Socket, tag : str):
     socket.send_string(self.scene_message)
   
-  def on_asset_request(self, socket : zmq.Socket, tag : str):
+  def _on_asset_request(self, socket : zmq.Socket, tag : str):
     if tag not in self.scene.assets: 
       print("Received invalid tag", tag)
       socket.send_string("INVALID")
@@ -114,8 +121,7 @@ class SimPublisher:
     asset : UAsset = self.scene.assets[tag]
     socket.send_string(serialize_data(asset))
   
-
-  def on_asset_data_request(self, socket : zmq.Socket, tag : str):
+  def _on_asset_data_request(self, socket : zmq.Socket, tag : str):
     if tag not in self.scene.assets:
       print("Received invalid tag", tag)
       socket.send_string("INVALID")
@@ -125,9 +131,10 @@ class SimPublisher:
     asset : UMesh = self.scene.assets[tag]
     socket.send(asset._data)
 
-  
   def _loop(self):
     last = 0.0
+    while len(self.tracked_joints) == 0:
+      time.sleep(1)
     while self.running:
       diff = time.monotonic() - last 
       if diff < 1 / self.FPS: 
@@ -135,6 +142,6 @@ class SimPublisher:
 
       last = time.monotonic()
       msg = dict()
-      msg["data"] = {obj.name : { joint.name : np.array(self.update_joint(joint.name)) for joint in obj.get_joints() } for obj in self.scene.objects}
+      msg["data"] = {joint.name : np.array(self.update_joint(joint.name)) for joint in self.scene.worldbody.get_joints() }
       msg["time"] = time.monotonic()
       self.publish(msg)
