@@ -13,8 +13,8 @@ scene = [scene for scene in Path("scenes").rglob("*/scene.xml")][int(sys.argv[1]
 
 
 # scene = "scenes/anybotics_anymal_c/scene.xml"
-# scene = "scenes/anybotics_anymal_b/scene.xml"
-scene = "scenes/franka_emika_panda/scene.xml"
+scene = "scenes/anybotics_anymal_b/scene.xml"
+# scene = "scenes/franka_emika_panda/scene.xml"
 print("Loading scene", str(scene))
 
 scene = SimScene.from_file(str(scene))
