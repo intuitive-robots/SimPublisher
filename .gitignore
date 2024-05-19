@@ -9,6 +9,7 @@ models copy/
 test.py
 # C extensions
 *.so
+*.json
 
 # Distribution / packaging
 .Python
