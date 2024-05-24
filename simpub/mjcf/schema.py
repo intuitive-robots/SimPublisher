@@ -21,11 +21,12 @@ The root schema is provided as a module-level constant `schema.MUJOCO`.
 import collections
 import copy
 import os
+from pathlib import Path
 
-from dm_control.mjcf import attribute
-from lxml import etree
+from simpub.mjcf import attribute
 
-from dm_control.utils import io as resources
+from xml.etree import ElementTree as etree
+
 
 _SCHEMA_XML_PATH = os.path.join(os.path.dirname(__file__), 'schema.xml')
 
@@ -79,7 +80,7 @@ def parse_schema(schema_path):
   Returns:
     An `ElementSpec` for the root element in the schema.
   """
-  with resources.GetResourceAsFile(schema_path) as file_handle:
+  with open(schema_path, "r") as file_handle:
     schema_xml = etree.parse(file_handle).getroot()
   return _parse_element(schema_xml)
 

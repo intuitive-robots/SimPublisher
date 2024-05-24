@@ -1,4 +1,4 @@
-# Copyright 2018 The dm_control Authors.
+# Copyright 2018 The simpub Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,14 +16,14 @@
 """Functions for parsing XML into an MJCF object model."""
 
 import os
+from pathlib import Path
 import sys
 
-from dm_control.mjcf import constants
-from dm_control.mjcf import debugging
-from dm_control.mjcf import element
-from lxml import etree
+from simpub.mjcf import constants
+from simpub.mjcf import debugging
+from simpub.mjcf import element
+from xml.etree import ElementTree as etree
 # Copybara placeholder for internal file handling dependency.
-from dm_control.utils import io as resources
 
 
 def from_xml_string(xml_string, escape_separators=False,
@@ -100,7 +100,7 @@ def from_path(path, escape_separators=False, resolve_references=True,
     An `mjcf.RootElement`.
   """
   model_dir, _ = os.path.split(path)
-  contents = resources.GetResource(path)
+  contents = Path(path).read_text()
   xml_root = etree.fromstring(contents)
   return _parse(xml_root, escape_separators,
                 model_dir=model_dir, resolve_references=resolve_references,
@@ -222,6 +222,6 @@ def _parse_children(xml_element, mjcf_element, escape_separators=False):
     except:  # pylint: disable=bare-except
       err_type, err, traceback = sys.exc_info()
       raise err_type(  # pylint: disable=raise-missing-from
-          f'Line {xml_child.sourceline}: error while parsing element '
+          f'error while parsing element '
           f'<{xml_child.tag}>: {err}').with_traceback(traceback)
     _parse_children(xml_child, mjcf_child, escape_separators)

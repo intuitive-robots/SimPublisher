@@ -1,4 +1,4 @@
-# Copyright 2018 The dm_control Authors.
+# Copyright 2018 The simpub Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 """Helper object for keeping track of new elements created when copying MJCF."""
 
 
-from dm_control.mjcf import constants
+from simpub.mjcf import constants
 
 
 class Copier:

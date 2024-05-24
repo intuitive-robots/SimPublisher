@@ -1,8 +1,8 @@
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
+from typing import Any, Optional
 from enum import Enum
-from typing import Optional
-
 import numpy as np
+import random
 
 class SimJointType(str, Enum):
   FIXED = "FIXED"
@@ -12,53 +12,51 @@ class SimJointType(str, Enum):
   HINGE = "HINGE"
 
 class SimVisualType(str, Enum):
-  MESH = "MESH",
-  BOX = "BOX",
   CYLINDER = "CYLINDER",
   CAPSULE = "CAPSULE",
-  PLANE = "PLANE",
   SPHERE = "SPHERE",
-  NONE = "NONE"
+  PLANE = "PLANE",
+  MESH = "MESH",
+  NONE = "NONE",
+  BOX = "BOX",
 
 class SimAssetType(str, Enum):
-  MESH = "MESH",
   MATERIAL = "MATERIAL",
-  TEXTURE = "TEXTURE"
+  TEXTURE = "TEXTURE",
+  MESH = "MESH",
 
 @dataclass
 class SimAsset:
   tag : str
-  type : SimAssetType = field(init=False)
 
 @dataclass
 class SimMesh(SimAsset):
-  _data : bytes
+  dataID : str 
   indicesLayout : tuple[int, int] # (offset : bytes, count : int)
   normalsLayout : tuple[int, int] # (offset : bytes, count : int)
   verticesLayout : tuple[int, int] # (offset : bytes, count : int)
   uvLayout : tuple[int, int]
-  hash : str = ""
-  type = SimAssetType.MESH
+  type : SimAssetType = SimAssetType.MESH
 
 @dataclass
-class SimMaterial(SimAsset): # https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset-material
-  color : np.ndarray[np.float32]  # All the color values are within the 0 - 1.0 range 
+class SimMaterial(SimAsset): 
+  # All the color values are within the 0 - 1.0 range 
+  color : np.ndarray[np.float32]  
   emissionColor : np.ndarray[np.float32] 
   specular : float = 0.5
   shininess : float = 0.5
   reflectance : float = 0
   texture : Optional[str] = None
   texsize : tuple [int, int] = (1, 1)
-  type = SimAssetType.MATERIAL
+  type : SimAssetType = SimAssetType.MATERIAL
 
 @dataclass
-class SimTexture(SimAsset): # https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset-texture
+class SimTexture(SimAsset):
+  dataID : str
   width : int = 0
   height : int = 0
   textype : str = "cube"
-  type = SimAssetType.TEXTURE
-  hash : str = ""
-  _data : bytes | None = None
+  type : SimAssetType = SimAssetType.TEXTURE
   
 
 """
@@ -73,9 +71,8 @@ class SimTransform:
 
 @dataclass
 class SimVisual:
-  name : str
   type : str
-  asset : str
+  mesh : str
   material : str
   transform : SimTransform
   color : list[float]
@@ -108,3 +105,13 @@ class SimBody:
       joints += [joint for joint in connected_joints if joint.type in select]
       found += [joint.body for joint in connected_joints]
     return joints
+  
+@dataclass
+class SimScene:
+  worldbody : SimBody = None
+  id : str = str(random.randint(int(1e9), int(1e10 - 1)))
+  meshes : list[SimMesh] = field(default_factory=lambda:list())
+  textures : list[SimMesh] = field(default_factory=lambda:list())
+  materials : list[SimMesh] = field(default_factory=lambda:list())
+  _meta_data : dict[str, Any] = field(default_factory=lambda:dict())
+  _raw_data : dict[str, bytes] = field(default_factory=lambda:dict())

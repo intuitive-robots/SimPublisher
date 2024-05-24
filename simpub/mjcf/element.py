@@ -1,4 +1,4 @@
-# Copyright 2018 The dm_control Authors.
+# Copyright 2018 The simpub Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,15 +20,14 @@ import copy
 import os
 import sys
 
-from dm_control.mjcf import attribute as attribute_types
-from dm_control.mjcf import base
-from dm_control.mjcf import constants
-from dm_control.mjcf import copier
-from dm_control.mjcf import debugging
-from dm_control.mjcf import namescope
-from dm_control.mjcf import schema
-from dm_control.mujoco.wrapper import util
-from lxml import etree
+from simpub.mjcf import attribute as attribute_types
+from simpub.mjcf import base
+from simpub.mjcf import constants
+from simpub.mjcf import copier
+from simpub.mjcf import debugging
+from simpub.mjcf import namescope
+from simpub.mjcf import schema
+from xml.etree import ElementTree as etree
 import numpy as np
 
 
@@ -213,11 +212,7 @@ class _ElementImpl(base.Element):
           for attribute_obj in self._attributes.values():
             attribute_obj._force_clear()  # pylint: disable=protected-access
           # Then raise a meaningful error
-          err_type, err, tb = sys.exc_info()
-          raise err_type(  # pylint: disable=raise-missing-from
-              f'during initialization of attribute {attribute_spec.name!r} of '
-              f'element <{self._spec.name}>: {err}').with_traceback(tb)
-
+         
   def get_init_stack(self):
     """Gets the stack trace where this element was first initialized."""
     if debugging.debug_mode():
@@ -537,6 +532,7 @@ class _ElementImpl(base.Element):
 
   def _get_attribute(self, attribute_name):
     self._check_valid_attribute(attribute_name)
+    if attribute_name not in self._attributes: return None 
     return self._attributes[attribute_name].value
 
   def get_attribute_xml_string(self,
@@ -844,8 +840,7 @@ class _ElementImpl(base.Element):
         not self._attributes[self._spec.identifier].to_xml_string(
             prefix_root, precision=precision, zero_threshold=zero_threshold)):
       del xml_element.attrib[self._spec.identifier]
-    xml_string = util.to_native_string(
-        etree.tostring(xml_element, pretty_print=pretty_print))
+    xml_string = etree.tostring(xml_element).decode()
     if pretty_print and debug_context:
       return debug_context.commit_xml_string(xml_string)
     else:
