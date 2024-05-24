@@ -1,4 +1,4 @@
-# Copyright 2018 The dm_control Authors.
+# Copyright 2018 The simpub Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # limitations under the License.
 # ============================================================================
 
-"""Magic constants used within `dm_control.mjcf`."""
+"""Magic constants used within `simpub.mjcf`."""
 
 
 PREFIX_SEPARATOR = '/'

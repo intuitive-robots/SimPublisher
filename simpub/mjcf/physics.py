@@ -1,4 +1,4 @@
-# Copyright 2018 The dm_control Authors.
+# Copyright 2018 The simpub Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # limitations under the License.
 # ============================================================================
 
-"""Helpers for MJCF elements to interact with `dm_control.mujoco.Physics`."""
+"""Helpers for MJCF elements to interact with `simpub.mujoco.Physics`."""
 
 import collections
 import re
@@ -21,10 +21,10 @@ import weakref
 
 from absl import flags
 from absl import logging
-from dm_control import mujoco
-from dm_control.mjcf import constants
-from dm_control.mjcf import debugging
-from dm_control.mujoco.wrapper.mjbindings import sizes
+from simpub import mujoco
+from simpub.mjcf import constants
+from simpub.mjcf import debugging
+from simpub.mujoco.wrapper.mjbindings import sizes
 import numpy as np
 
 FLAGS = flags.FLAGS

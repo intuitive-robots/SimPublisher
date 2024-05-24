@@ -20,7 +20,7 @@ thus reducing code duplication. The names of bodies, joints, or geoms of each
 collision occurs.
 
 ```python
-from dm_control import mjcf
+from simpub import mjcf
 
 class Arm:
 
@@ -72,7 +72,7 @@ represented as the special `mjcf.RootElement` type in PyMJCF, which _can_ be
 instantiated in user code to create an empty model.
 
 ```python
-from dm_control import mjcf
+from simpub import mjcf
 
 mjcf_model = mjcf.RootElement()
 print(mjcf_model)  # MJCF Element: <mujoco/>
@@ -94,7 +94,7 @@ Alternatively, if an existing XML file already exists, PyMJCF can parse it to
 create a Python object:
 
 ```python
-from dm_control import mjcf
+from simpub import mjcf
 
 # Parse from path
 mjcf_model = mjcf.from_path(filename)

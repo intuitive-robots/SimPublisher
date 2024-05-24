@@ -1,4 +1,4 @@
-# Copyright 2018 The dm_control Authors.
+# Copyright 2018 The simpub Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@
 
 import os
 
-from dm_control.mjcf import constants
-from dm_control.mujoco.wrapper import util
+from simpub.mjcf import constants
+from simpub.mujoco.wrapper import util
 
 
 def export_with_assets(mjcf_model, out_dir, out_file_name=None,

@@ -5,12 +5,40 @@ How does req / rep work in zmq:
 - https://learning-0mq-with-pyzmq.readthedocs.io/en/latest/pyzmq/patterns/client_server.html
 """
 
-from typing import Callable, Optional
-import zmq
+from typing import Callable, Optional, Type
 from threading import Thread
+import zmq
+
+class RequestService:
+  def __init__(self, context : zmq.Context) -> None:
+    self._actions : dict = {}
+    self.zmq_context = context
+    self.running = True  
+
+    self.conn = (None, None)
+    self.req_socket : zmq.Socket = self.zmq_context.socket(zmq.REQ)
+    self.connected = False
+  
+  def connect(self, addr : str, port : int):
+    self.conn = addr, port
+    self.req_socket.connect(f"tcp://{self.conn[0]}:{self.conn[1]}")
+    self.connected = True
+  
+  def disconnect(self):
+    self.req_socket.close()
+    self.connected = False
+  
+  def request(self, req : str, req_type : Type = str):
+    self.req_socket.send_string(req)
+
+    if req_type is str:
+      return self.req_socket.recv_string()
+    if req_type is bytes:
+      return self.req_socket.recv()
+    
 
 
-class ServiceThread: 
+class ReplyService: 
   def __init__(self, context : zmq.Context, port : Optional[int] = None):
     self.thread = Thread(target=self._loop)
     self._actions : dict = {}
@@ -42,7 +70,6 @@ class ServiceThread:
     else: 
       self.port = reply_socket.bind_to_random_port(f"tcp://*")
     
-    print("* Service is running on port", self.port)
     while self.running: 
       message = reply_socket.recv().decode() # This is blocking so no sleep necessary
 

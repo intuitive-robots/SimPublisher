@@ -16,7 +16,7 @@ class TextureLoader:
   RES_PATH = Path(simpub.__file__).parent
 
   @staticmethod
-  def fromBuiltin(name : str, builtin_name : str, tint : Optional[np.ndarray] = None):
+  def fromBuiltin(name : str, builtin_name : str, tint : Optional[np.ndarray] = None) -> tuple[SimTexture, bytes]:
     img : Image.Image
     match builtin_name:
       case "checker":
@@ -30,17 +30,18 @@ class TextureLoader:
     tex_data = img.tobytes()
     texture_hash = md5(tex_data).hexdigest()
 
-    return SimTexture(
+    texture = SimTexture(
       tag = name,
       width = width,
       height= height,
       textype="2d",
-      hash = texture_hash,
-      _data = tex_data
+      dataID = texture_hash
     )
 
+    return texture, tex_data
+
   @staticmethod
-  def fromBytes(name : str, content : bytes, texture_type : str, tint : Optional[np.ndarray] = None):
+  def fromBytes(name : str, content : bytes, texture_type : str, tint : Optional[np.ndarray] = None) -> tuple[SimTexture, bytes]:
     with io.BytesIO(content) as file_data:
       img : Image.Image = Image.open(file_data).convert("RGBA")
     
@@ -51,14 +52,15 @@ class TextureLoader:
     tex_data = img.tobytes()
     texture_hash = md5(tex_data).hexdigest()
 
-    return SimTexture(
+    texture = SimTexture(
       tag = name,
       width = width,
       height= height,
       textype=texture_type,
-      hash = texture_hash,
-      _data = tex_data
+      dataID = texture_hash,
     )
+
+    return texture_hash, tex_data
   
   @staticmethod
   def tint(img : Image.Image, tint : np.ndarray):
@@ -86,7 +88,7 @@ class MeshLoader:
     
 
   @staticmethod
-  def fromBytes(name : str, content : bytes, mesh_type : str, **kwargs) -> SimMesh:
+  def fromBytes(name : str, content : bytes, mesh_type : str, **kwargs) -> tuple[SimMesh, bytes]:
     
     with io.BytesIO(content) as data:
       mesh : trimesh.Trimesh = trimesh.load(data, file_type=mesh_type, texture=True)
@@ -131,14 +133,14 @@ class MeshLoader:
 
     hash = md5(bin_data).hexdigest()
 
-    return SimMesh(
+    mesh = SimMesh(
       tag=name,
-      hash=hash,
       indicesLayout=indices_layout, 
       verticesLayout=vertices_layout, 
       normalsLayout=normal_layout,
       uvLayout=uv_layout,
-      _data = bin_data
+      dataID = hash
     )
+    return mesh, bin_data
     
   

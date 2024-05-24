@@ -1,4 +1,4 @@
-# Copyright 2018 The dm_control Authors.
+# Copyright 2018 The simpub Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,17 +20,16 @@ import collections
 import hashlib
 import io
 import os
+from pathlib import Path
 
-from dm_control.mjcf import base
-from dm_control.mjcf import constants
-from dm_control.mjcf import debugging
-from dm_control.mjcf import skin
-from dm_control.mujoco.wrapper import util
+from simpub.mjcf import base
+from simpub.mjcf import constants
+from simpub.mjcf import debugging
+from simpub.mjcf import skin
 import numpy as np
 
 # Copybara placeholder for internal file handling dependency.
 
-from dm_control.utils import io as resources
 
 
 _INVALID_REFERENCE_TYPE = (
@@ -170,7 +169,7 @@ class Float(_Attribute):
       if abs(value) < zero_threshold:
         value = 0.0
       np.savetxt(out, [value], fmt=f'%.{precision:d}g', newline=' ')
-      return util.to_native_string(out.getvalue())[:-1]  # Strip trailing space.
+      return out.getvalue()[:-1].decode()  # Strip trailing space.
 
 
 class Keyword(_Attribute):
@@ -228,7 +227,7 @@ class Array(_Attribute):
         value = np.copy(value)
         value[np.abs(value) < zero_threshold] = 0
       np.savetxt(out, value, fmt=f'%.{precision:d}g', newline=' ')
-      return util.to_native_string(out.getvalue())[:-1]  # Strip trailing space.
+      return out.getvalue()[:-1].decode()  # Strip trailing space.
 
   def _check_shape(self, array):
     actual_length = array.shape[0]
@@ -427,7 +426,7 @@ class BaseAsset:
   def get_vfs_filename(self):
     """Returns the name of the asset file as registered in MuJoCo's VFS."""
     # Hash the contents of the asset to get a unique identifier.
-    hash_string = hashlib.sha1(util.to_binary_string(self.contents)).hexdigest()
+    hash_string = hashlib.sha1(self.contents.encode()).hexdigest()
     # Prepend the prefix, if one exists.
     if self.prefix:
       prefix = self.prefix
@@ -544,7 +543,7 @@ class File(_Attribute):
         path_parts.append(assetdir)
       path_parts.append(path)
       full_path = os.path.join(*path_parts)  # pylint: disable=no-value-for-parameter
-      contents = resources.GetResource(full_path)
+      contents = Path(full_path).read_text()
 
     if self._parent.tag == constants.SKIN:
       return SkinAsset(contents=contents, parent=self._parent,

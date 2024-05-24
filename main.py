@@ -1,12 +1,13 @@
 
 import math
 import numpy as np
-from simpub import SimPublisher, SimScene
+from simpub import SimPublisher, MJCFScene
 import mujoco as mj
 
 from simpub.simdata import SimJointType
 from simpub.transform import quat2euler
-scene = SimScene.from_file("scenes/agility_cassie/scene.xml")
+
+scene = MJCFScene.from_file("scenes/agility_cassie/scene.xml")
 
 publisher = SimPublisher(scene)
 
