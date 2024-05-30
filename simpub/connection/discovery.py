@@ -1,6 +1,6 @@
 from time import sleep
 from threading import Thread
-from socket import socket, AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST
+from socket import socket, AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST, IPPROTO_UDP, SO_REUSEADDR
 
 BROADCAST_MASK = "255.255.255.255"
 
@@ -14,13 +14,19 @@ class DiscoveryReceiver:
 
 
   def _loop(self):
-    print("Starting discovery loop")
-    conn = socket(AF_INET, SOCK_DGRAM) #create UDP socket
+    conn = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP) #create UDP socket
+    conn.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+    conn.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
     conn.bind((BROADCAST_MASK, self._port))
-    while self._running:
-      message, server = conn.recvfrom(1028)
-      if self._callback is not None: self._callback(message.decode(), server[0])
-
+    try:
+      while self._running:
+        message, server = conn.recvfrom(4096)
+        self._callback(message.decode(), server[0])
+    except Exception as e:
+      print(e)
+    finally:
+      conn.close()
+      
   def start(self):  
     self._thread.start()
 

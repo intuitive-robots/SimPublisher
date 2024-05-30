@@ -13,19 +13,18 @@ class RequestService:
   def __init__(self, context : zmq.Context) -> None:
     self._actions : dict = {}
     self.zmq_context = context
-    self.running = True  
 
-    self.conn = (None, None)
     self.req_socket : zmq.Socket = self.zmq_context.socket(zmq.REQ)
+    self.conn = (None, None)
     self.connected = False
   
   def connect(self, addr : str, port : int):
+    self.req_socket.connect(f"tcp://{addr}:{port}")
     self.conn = addr, port
-    self.req_socket.connect(f"tcp://{self.conn[0]}:{self.conn[1]}")
     self.connected = True
   
   def disconnect(self):
-    self.req_socket.close()
+    self.req_socket.close(0)
     self.connected = False
   
   def request(self, req : str, req_type : Type = str):
@@ -53,7 +52,7 @@ class ReplyService:
     temp_sock = self.zmq_context.socket(zmq.REQ)
     temp_sock.connect(f"tcp://localhost:{self.port}")
     temp_sock.send_string("END")
-    temp_sock.close()
+    temp_sock.close(0)
 
     self.running = False
     self.thread.join()
@@ -83,5 +82,5 @@ class ReplyService:
         continue
       
       self._actions[tag](reply_socket, args[0] if args else "")
-    reply_socket.close()
+    reply_socket.close(0)
 

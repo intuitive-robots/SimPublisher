@@ -32,10 +32,11 @@ class SimAsset:
 @dataclass
 class SimMesh(SimAsset):
   dataID : str 
-  indicesLayout : tuple[int, int] # (offset : bytes, count : int)
-  normalsLayout : tuple[int, int] # (offset : bytes, count : int)
-  verticesLayout : tuple[int, int] # (offset : bytes, count : int)
-  uvLayout : tuple[int, int]
+  # (offset : bytes, count : int)
+  indicesLayout   : tuple[int, int]
+  normalsLayout   : tuple[int, int]
+  verticesLayout  : tuple[int, int]
+  uvLayout        : tuple[int, int]
   type : SimAssetType = SimAssetType.MESH
 
 @dataclass
@@ -110,8 +111,8 @@ class SimBody:
 class SimScene:
   worldbody : SimBody = None
   id : str = str(random.randint(int(1e9), int(1e10 - 1)))
-  meshes : list[SimMesh] = field(default_factory=lambda:list())
-  textures : list[SimMesh] = field(default_factory=lambda:list())
-  materials : list[SimMesh] = field(default_factory=lambda:list())
-  _meta_data : dict[str, Any] = field(default_factory=lambda:dict())
-  _raw_data : dict[str, bytes] = field(default_factory=lambda:dict())
+  meshes : list[SimMesh] = field(default_factory=list)
+  textures : list[SimMesh] = field(default_factory=list)
+  materials : list[SimMesh] = field(default_factory=list)
+  _meta_data : dict[str, Any] = field(default_factory=dict)
+  _raw_data : dict[str, bytes] = field(default_factory=dict)

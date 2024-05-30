@@ -18,7 +18,7 @@ from simpub.loaders.asset_loader import MeshLoader, TextureLoader
 from simpub.transform import mat2euler, mj2euler, mj2pos, mj2scale, quat2euler
 
 
-
+import dm_control.mjcf
 
 class MJCFScene:
 
@@ -36,8 +36,8 @@ class MJCFScene:
     file_path : Path = path if isinstance(path, Path) else Path(path)
     file_path = file_path.absolute() 
 
-    # scene._meta_data["mjcf_file"] = file_path
-    data : RootElement = mjcf_from_path(file_path, resolve_references=True)
+    scene._meta_data["mjcf_file"] = file_path
+    data : RootElement = mjcf_from_path(str(file_path), resolve_references=True, escape_separators=True)
     return MJCFScene._load_mjcf(scene, data)
 
   @staticmethod
@@ -55,7 +55,7 @@ class MJCFScene:
     scene._meta_data["xml_assets"] = data.get_assets()
 
     # commit all the default values
-    for tag in { "geom", "mesh", "joint", "body", "material"}: # Add whatever you are using
+    for tag in { "geom", "mesh", "joint", "body", "material"}:
       for elem in data.find_all(tag):
         if not hasattr(elem, "dclass"): continue  
         commit_defaults(elem)    
@@ -64,6 +64,7 @@ class MJCFScene:
     for child in data.asset.all_children():
       match child.tag:
         case "mesh":
+          print(child, child, child.file)
           # https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset-mesh
           mesh, bin_data = MeshLoader.fromBytes(
             child.name or child.file.prefix, 
@@ -100,8 +101,8 @@ class MJCFScene:
           scene.textures.append(texture)
           scene._raw_data[texture.dataID] = bin_data
 
-    def rotation_from_object(obj : Element) -> np.ndarray: # https://mujoco.readthedocs.io/en/stable/modeling.html#frame-orientations
-
+    def rotation_from_object(obj : Element) -> np.ndarray: 
+      # https://mujoco.readthedocs.io/en/stable/modeling.html#frame-orientations
       quat = getattr(obj, "quat", None)
       axisangle = getattr(obj, "axisangle", None)
       euler = getattr(obj, "euler", None)
@@ -176,7 +177,6 @@ class MJCFScene:
         ujoint.axis = mj2pos(joint.axis if joint.axis is not None else np.array([1, 0, 0]))
         ujoint.name = joint.name or ujoint.name
         ujoint.transform.position += mj2pos(joint.pos)
-        ujoint.transform.rotation += rotation_from_object(joint)
         ujoint.type = SimJointType((joint.type or "hinge").upper())
 
         if joint.ref is not None:
