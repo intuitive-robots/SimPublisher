@@ -21,9 +21,10 @@ class TextureLoader:
     match builtin_name:
       case "checker":
         img = Image.open(TextureLoader.RES_PATH / "res/image/builtin/checker_grey.png").convert("RGBA")
-      case "gradient":
-        img = Image.new("RGBA", (32, 32))
-    
+      case "gradient" | "flat":
+        img = Image.new("RGBA", (256, 256), (1, 1, 1, 1))
+      case _:
+        raise RuntimeError("Invalid texture builtin", builtin_name)
     if tint is not None: img = TextureLoader.tint(img, tint)
 
     width, height = img.size 
@@ -60,7 +61,7 @@ class TextureLoader:
       dataID = texture_hash,
     )
 
-    return texture_hash, tex_data
+    return texture, tex_data
   
   @staticmethod
   def tint(img : Image.Image, tint : np.ndarray):
@@ -77,60 +78,53 @@ class TextureLoader:
 
 class MeshLoader:
   @staticmethod
-  def fromFile(file : str | Path, mesh_type : Optional[str] = None, name : Optional[str] = None, **kwargs) -> SimMesh: 
+  def fromFile(file : str | Path, name : Optional[str] = None, scale=None) -> SimMesh: 
     path = Path(file) if isinstance(file, str) else file
-    return MeshLoader.fromBytes(name or file.name, path.read_bytes(), mesh_type or path.suffix[1:], **kwargs)
-       
+    mesh = trimesh.load_mesh(path)
+    return MeshLoader.from_loaded_mesh(mesh, name or path.stem, scale)
 
   @staticmethod
-  def fromString(name : str, content : str, mesh_type : str, **kwargs) -> SimMesh:
-    return MeshLoader.fromBytes(content.encode(), mesh_type, **kwargs)
-    
-
-  @staticmethod
-  def fromBytes(name : str, content : bytes, mesh_type : str, **kwargs) -> tuple[SimMesh, bytes]:
+  def fromBytes(name : str, content : bytes, mesh_type : str, scale : np.ndarray) -> tuple[SimMesh, bytes]:
     
     with io.BytesIO(content) as data:
-      mesh : trimesh.Trimesh = trimesh.load(data, file_type=mesh_type, texture=True)
-      if kwargs.get("scale") is not None: mesh.apply_scale(kwargs["scale"])
-      mesh.apply_transform(trimesh.transformations.euler_matrix(math.pi, math.pi / 2.0, -math.pi / 2.0))
-
+      mesh : trimesh.Trimesh = trimesh.load_mesh(data, file_type=mesh_type, texture=True)
+      return MeshLoader.from_loaded_mesh(mesh, name, scale)
+    
+  @staticmethod
+  def from_loaded_mesh(mesh : trimesh.Trimesh, name : str, scale : Optional[np.ndarray] = None):
+    if scale is not None: mesh.apply_scale(scale)
+    mesh.apply_transform(trimesh.transformations.euler_matrix(math.pi, math.pi / 2.0, -math.pi / 2.0))
     indices = mesh.faces.astype(np.int32)
     vertices = mesh.vertices.astype(np.float32)
     normals =  mesh.vertex_normals.astype(np.float32)
     uvs = mesh.visual.uv.astype(np.float32) if hasattr(mesh.visual, "uv") else None
 
-      
-    return MeshLoader._build_mesh(indices, vertices, normals, uvs, name, hash, **kwargs)
-    
-
-  @staticmethod
-  def _build_mesh(indices, vertices, norms, tex_coords, name, hash, **kwargs) -> SimMesh:
-    bin_data = bytes()
+    bin_buffer = io.BytesIO()
 
     ## Vertices
     verts = vertices.flatten()
-    vertices_layout = len(bin_data), verts.shape[0]
-    bin_data = bin_data + verts.tobytes()
+    vertices_layout = bin_buffer.tell(), verts.shape[0]
+    bin_buffer.write(verts)
 
     ## Normals
-    norms = norms.flatten()
-    normal_layout = len(bin_data), norms.shape[0]
-    bin_data += norms.tobytes() 
+    norms = normals.flatten()
+    normal_layout = bin_buffer.tell(), norms.shape[0]
+    bin_buffer.write(norms) 
 
     ## Indices
     indices = indices.flatten() 
-    indices_layout = len(bin_data), indices.shape[0]
-    bin_data += indices.tobytes() 
+    indices_layout = bin_buffer.tell(), indices.shape[0]
+    bin_buffer.write(indices) 
 
     ## Texture coords
     uv_layout = 0, 0
-    if tex_coords is not None:
-      tex_coords[:, 1] = 1 - tex_coords[:, 1]
-      uvs = tex_coords.flatten() 
-      uv_layout = len(bin_data), uvs.shape[0]
-      bin_data += uvs.tobytes()
+    if uvs is not None:
+      uvs[:, 1] = 1 - uvs[:, 1]
+      uvs = uvs.flatten() 
+      uv_layout = bin_buffer.tell(), uvs.shape[0]
+      bin_buffer.write(uvs)
 
+    bin_data = bin_buffer.getvalue()
     hash = md5(bin_data).hexdigest()
 
     mesh = SimMesh(
