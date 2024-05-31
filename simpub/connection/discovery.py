@@ -8,7 +8,7 @@ class DiscoveryReceiver:
   
   def __init__(self,callback, port : int):
     self._port = port
-    self._running = True
+    self._running = False
     self._callback = callback
     self._thread = Thread(target=self._loop)
 
@@ -18,14 +18,12 @@ class DiscoveryReceiver:
     conn.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
     conn.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
     conn.bind((BROADCAST_MASK, self._port))
-    try:
-      while self._running:
-        message, server = conn.recvfrom(4096)
-        self._callback(message.decode(), server[0])
-    except Exception as e:
-      print(e)
-    finally:
-      conn.close()
+    self._running = True
+    while self._running:
+      message, server = conn.recvfrom(4096)
+      self._callback(message.decode(), server[0])
+  
+    conn.close()
       
   def start(self):  
     self._thread.start()
