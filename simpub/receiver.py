@@ -31,10 +31,8 @@ class SimReceiver:
     def decorator(fn : Callable[[str], None]):
       match event:
         case "INIT":
-          del self.on_init
           self.on_init = fn
         case "UPDATE":
-          del self.on_update
           self.on_update = fn
         case _:
           raise RuntimeError("Invalid function callback")

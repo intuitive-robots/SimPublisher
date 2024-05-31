@@ -68,9 +68,9 @@ class TextureLoader:
     r, g, b, a = img.split()
 
     # Apply the tint to each band
-    r = r.point(lambda i: int(i * tint[0]))
-    g = g.point(lambda i: int(i * tint[1]))
-    b = b.point(lambda i: int(i * tint[2]))
+    r = r.point(lambda i: i * tint[0])
+    g = g.point(lambda i: i * tint[1])
+    b = b.point(lambda i: i * tint[2])
 
     # Merge the bands back together
     return Image.merge('RGBA', (r, g, b, a))

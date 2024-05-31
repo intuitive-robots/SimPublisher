@@ -10,7 +10,9 @@ from simpub.simdata import *
 
 class _CustomEncoder(json.JSONEncoder):
   def default(self, obj):
-    if isinstance(obj, np.ndarray):
+    if isinstance(obj, np.float32):
+      return float(obj)
+    elif isinstance(obj, np.ndarray):
       return obj.tolist()
     elif isinstance(obj, Path):
       return str(obj)

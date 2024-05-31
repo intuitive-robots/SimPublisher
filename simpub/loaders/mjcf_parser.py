@@ -1,5 +1,5 @@
 from collections import defaultdict, deque
-import collections
+import copy
 from functools import reduce
 import operator
 import random
@@ -12,7 +12,7 @@ from xml.etree import ElementTree
 from pathlib import Path
 import math
 
-from simpub.transform import mat2euler, mj2euler, mj2pos, mj2scale, quat2euler
+from simpub.transform import mat2euler, mj2euler, mj2pos, quat2euler
 
 class MJCFFile:
   def __init__(self, file : str | Path, tree : set["MJCFFile"] = None):
@@ -40,9 +40,8 @@ class MJCFFile:
       file = (self.path.parent / file).absolute()
       
       if not file.exists(): raise RuntimeError(f"mjcf file {file} not found")
-      
-      if file in self.tree: raise RuntimeError(f"mjcf file {file} is contained in a circular include")
-
+      for f in self.tree: 
+        if f.path == file: raise RuntimeError(f"mjcf file {file} is contained in a circular include")
       
       self.includes.append(MJCFFile(file, self.tree))
 
@@ -50,22 +49,24 @@ class MJCFFile:
     self.default = defaultdict(dict)
     default_container = self.root.find("./default")
     if default_container is None: return
+    self.load_default(default_container, defaultdict(dict))
+    
 
-    defaults : deque = deque()
-    default_tree = defaultdict(dict)
-    defaults.append((list(default_container), default_container.attrib.get("class", "main")))
-    while defaults:
-      children, class_name = defaults.popleft()
-      for child in children:
-        if child.tag == "default":
-          defaults.append((list(child), child.get("class")))
-          continue
+  def load_default(self, element : ElementTree.Element, default_tree : defaultdict):
+    # depth first algorithm 
+    # load all the default values
+    for child in element:
+      if child.tag == "default":
+        self.load_default(child, copy.deepcopy(default_tree))
+        continue
 
-        for key, value in child.attrib.items(): 
-          default_tree[child.tag][key] = value
-      
-      for tag in default_tree.keys():
-        self.default[class_name][tag] = default_tree[tag].copy()
+      for key, value in child.attrib.items(): 
+        default_tree[child.tag][key] = value
+  
+    # save the default values for this class
+    for tag in default_tree.keys():
+      self.default[element.get("class", "main")][tag] = default_tree[tag]
+
 
   def load_compiler(self):
     self.angle = "degree"
@@ -88,37 +89,31 @@ class MJCFFile:
 
     def rotation_from_object(obj : ElementTree.Element) -> np.ndarray: 
       # https://mujoco.readthedocs.io/en/stable/modeling.html#frame-orientations
-      quat = getattr(obj, "quat", None)
-      axisangle = getattr(obj, "axisangle", None)
-      euler = getattr(obj, "euler", None)
-      xyaxes = getattr(obj, "xyaxes", None)
-      zaxis = getattr(obj, "zaxis", None)
-
       result : np.ndarray
-      if quat is not None:
-        result = quat2euler([float(i) for i in quat.split(" ")])
-      elif axisangle is not None:
+      if quat := obj.attrib.get("quat"):
+        result = quat2euler(np.fromstring(quat, dtype=np.float32, sep=' '))
+      elif axisangle := obj.attrib.get("axisangle"):
+        print(obj.tag, obj.attrib)
         raise NotImplementedError()
-      elif euler is not None:
-        euler = [float(i) for i in euler.split(" ")]
+      elif euler := obj.attrib.get("euler"):
+        euler = np.fromstring(euler, dtype=np.float32, sep=' ')
         match self.eulerseq:
           case "xyz":
             result = euler
           case "zyx":
             result = euler[::-1]
-      elif xyaxes is not None:
-        xyaxes = np.array([float(i) for i in xyaxes.split(" ")])
+      elif xyaxes := obj.attrib.get("xyaxes"):
+        xyaxes = np.fromstring(xyaxes, dtype=np.float32, sep=' ')
         x = xyaxes[:3]
         y = xyaxes[3:6]
         z = np.cross(x, y)
         result = mat2euler(np.array([x, y, z]).T)
-      elif zaxis is not None:
+      elif zaxis := obj.attrib.get("zaxis"):
         raise NotImplementedError()
       else:
         result = np.array([0, 0, 0])
 
       return mj2euler(result if self.angle == "degree" else np.degrees(result))
-      
 
 
     def load_visual(visual : ElementTree.Element) -> Optional[SimVisual]:  
@@ -128,9 +123,9 @@ class MJCFFile:
       type = SimVisualType(visual.attrib.get("type", "sphere").upper())
 
       transform = SimTransform(
-        position=mj2pos([float(i) for i in visual.attrib.get("pos", "0 0 0").split(" ")]), 
+        position=mj2pos(np.fromstring(visual.attrib.get("pos", "0 0 0"), dtype=np.float32, sep=' ')), 
         rotation=rotation_from_object(visual), 
-        scale=np.abs(mj2scale([float(i) for i in visual.attrib.get("size", "1 1 1").split(" ")]))
+        scale=np.abs(np.fromstring(visual.attrib.get("size", "1 1 1"), dtype=np.float32, sep=' '))
       )
 
       return SimVisual(
@@ -138,7 +133,7 @@ class MJCFFile:
         transform=transform,
         mesh=visual.attrib.get("mesh"),
         material=visual.attrib.get("material"),
-        color=[float(i) for i in visual.get("rgba", "1 1 1 1").split(" ")]
+        color=np.fromstring(visual.get("rgba", "1 1 1 1"), dtype=np.float32, sep=' ')
       )
     
     def load_joint(root : ElementTree.Element):
@@ -148,7 +143,7 @@ class MJCFFile:
         name=root.attrib.get("name", root.tag),
         body=load_body(root),
         transform=SimTransform(
-          position=mj2pos([float(i) for i in root.attrib.get("pos", "0 0 0").split(" ")]), 
+          position=mj2pos(np.fromstring(root.attrib.get("pos", "0 0 0"), dtype=np.float32, sep=' ')), 
           rotation=rotation_from_object(root)
         )
       )
@@ -163,12 +158,11 @@ class MJCFFile:
         # https://mujoco.readthedocs.io/en/stable/modeling.html#kinematic-tree
         joint = joints[0]
         self.apply_defaults(joint)
-        ujoint.axis = mj2pos([int(i) for i in joint.attrib.get("axis", "1 0 0").split(" ")])
+        ujoint.axis = mj2pos(np.fromstring(joint.attrib.get("axis", "1 0 0"), dtype=np.int32, sep=' '))
         ujoint.name = joint.get("name", ujoint.name)
-        ujoint.transform.position += mj2pos([float(i) for i in root.attrib.get("pos", "0 0 0").split(" ")])
         ujoint.type = SimJointType(joint.attrib.get("type", "hinge").upper())
 
-        ujoint.minrot, ujoint.maxrot = [math.degrees(float(i)) for i in joint.attrib.get("range", "0 0").split(" ")]
+        ujoint.minrot, ujoint.maxrot = np.degrees(np.fromstring(joint.attrib.get("range", "0 0"), dtype=np.float32, sep=' '))
 
         if ujoint.type is SimJointType.BALL:
           raise RuntimeWarning("Warning: Ball joints in the scene are currently not supported")
@@ -187,7 +181,6 @@ class MJCFFile:
     
   def apply_defaults(self, element):
     default = self.default[element.get("class", "main")].get(element.tag, dict()).copy()
-
     for key, value in element.attrib.items():
       default[key] = value
     
@@ -214,7 +207,7 @@ class MJCFFile:
 
         case "material":
           # https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset-material
-          color = np.array([float(i) for i in asset.attrib.get("rgba", "1 1 1 1").split(" ")])
+          color = np.fromstring(asset.attrib.get("rgba", "1 1 1 1"), dtype=np.float32, sep=' ')
           material = SimMaterial(
             tag=asset.attrib.get("name") or asset.attrib.get("type"),
             color=color,
@@ -232,7 +225,7 @@ class MJCFFile:
           # https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset-texture
           name = asset.attrib.get("name") or asset.attrib.get("type")
           builtin = asset.attrib.get("builtin", "none")
-          tint = [float(i) for i in asset.attrib.get("rgb1", "1 1 1 1").split(" ")]
+          tint = np.fromstring(asset.attrib.get("rgb1", "1 1 1"), dtype=np.float32, sep=' ')
           if builtin != "none":
             texture, bin_data= TextureLoader.fromBuiltin(name, builtin, tint)
           else:
@@ -244,7 +237,7 @@ class MJCFFile:
         case _:
           raise RuntimeError("Invalid asset", asset.tag)
 
-  def get_scene(self):
+  def to_scene(self):
     scene = SimScene(
       worldbody=SimBody("worldbody", list(), list()), 
       id=self.id
@@ -275,5 +268,5 @@ if __name__ == "__main__":
   mj = MJCFFile(file)
   print(mj)
 
-  scene = mj.get_scene()
+  scene = mj.to_scene()
   print(JsonScene.to_string(scene))
