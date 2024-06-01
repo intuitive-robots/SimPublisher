@@ -14,11 +14,11 @@ class RequestService:
     self._actions : dict = {}
     self.zmq_context = context
 
-    self.req_socket : zmq.Socket = self.zmq_context.socket(zmq.REQ)
     self.conn = (None, None)
     self.connected = False
   
   def connect(self, addr : str, port : int):
+    self.req_socket : zmq.Socket = self.zmq_context.socket(zmq.REQ)
     self.req_socket.connect(f"tcp://{addr}:{port}")
     self.conn = addr, port
     self.connected = True
@@ -49,12 +49,8 @@ class ReplyService:
     self.thread.start()
     
   def stop(self):
-    temp_sock = self.zmq_context.socket(zmq.REQ)
-    temp_sock.connect(f"tcp://localhost:{self.port}")
-    temp_sock.send_string("END")
-    temp_sock.close(0)
-
     self.running = False
+    self.reply_socket.close(0)
     self.thread.join()
   
   def register_action(self, tag : str, action : Callable[[zmq.Socket, str], None]):
@@ -63,14 +59,14 @@ class ReplyService:
     self._actions[tag] = action
 
   def _loop(self):
-    reply_socket : zmq.Socket = self.zmq_context.socket(zmq.REP)
+    self.reply_socket : zmq.Socket = self.zmq_context.socket(zmq.REP)
     if self.port:
-      reply_socket.bind(f"tcp://*:{self.port}")
+      self.reply_socket.bind(f"tcp://*:{self.port}")
     else: 
-      self.port = reply_socket.bind_to_random_port(f"tcp://*")
+      self.port = self.reply_socket.bind_to_random_port(f"tcp://*")
     
     while self.running: 
-      message = reply_socket.recv().decode() # This is blocking so no sleep necessary
+      message = self.reply_socket.recv().decode() # This is blocking so no sleep necessary
 
       tag, *args = message.split(":", 1)
       if tag == "END": 
@@ -78,9 +74,9 @@ class ReplyService:
 
       if tag not in self._actions:
         print(f"Invalid request {tag}")
-        reply_socket.send_string("INVALID")
+        self.reply_socket.send_string("INVALID")
         continue
       
-      self._actions[tag](reply_socket, args[0] if args else "")
-    reply_socket.close(0)
+      self._actions[tag](self.reply_socket, args[0] if args else "")
+    
 

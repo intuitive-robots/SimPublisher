@@ -24,19 +24,19 @@ class StreamReceiver:
     self._thread.start()
 
   def disconnect(self):
+    self.sub_socket.close(0)
     self.running = False    
     self._thread.join()
 
   def _loop(self):
-    sub_socket : zmq.Socket = self.zmq_context.socket(zmq.SUB)
-    sub_socket.connect(f"tcp://{self.conn[0]}:{self.conn[1]}")
-    try:
-      while self.running:
-        message = sub_socket.recv_string()
-        if message is None: continue
-        self.callback(message)
-    finally:
-      sub_socket.close(0)    
+    self.sub_socket : zmq.Socket = self.zmq_context.socket(zmq.SUB)
+    self.sub_socket.connect(f"tcp://{self.conn[0]}:{self.conn[1]}")
+    self.sub_socket.subscribe("")
+    while self.running:
+      message = self.sub_socket.recv_json()
+      self.callback(message)
+
+
 class StreamSender: 
   def __init__(self, context : zmq.Context, port : Optional[int] = None):
     self.zmq_context = context

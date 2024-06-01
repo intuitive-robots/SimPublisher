@@ -29,12 +29,11 @@ class SimReceiver:
 
   def on(self, event : str):
     def decorator(fn : Callable[[str], None]):
-      match event:
-        case "INIT":
+      if event == "INIT":
           self.on_init = fn
-        case "UPDATE":
+      elif event == "UPDATE":
           self.on_update = fn
-        case _:
+      else:
           raise RuntimeError("Invalid function callback")
 
     return decorator
@@ -65,4 +64,7 @@ class SimReceiver:
     self.on_update(data)
 
   def __del__(self):
+    self.streaming.disconnect()
+    self.service.disconnect()
+    self.discovery.stop()
     self.zmq_context.destroy(0)

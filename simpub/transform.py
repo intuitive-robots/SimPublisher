@@ -17,18 +17,10 @@ def mj2quat(quat):
   return np.array([quat[2], -quat[3], -quat[1], quat[0]], dtype=np.float32)
 
 def mj2pos(pos): 
-  if pos is None: return np.array([0, 0, 0])
   return np.array([-pos[1], pos[2], -pos[0]]) 
 
 def mj2euler(rot): 
-  if rot is None: return np.array([0, 0, 0])
   return np.array([-rot[1], rot[2], -rot[0]])
-
-def mj2scale(scale):
-  if scale is None: return np.array([1, 1, 1])
-  elif len(scale) == 1: return np.array([scale[0], scale[0], scale[0]])
-  elif len(scale) == 2: return np.array([scale[0], scale[1], 0])
-  return np.array([-scale[1] * 2, scale[2] * 2, scale[0] * 2])
 
 def quat2euler(q):
   if q is None: return np.array([0, 0, 0])

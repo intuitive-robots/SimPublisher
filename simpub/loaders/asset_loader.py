@@ -1,7 +1,8 @@
 import io
 import math
+from os import PathLike
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import simpub
 from simpub.simdata import SimMesh, SimTexture
@@ -16,15 +17,15 @@ class TextureLoader:
   RES_PATH = Path(simpub.__file__).parent
 
   @staticmethod
-  def fromBuiltin(name : str, builtin_name : str, tint : Optional[np.ndarray] = None) -> tuple[SimTexture, bytes]:
+  def fromBuiltin(name : str, builtin_name : str, tint : Optional[np.ndarray] = None) -> Tuple[SimTexture, bytes]:
     img : Image.Image
-    match builtin_name:
-      case "checker":
+    if builtin_name == "checker":
         img = Image.open(TextureLoader.RES_PATH / "res/image/builtin/checker_grey.png").convert("RGBA")
-      case "gradient" | "flat":
+    elif builtin_name in { "gradient", "flat" }:
         img = Image.new("RGBA", (256, 256), (1, 1, 1, 1))
-      case _:
+    else:
         raise RuntimeError("Invalid texture builtin", builtin_name)
+    
     if tint is not None: img = TextureLoader.tint(img, tint)
 
     width, height = img.size 
@@ -42,7 +43,7 @@ class TextureLoader:
     return texture, tex_data
 
   @staticmethod
-  def fromBytes(name : str, content : bytes, texture_type : str, tint : Optional[np.ndarray] = None) -> tuple[SimTexture, bytes]:
+  def fromBytes(name : str, content : bytes, texture_type : str, tint : Optional[np.ndarray] = None) -> Tuple[SimTexture, bytes]:
     with io.BytesIO(content) as file_data:
       img : Image.Image = Image.open(file_data).convert("RGBA")
     
@@ -78,13 +79,13 @@ class TextureLoader:
 
 class MeshLoader:
   @staticmethod
-  def fromFile(file : str | Path, name : Optional[str] = None, scale=None) -> SimMesh: 
+  def fromFile(file : Path, name : Optional[str] = None, scale=None) -> SimMesh: 
     path = Path(file) if isinstance(file, str) else file
     mesh = trimesh.load_mesh(path)
     return MeshLoader.from_loaded_mesh(mesh, name or path.stem, scale)
 
   @staticmethod
-  def fromBytes(name : str, content : bytes, mesh_type : str, scale : np.ndarray) -> tuple[SimMesh, bytes]:
+  def fromBytes(name : Path, content : bytes, mesh_type : str, scale : np.ndarray) -> Tuple[SimMesh, bytes]:
     
     with io.BytesIO(content) as data:
       mesh : trimesh.Trimesh = trimesh.load_mesh(data, file_type=mesh_type, texture=True)

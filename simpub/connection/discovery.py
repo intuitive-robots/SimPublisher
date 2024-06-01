@@ -12,24 +12,22 @@ class DiscoveryReceiver:
     self._callback = callback
     self._thread = Thread(target=self._loop)
 
-
   def _loop(self):
-    conn = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP) #create UDP socket
-    conn.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
-    conn.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-    conn.bind((BROADCAST_MASK, self._port))
+    self.conn = socket(AF_INET, SOCK_DGRAM) #create UDP socket
+    self.conn.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+    self.conn.bind(('', self._port))
     self._running = True
     while self._running:
-      message, server = conn.recvfrom(4096)
+      message, server = self.conn.recvfrom(1028)
       self._callback(message.decode(), server[0])
   
-    conn.close()
       
   def start(self):  
     self._thread.start()
 
   def stop(self):
     self._running = False
+    self.conn.close()
     self._thread.join()
   
 
@@ -45,10 +43,10 @@ class DiscoverySender:
 
   
   def _loop(self):
-    conn = socket(AF_INET, SOCK_DGRAM) #create UDP socket
-    conn.setsockopt(SOL_SOCKET, SO_BROADCAST, 1) # this is a broadcast socket
+    self.conn = socket(AF_INET, SOCK_DGRAM) #create UDP socket
+    self.conn.setsockopt(SOL_SOCKET, SO_BROADCAST, 1) # this is a broadcast socket
     while self._running:
-      conn.sendto(self._message, (BROADCAST_MASK, self._port))
+      self.conn.sendto(self._message, (BROADCAST_MASK, self._port))
       sleep(self._intervall)
 
   
