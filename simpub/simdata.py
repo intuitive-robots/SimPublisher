@@ -70,6 +70,13 @@ class SimTransform:
   rotation : np.ndarray = field(default_factory=lambda: np.zeros((3, ), dtype=np.float32))
   scale : np.ndarray = field(default_factory=lambda: np.ones((3, ), dtype=np.float32))
 
+  def __add__(self, other : "SimTransform"):
+    return SimTransform(
+      position=self.position + other.position,
+      rotation=self.rotation + other.rotation,
+      scale=self.scale * other.scale
+    )
+
 
 @dataclass
 class SimVisual:
@@ -83,12 +90,10 @@ class SimVisual:
 @dataclass 
 class SimJoint:  
   name : str
-  transform : SimTransform
-  body : "SimBody" 
-
   initial : float = 0.0
   maxrot : float = 0.0
   minrot : float = 0.0
+  transform : SimTransform = field(default_factory=SimTransform)
   type : SimJointType = SimJointType.FIXED
   axis : List[float] = field(default_factory=lambda: np.array([0, 0, 0]))
 
@@ -98,15 +103,26 @@ class SimBody:
   name : str
   visuals : List[SimVisual]
   joints : List[SimJoint]
+  bodies : List["SimBody"]
 
-  def get_joints(self, select: set = {type for type in SimJointType}) -> List[SimJoint]:
-    joints = [joint for joint in self.joints if joint.type in select]
-    found = [joint.body for joint in self.joints]
+  def get_joints(self, *types) -> List[SimJoint]:
+    select: set = set(types) if len(types) > 0 else set(SimJointType)
+    joints = list()
+    found = [self]
     while found and (current := found.pop()):
       connected_joints = current.joints
-      joints += [joint for joint in connected_joints if joint.type in select]
-      found += [joint.body for joint in connected_joints]
+      joints.extend(joint for joint in connected_joints if joint.type in select)
+      found.extend(current.bodies)
     return joints
+
+  def get_parent_body(self, joint : SimJoint):
+    found = [self]
+    while found and (current := found.pop()):
+      if joint in current.joints:
+        return current
+      found.extend(current.bodies)
+    return None
+
   
 @dataclass
 class SimScene:
