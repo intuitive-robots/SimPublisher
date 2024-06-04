@@ -79,7 +79,7 @@ class SimPublisher:
   
   def update_joint(self, joint_name : str):
     obj, func = self.tracked_joints[joint_name]
-    value = func(*obj) 
+    value = func(*obj)
     return value
 
   def _on_scene_request(self, socket : zmq.Socket, tag : str):
@@ -103,7 +103,7 @@ class SimPublisher:
 
       last = time.monotonic()
       msg = {
-        "data" : {joint_name : np.array(self.update_joint(joint_name)) for joint_name in self.tracked_joints },
+        "data" : {joint_name : np.array(list(self.update_joint(joint_name))) for joint_name in self.tracked_joints },
         "time" : time.monotonic()
       }
       self.publish(msg)

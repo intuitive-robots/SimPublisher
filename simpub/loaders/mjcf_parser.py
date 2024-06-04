@@ -1,9 +1,10 @@
 from collections import defaultdict, deque
 import copy
+from dataclasses import dataclass
 from functools import reduce
 import operator
 import random
-from typing import Optional
+from typing import List, Optional
 import numpy as np
 from simpub.loaders.asset_loader import MeshLoader, TextureLoader
 from simpub.loaders.json import JsonScene
@@ -14,25 +15,36 @@ import math
 
 from simpub.transform import mat2euler, mj2euler, mj2pos, quat2euler
 
-class MJCFFile:
-
+@dataclass
+class MJCFScene(SimScene):
+  _path : Path = None
+  _xmlElement : ElementTree.Element = None
+  
   @staticmethod
   def from_string(content : str, path : Path):
-    return MJCFFile(content, path)
+    return MJCFScene(
+       _xmlElement=ElementTree.fromstring(content), 
+       _path=path
+    )
   
   @staticmethod
   def from_file(file : Path):
     path : Path = file if isinstance(file, Path) else Path(file)
-    return MJCFFile(path.read_text(), path)
+    return MJCFScene(
+      _xmlElement=ElementTree.fromstring(path.read_text()),
+      _path=path
+    )
 
-  def __init__(self, content : str, path : Path):
+  def __post_init__(self):
 
-    self.root = ElementTree.fromstring(content)
-    self.path = path
+    if self._path is None or self._xmlElement is None:
+      raise RuntimeError("MJCFScene has to instancated from .from_string or .from_file")
 
     self.id = str(random.randint(int(1e9), int(1e10 - 1)))
+
+    self.merge_includes()
+
     
-    self.load_includes()
 
     self.load_compiler()
     
@@ -40,21 +52,20 @@ class MJCFFile:
 
     self.load_assets()
 
-
     self.load_worldbody()
 
-  def load_includes(self):
-    while len(includes := [i for i in self.root.iter("include")]):
+  def merge_includes(self):
+    while len(includes := list(self._xmlElement.iter("include"))):
       for include in includes:
-        file = (self.path.parent / include.attrib["file"]).absolute()
+        file = (self._path.parent / include.attrib["file"]).absolute()
         
         if not file.exists(): raise RuntimeError(f"mjcf file {file} not found")
 
         parsed_include = list(ElementTree.fromstring(file.read_text())) # parse
-        parent = {ch: pa for pa in self.root.iter() for ch in pa}[include] # get the parent 
-        index = {child : i for i, child in enumerate(parent)}[include] - 1
+        parent = { ch : pa for pa in self._xmlElement.iter() for ch in pa}[include] # get the parent 
+        index = {child : i for i, child in enumerate(parent)}[include]
         parent.remove(include)
-        if parent != self.root:
+        if parent != self._xmlElement:
           # Within default or the worlbody we add the children in place
           for i in range(index, index + len(parsed_include)):
             parent.insert(i, parsed_include[i - index])
@@ -64,12 +75,17 @@ class MJCFFile:
         for child in parsed_include:
           if (it := parent.find(child.tag)) is not None and len(list(it)) > 0:
             it.extend(list(child))
+          elif it is not None and len(list(it)) == 0:
+            it.attrib.update(child.attrib)
           else:
             parent.insert(index, child)
 
+    with open("dump.xml", "w") as fp:
+      fp.write(ElementTree.tostring(self._xmlElement, encoding="unicode"))
+
   def load_defaults(self):
     self.default = defaultdict(dict)
-    default_container = self.root.find("./default")
+    default_container = self._xmlElement.find("./default")
     for i in range(1, len(default_container)):
       default_container[0].extend(default_container[i])
 
@@ -96,24 +112,25 @@ class MJCFFile:
   def load_compiler(self):
     self.angle = "degree"
     self.eulerseq = "xyz"
-    self.meshdir = self.path.parent
-    self.texturedir = self.path.parent
-    compiler = self.root.find("./compiler")
+    self.meshdir = self._path.parent
+    self.texturedir = self._path.parent
+    compiler = self._xmlElement.find("./compiler")
 
     if compiler is None: return
 
     self.angle = compiler.get("angle", self.angle)
     self.eulerseq = compiler.get("eulerseq", self.eulerseq)
 
-    self.meshdir    = self.path.parent / compiler.get("meshdir", compiler.get("assetdir", "")) 
-    self.texturedir = self.path.parent / compiler.get("texturedir", compiler.get("assetdir", "")) 
+    self.meshdir    = self._path.parent / compiler.get("meshdir", compiler.get("assetdir", "")) 
+    self.texturedir = self._path.parent / compiler.get("texturedir", compiler.get("assetdir", "")) 
 
   def load_worldbody(self):
-    worldbody = self.root.find("./worldbody")
+    worldbody = self._xmlElement.find("./worldbody")
     if worldbody is None: 
       self.worldbody = None
       return
     self.apply_defaults(worldbody)
+
     def rotation_from_object(obj : ElementTree.Element) -> np.ndarray: 
       # https://mujoco.readthedocs.io/en/stable/modeling.html#frame-orientations
       result : np.ndarray
@@ -142,8 +159,8 @@ class MJCFFile:
       return mj2euler(result)
 
 
-    def load_visual(visual : ElementTree.Element) -> Optional[SimVisual]:   
-      if int(visual.get("group", 0)) > 2: return None # find a better way to figure this out 
+    def load_visual(visual : ElementTree.Element, group : int) -> Optional[SimVisual]:   
+      if (vis_group := visual.get("group")) is not None and int(vis_group) != group: return None
       
       transform = SimTransform(
         rotation=rotation_from_object(visual), 
@@ -152,15 +169,37 @@ class MJCFFile:
       )
 
       type = SimVisualType(visual.get("type", "sphere").upper())
-
       if type == SimVisualType.PLANE:
-          transform.scale = np.abs(mj2pos(np.array([transform.scale[0] * 2, transform.scale[1] * 2, 0.001])))
+        transform.scale = np.abs(np.array([(transform.scale[0] or 100.0) * 2, 0.001, (transform.scale[1] or 100)* 2]))
       elif type == SimVisualType.BOX:
-          transform.scale = np.abs(mj2pos(transform.scale * 2))
+        transform.scale = np.abs(mj2pos(transform.scale * 2))
       elif type == SimVisualType.SPHERE:
-          transform.scale = np.abs(mj2pos(np.array([transform.scale[0]] * 3)))
+        transform.scale = np.abs(mj2pos(np.array([transform.scale[0] * 2] * 3)))
       elif type ==  SimVisualType.CYLINDER:
-          transform.scale = np.abs(np.array([transform.scale[0], transform.scale[1], transform.scale[0]]))
+        if len(transform.scale) == 3:
+          transform.scale = np.abs(np.array([transform.scale[0], transform.scale[1], transform.scale[0]])) 
+        else:
+          transform.scale = np.abs(np.array([transform.scale[0] * 2, transform.scale[1], transform.scale[0] * 2])) 
+      elif type == SimVisualType.CAPSULE:
+        if len(transform.scale) == 3:
+          transform.scale = np.abs(np.array([transform.scale[0], transform.scale[1], transform.scale[0]])) 
+        # elif (fromTo := visual.get("fromto")) is not None:
+        #   size = transform.scale[0]
+        #   fromTo = np.array([mj2pos(p) for p in np.fromstring(fromTo, np.float32, sep=' ').reshape((2, 3))]) # .view(2, 3)
+        #   d = fromTo[1] - fromTo[0]
+        #   transform.position = (d / 2) + fromTo[0]
+
+        #   transform.scale = np.array([sum(fromTo[1] - fromTo[0]), size, size])
+        #   e1 = np.array([1, 0, 0])
+        #   # print(np.linalg.inv(np.outer(e1, d)))
+        #   # rotation
+        #   R = np.dot(np.dot(np.transpose(e1), np.linalg.inv(np.outer(e1, d))), d)
+
+        #   transform.rotation = np.dot(R, e1)
+        #   print("WARNING: fromto property currently not implemented")
+        #   # transform.scale = np.abs(np.array([transform.scale[0], size, transform.scale[0]]))
+
+      assert len(transform.scale) == 3 
 
       return SimVisual(
         type=type,
@@ -170,41 +209,41 @@ class MJCFFile:
         color=np.fromstring(visual.get("rgba", "1 1 1 1"), dtype=np.float32, sep=' ')
       )
     
-    def load_joint(root : ElementTree.Element):
-      ujoint =  SimJoint(
-        name=root.get("name", root.tag),
-        body=load_body(root),
-        transform=SimTransform(
-          position=mj2pos(np.fromstring(root.get("pos", "0 0 0"), dtype=np.float32, sep=' ')), 
-          rotation=rotation_from_object(root)
-        )
+    def load_joint(joint : ElementTree.Element, parent_name : str):
+      range = np.fromstring(joint.get("range", "1000000 100000"), dtype=np.float32, sep=' ')
+      if self.angle != "degree": range = np.degrees(range)
+      return SimJoint(
+        name = joint.get("name", parent_name),
+        axis=mj2pos(np.fromstring(joint.get("axis", "1 0 0"), dtype=np.int32, sep=' ')),
+        minrot = float(range[0]),
+        maxrot = float(range[1]),
+        transform=SimTransform(position=mj2pos(np.fromstring(joint.get("pos", "0 0 0"), dtype=np.float32, sep=' '))),
+        type=SimJointType(joint.get("type", "hinge").upper()),
       )
 
-
-      joints = root.findall("./joint")
-      freejoint = root.find("./freejoint")
-      if freejoint is not None:
-        ujoint.type = SimJointType.FREE
-      elif len(joints) > 0: 
-        # TODO: There could be multiple joints attached to each body, chaining them together should work 
-        # https://mujoco.readthedocs.io/en/stable/modeling.html#kinematic-tree
-        joint = joints[0]
-        ujoint.axis = mj2pos(np.fromstring(joint.get("axis", "1 0 0"), dtype=np.int32, sep=' '))
-        ujoint.transform.position += mj2pos(np.fromstring(joint.get("pos", "0 0 0"), dtype=np.int32, sep=' '))
-        ujoint.name = joint.get("name", ujoint.name)
-        ujoint.type = SimJointType(joint.get("type", "hinge").upper())
-        ujoint.minrot, ujoint.maxrot = np.degrees(np.fromstring(joint.get("range", "0 0"), dtype=np.float32, sep=' '))
-
-        if ujoint.type is SimJointType.BALL:
-          raise RuntimeWarning("Warning: Ball joints in the scene are currently not supported")
-      
-      return ujoint
-
     def load_body(body : ElementTree.Element) -> SimBody:
-      return SimBody(
-        name=body.get("name", "worldbody"),
-        joints=[load_joint(b) for b in body.findall("./body")],
-        visuals=[visual for geom in body.findall("./geom") if (visual := load_visual(geom)) is not None],
+      transform=SimTransform(
+        position=mj2pos(np.fromstring(body.get("pos", "0 0 0"), dtype=np.float32, sep=' ')), 
+        rotation=rotation_from_object(body)
+      )
+
+      group = max(set(int(val) for geom in body.findall("./geom") if (val := geom.get("group") is not None)) or { 0 })
+
+      name=body.get("name", "worldbody")
+      joints : List[SimJoint] = list()
+      if body.find("./freejoint") is not None:
+        joints.append(SimJoint(type=SimJointType.FREE, name=name))  
+      elif len(jObjs := list(body.findall("./joint"))) > 0:
+        joints.extend(load_joint(j, name) for j in jObjs)
+      else:
+        joints.append(SimJoint(name))
+
+      joints[0].transform = joints[0].transform + transform
+      return SimBody( 
+        name=name,
+        joints=joints,
+        visuals=[visual for geom in body.findall("./geom") + body.findall("./site") if (visual := load_visual(geom, group)) is not None],
+        bodies=[load_body(b) for b in body.findall("./body")],
       )
     
     self.worldbody = load_body(worldbody)
@@ -224,22 +263,18 @@ class MJCFFile:
 
 
   def load_assets(self):
-    self.meshes = []
-    self.materials = []
-    self.textures = []
-    self.raw_data = dict()
-    assets = self.root.find("./asset")
+    assets = self._xmlElement.find("./asset")
     if assets is None: return
     self.apply_defaults(assets)
     for asset in assets:
       if asset.tag == "mesh":
           # https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset-mesh
           file = self.meshdir / asset.attrib["file"]
-          scale = np.array([float(i) for i in asset.get("scale", "1 1 1").split(" ")])
+          scale = np.fromstring(asset.get("scale", "1 1 1"), dtype=np.float32, sep=" ")
           mesh, bin_data = MeshLoader.fromFile(file, asset.get("name", file.stem), scale)
 
           self.meshes.append(mesh)
-          self.raw_data[mesh.dataID] = bin_data
+          self._raw_data[mesh.dataID] = bin_data
 
       elif asset.tag == "material":
           # https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset-material
@@ -254,7 +289,7 @@ class MJCFFile:
           )
           
           material.texture = asset.get("texture", None)
-          material.texsize = [int(i) for i in asset.get("texrepeat","1 1").split(" ")]
+          material.texsize = np.fromstring(asset.get("texrepeat", "1 1"), dtype=np.int32, sep=' ')
 
           self.materials.append(material)
       elif asset.tag == "texture":
@@ -269,32 +304,19 @@ class MJCFFile:
           texture, bin_data = TextureLoader.fromBytes(name, file.read_bytes(), asset.get("type", "cube"), tint)
 
         self.textures.append(texture)
-        self.raw_data[texture.dataID] = bin_data
+        self._raw_data[texture.dataID] = bin_data
       else:
         raise RuntimeError("Invalid asset", asset.tag)
 
-  def to_scene(self):
-    scene = SimScene(
-      worldbody=self.worldbody, 
-      id=self.id,
-      meshes = self.meshes,
-      materials = self.materials,
-      textures = self.textures,
-      _raw_data = self.raw_data
-    )
-
-
-    return scene
-
   def __repr__(self, indent = 0):
-    return f"<MJCFFile {self.path} meshes={len(self.meshes)}>"
+    return f"<MJCFScene {self._path} meshes={len(self.meshes)}>"
 
 if __name__ == "__main__":
   file = "scenes/anybotics_anymal_b/scene.xml"
 
   print("loading", file)
 
-  mj = MJCFFile(file)
+  mj = MJCFScene.from_file(file)
   print(mj)
 
   scene = mj.to_scene()
