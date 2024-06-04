@@ -12,6 +12,7 @@ from simpub.simdata import SimBody, SimJoint, SimJointType, SimMaterial, SimScen
 from xml.etree import ElementTree
 from pathlib import Path
 import math
+from xml.dom import minidom
 
 from simpub.transform import mat2euler, mj2euler, mj2pos, quat2euler
 
@@ -54,6 +55,10 @@ class MJCFScene(SimScene):
 
     self.load_worldbody()
 
+    
+    self.xmlstr = minidom.parseString(ElementTree.tostring(self.worldbody)).toprettyxml(indent="   ")
+
+
   def merge_includes(self):
     while len(includes := list(self._xmlElement.iter("include"))):
       for include in includes:
@@ -86,9 +91,6 @@ class MJCFScene(SimScene):
   def load_defaults(self):
     self.default = defaultdict(dict)
     default_container = self._xmlElement.find("./default")
-    for i in range(1, len(default_container)):
-      default_container[0].extend(default_container[i])
-
     if default_container is None: return
     self.load_default(default_container, defaultdict(dict))
     
@@ -168,7 +170,17 @@ class MJCFScene(SimScene):
         scale=np.abs(np.fromstring(visual.get("size", "1 1 1"), dtype=np.float32, sep=' '))
       )
 
-      type = SimVisualType(visual.get("type", "sphere").upper())
+      types = {
+        "plane" : SimVisualType.PLANE, 
+        "sphere" : SimVisualType.SPHERE, 
+        "capsule" : SimVisualType.CAPSULE, 
+        "ellipsoid" : SimVisualType.CAPSULE, 
+        "cylinder" : SimVisualType.CYLINDER,
+        "box" : SimVisualType.BOX,
+        "mesh" : SimVisualType.MESH
+      } 
+      if (attrib_type := visual.get("type", "sphere")) not in types: return None 
+      type = types[attrib_type]
       if type == SimVisualType.PLANE:
         transform.scale = np.abs(np.array([(transform.scale[0] or 100.0) * 2, 0.001, (transform.scale[1] or 100)* 2]))
       elif type == SimVisualType.BOX:
@@ -230,15 +242,15 @@ class MJCFScene(SimScene):
       group = max(set(int(val) for geom in body.findall("./geom") if (val := geom.get("group") is not None)) or { 0 })
 
       name=body.get("name", "worldbody")
-      joints : List[SimJoint] = list()
+      joints : List[SimJoint]
       if body.find("./freejoint") is not None:
-        joints.append(SimJoint(type=SimJointType.FREE, name=name))  
+        joints = [SimJoint(type=SimJointType.FREE, name=name)]  
       elif len(jObjs := list(body.findall("./joint"))) > 0:
-        joints.extend(load_joint(j, name) for j in jObjs)
+        joints = [load_joint(j, name) for j in jObjs]
       else:
-        joints.append(SimJoint(name))
+        joints = [SimJoint(name)]
 
-      joints[0].transform = joints[0].transform + transform
+      joints[0].transform = joints[0].transform + transform # the first joint sets the frame 
       return SimBody( 
         name=name,
         joints=joints,
