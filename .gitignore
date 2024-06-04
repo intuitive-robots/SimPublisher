@@ -6,7 +6,7 @@ __pycache__/
 scenes/
 models copy/
 test.py
-dump.xml
+*.xml
 # C extensions
 *.so
 *.json
