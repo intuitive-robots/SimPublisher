@@ -45,8 +45,6 @@ class MJCFScene(SimScene):
 
     self.merge_includes()
 
-    
-
     self.load_compiler()
     
     self.load_defaults()
@@ -56,7 +54,7 @@ class MJCFScene(SimScene):
     self.load_worldbody()
 
     
-    self.xmlstr = minidom.parseString(ElementTree.tostring(self.worldbody)).toprettyxml(indent="   ")
+    self.xmlstr = minidom.parseString(ElementTree.tostring(self._xmlElement)).toprettyxml(indent="   ")
 
 
   def merge_includes(self):
