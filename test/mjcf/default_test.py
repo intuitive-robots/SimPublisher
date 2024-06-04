@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from simpub.loaders.mjcf_parser import MJCFScene
-from simpub.simdata import SimVisualType
+from simpub.simdata import SimJointType, SimVisualType
 
 
 class TestMyFunction(unittest.TestCase):
@@ -61,6 +61,44 @@ class TestMyFunction(unittest.TestCase):
         self.assertEqual(scene.meshdir, Path("assets"))
         self.assertEqual(scene.texturedir, Path("textures"))
     
+    def test_body_layout(self):
+        # This function tests the correct behaviour of worldbody parsing
+        xml = """
+              <mujoco>
+                  <worldbody>
+                      <geom type="box"/>
+                      <body name="first" pos="1 1 1" euler="0.9 90. 43">
+                            <geom type="sphere" rgba="0 0 1 1"/>
+                            <geom type="box" rgba="0 0 1 1"/>
+                            <geom type="box" rgba="0 0 1 1"/>
+                            <joint type="hinge" axis="1 0 0"/>
+                      </body>
+                      <body name="second/third">
+                        <freejoint/>
+                      </body>
+                  </worldbody>
+              </mujoco>
+              """
+        
+        scene = MJCFScene.from_string(xml, Path("."))
+
+        self.assertEqual(scene.worldbody.bodies[0].name, "first")
+        self.assertEqual(scene.worldbody.bodies[1].name, "second/third")
+
+        
+        self.assertEqual(scene.worldbody.bodies[1].joints[0].type, SimJointType.FREE)
+
+        self.assertEqual(scene.worldbody.visuals[0].type, SimVisualType.BOX)
+
+        
+        self.assertEqual(scene.worldbody.bodies[0].visuals[0].type, SimVisualType.SPHERE)
+        self.assertEqual(scene.worldbody.bodies[0].visuals[1].type, SimVisualType.BOX)
+        self.assertEqual(scene.worldbody.bodies[0].visuals[2].type, SimVisualType.BOX)
+
+        
+        self.assertEqual(scene.worldbody.bodies[0].joints[0].type, SimJointType.HINGE)
+        self.assertListEqual(scene.worldbody.bodies[0].joints[0].axis.tolist(), [0, 0, -1])
+
 
 if __name__ == '__main__':
     unittest.main()
