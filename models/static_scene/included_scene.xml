@@ -1,7 +1,0 @@
-<mujoco model="included_scene">
-
-    <body>
-        <geom class="green_sphere" size="0.5" pos="0 0 1"/>
-    </body>
-
-</mujoco>

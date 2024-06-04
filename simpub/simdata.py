@@ -30,6 +30,9 @@ class SimAssetType(str, Enum):
 class SimAsset:
   tag : str
 
+  def __repr__(self):
+    return f"<{type(self)} tag={self.tag}>"
+
 @dataclass
 class SimMesh(SimAsset):
   dataID : str 
@@ -76,6 +79,9 @@ class SimTransform:
       rotation=self.rotation + other.rotation,
       scale=self.scale * other.scale
     )
+  
+  def __repr__(self) -> str:
+    return f"<SimTransform pos={self.position.tolist()} rot={self.rotation.tolist()} scale={self.scale.tolist()}>"
 
 
 @dataclass
@@ -85,6 +91,9 @@ class SimVisual:
   material : str
   transform : SimTransform
   color : List[float]
+
+  def __repr__(self) -> str:
+    return f"<SimVisual tupe={self.type}>"
 
 
 @dataclass 
@@ -97,6 +106,9 @@ class SimJoint:
   type : SimJointType = SimJointType.FIXED
   axis : List[float] = field(default_factory=lambda: np.array([0, 0, 0]))
 
+  
+  def __repr__(self) -> str:
+    return f"<SimJoint name={self.name} type={self.type}>"
 
 @dataclass
 class SimBody:
@@ -122,6 +134,9 @@ class SimBody:
         return current
       found.extend(current.bodies)
     return None
+  
+  def __repr__(self) -> str:
+    return f"<SimBody visuals={len(self.visuals)} bodies={len(self.bodies)} joints={len(self.joints)}>"
 
   
 @dataclass
