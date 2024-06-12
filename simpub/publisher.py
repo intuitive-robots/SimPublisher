@@ -28,6 +28,8 @@ class SimPublisher:
     self.id = random.randint(100_000, 999_999)
 
     self.running = False
+    # REVIEW: this thread should be used for service not streaming
+    # imaging that the 6D pose estimation app will not using streamer
     self.thread = Thread(target=self._loop)
     self.tracked_joints = dict()
 
@@ -42,7 +44,9 @@ class SimPublisher:
     discovery_data["STREAMING"] = self.STREAMING_PORT
     discovery_message = f"HDAR:{self.id}:{json.dumps(discovery_data)}"
 
+    # REVIEW: three threads are too much, you can use 
     self.service_thread = ReplyService(self.zmqContext, port=self.SERVICE_PORT)
+    # REVIEW: Should we use topics for streamer?
     self.streaming_thread = StreamSender(self.zmqContext, port=self.STREAMING_PORT)
     self.discovery_thread = DiscoverySender(discovery_message, self.DISCOVERY_PORT, self.discovery_interval)  
     
@@ -70,6 +74,8 @@ class SimPublisher:
   def track_joint(self, joint_name : str, obj : Any, func : Any):
     self.tracked_joints[joint_name] = (obj, func)
 
+  # REVIEW: I suggest to use the register_service method to register the service in a simple way rather than dectator
+  # decorator is not necessary, and it is not used in this way
   def register_service(self, tag : str):
 
     def decorator(func : Callable[[zmq.Socket, str], None]):
@@ -98,6 +104,7 @@ class SimPublisher:
       time.sleep(1)
     while self.running:
       diff = time.monotonic() - last 
+      # REVIEW: why not just caculate dt = 1 / self.FPS in advance rather than caculate it every time
       if diff < 1 / self.FPS: 
         time.sleep(1 / self.FPS - diff)
 

@@ -15,7 +15,8 @@ import math
 from xml.dom import minidom
 
 from simpub.transform import mat2euler, mj2euler, mj2pos, quat2euler
-
+# REVIEW: I don't see how dataclass helps here, it's better to use a normal class
+# loading data still needs complex operation
 @dataclass
 class MJCFScene(SimScene):
   _path : Path = None
@@ -125,6 +126,8 @@ class MJCFScene(SimScene):
     self.texturedir = self._path.parent / compiler.get("texturedir", compiler.get("assetdir", "")) 
 
   def load_worldbody(self):
+    # REVIEW: This function is too long, you can split it into smaller functions
+    # and local functions is not necessary, you can just use the function in the class
     worldbody = self._xmlElement.find("./worldbody")
     if worldbody is None: 
       self.worldbody = None
@@ -167,7 +170,7 @@ class MJCFScene(SimScene):
         position=mj2pos(np.fromstring(visual.get("pos", "0 0 0"), dtype=np.float32, sep=' ')), 
         scale=np.abs(np.fromstring(visual.get("size", "1 1 1"), dtype=np.float32, sep=' '))
       )
-
+      # REVIEW: This could be a static variable
       types = {
         "plane" : SimVisualType.PLANE, 
         "sphere" : SimVisualType.SPHERE, 
@@ -278,6 +281,7 @@ class MJCFScene(SimScene):
     self.apply_defaults(assets)
     for asset in assets:
       if asset.tag == "mesh":
+        # REVIEW: the link you are using is for latest xml, please check the mujoco210 version
           # https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset-mesh
           file = self.meshdir / asset.attrib["file"]
           scale = np.fromstring(asset.get("scale", "1 1 1"), dtype=np.float32, sep=" ")
