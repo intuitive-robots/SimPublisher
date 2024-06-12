@@ -6,7 +6,7 @@ from simpub.connection.discovery import DiscoveryReceiver
 from simpub.connection.streaming import StreamReceiver
 from simpub.loaders.json import JsonScene
 from simpub.connection.service import RequestService
-
+# REVIEW: What is this class used for?
 class SimReceiver:
   DISCOVERY_PORT = 5520
   INSTANCE = None

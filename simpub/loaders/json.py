@@ -7,7 +7,7 @@ import numpy as np
 import dataclasses as dc
 
 from simpub.simdata import *
-
+# REVIEW: I suggest do the transformation in the beginning of loading data
 class _CustomEncoder(json.JSONEncoder):
   def default(self, obj):
     if isinstance(obj, np.float32):
@@ -20,7 +20,9 @@ class _CustomEncoder(json.JSONEncoder):
       return { key : getattr(obj,key) for key in obj.__dataclass_fields__ if not key.startswith("_")}
     else:
       return super().default(obj)
-
+# REVIEW: Don't know what this clase used for from its name, it looks like you want a factory class
+# and this class is not necessary, you can just use the SimScene class
+# it will make the structure more complex
 class JsonScene:
 
   @staticmethod
