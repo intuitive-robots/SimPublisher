@@ -1,5 +1,5 @@
 from simpub.receiver import SimReceiver
-from simpub.simdata import SimScene
+from simpub.simdata import UnityScene
 
 
 recv = SimReceiver()
@@ -8,7 +8,7 @@ recv.start()
 
 
 @recv.on("INIT")
-def on_init(scene : SimScene):
+def on_init(scene : UnityScene):
   print(scene)
 
 

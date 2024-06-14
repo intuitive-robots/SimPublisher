@@ -21,24 +21,24 @@ class _CustomEncoder(json.JSONEncoder):
     else:
       return super().default(obj)
 # REVIEW: Don't know what this clase used for from its name, it looks like you want a factory class
-# and this class is not necessary, you can just use the SimScene class
+# and this class is not necessary, you can just use the UnityScene class
 # it will make the structure more complex
 class JsonScene:
 
   @staticmethod
-  def to_string(data : SimScene):
+  def to_string(data : UnityScene):
     return json.dumps(data, separators=(',', ':'), cls=_CustomEncoder)
 
 
   @staticmethod 
   def from_string(data : str):
     parsed_scene = json.loads(data)
-    meshes=[SimMesh(**mesh) for mesh in parsed_scene.pop("meshes")]
-    materials=[SimMaterial(**material) for material in parsed_scene.pop("materials")]
-    textures=[SimTexture(**textures) for textures in parsed_scene.pop("textures")]
+    meshes=[UnityMesh(**mesh) for mesh in parsed_scene.pop("meshes")]
+    materials=[UnityMaterial(**material) for material in parsed_scene.pop("materials")]
+    textures=[UnityTexture(**textures) for textures in parsed_scene.pop("textures")]
     worldbody=JsonScene.load_body(parsed_scene.pop("worldbody"))
 
-    return SimScene(
+    return UnityScene(
        **parsed_scene,
        meshes=meshes,
        materials=materials,
@@ -50,7 +50,7 @@ class JsonScene:
   def load_body(data : dict):
     joints=[JsonScene.load_joint(joint) for joint in data.pop("joints")]
     visuals=[JsonScene.load_visual(visual) for visual in data.pop("visuals")]
-    return SimBody(
+    return UnityGameObject(
       **data,
       joints=joints,
       visuals=visuals
@@ -59,8 +59,8 @@ class JsonScene:
   
   @staticmethod
   def load_visual(data : dict):
-    transform=SimTransform(**data.pop("transform"))
-    return SimVisual(
+    transform=UnityTransform(**data.pop("transform"))
+    return UnityVisual(
        **data,
        transform=transform
     )
@@ -68,9 +68,9 @@ class JsonScene:
   @staticmethod
   def load_joint(data : dict):
 
-    transform=SimTransform(**data.pop("transform"))
+    transform=UnityTransform(**data.pop("transform"))
     body=JsonScene.load_body(data.pop("body"))
-    return SimJoint(
+    return UnityJoint(
        **data,
        transform=transform,
        body=body
