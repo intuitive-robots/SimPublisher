@@ -69,16 +69,9 @@ Scene data
 """
 @dataclass
 class SimTransform:
-  position: np.ndarray = field(default_factory=lambda: np.zeros((3, ), dtype=np.float32))
-  rotation : np.ndarray = field(default_factory=lambda: np.zeros((3, ), dtype=np.float32))
-  scale : np.ndarray = field(default_factory=lambda: np.ones((3, ), dtype=np.float32))
-
-  def __add__(self, other : "SimTransform"):
-    return SimTransform(
-      position=self.position + other.position,
-      rotation=self.rotation + other.rotation,
-      scale=self.scale * other.scale
-    )
+  position: np.ndarray = field(default_factory=lambda: np.array([0, 0, 0], dtype=np.float32))
+  rotation : np.ndarray = field(default_factory=lambda: np.array([0, 0, 0, 1], dtype=np.float32))
+  scale : np.ndarray = field(default_factory=lambda: np.array([1, 1, 1], dtype=np.float32))
   
   def __repr__(self) -> str:
     return f"<SimTransform pos={self.position.tolist()} rot={self.rotation.tolist()} scale={self.scale.tolist()}>"

@@ -70,12 +70,8 @@ class SimPublisher:
   def track_joint(self, joint_name : str, obj : Any, func : Any):
     self.tracked_joints[joint_name] = (obj, func)
 
-  def register_service(self, tag : str):
-
-    def decorator(func : Callable[[zmq.Socket, str], None]):
-      self.service_thread.register_action(tag, func)
-    
-    return decorator
+  def register_service(self, tag : str, func : Callable[[zmq.Socket, str], None]):
+    self.service_thread.register_action(tag, func)
   
   def update_joint(self, joint_name : str):
     obj, func = self.tracked_joints[joint_name]
@@ -103,7 +99,7 @@ class SimPublisher:
 
       last = time.monotonic()
       msg = {
-        "data" : {joint_name : np.array(list(self.update_joint(joint_name))) for joint_name in self.tracked_joints },
+        "data" : {joint_name : list(self.update_joint(joint_name)) for joint_name in self.tracked_joints },
         "time" : time.monotonic()
       }
       self.publish(msg)

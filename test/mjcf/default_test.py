@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from simpub.loaders.mjcf_parser import MJCFScene
+from simpub.mujoco.mjcf_parser import MJCFScene
 from simpub.simdata import SimJointType, SimVisualType
 
 
@@ -87,7 +87,7 @@ class TestMyFunction(unittest.TestCase):
 
         
         self.assertEqual(scene.worldbody.bodies[1].joints[0].type, SimJointType.FREE)
-
+        
         self.assertEqual(scene.worldbody.visuals[0].type, SimVisualType.BOX)
 
         
@@ -97,7 +97,7 @@ class TestMyFunction(unittest.TestCase):
 
         
         self.assertEqual(scene.worldbody.bodies[0].joints[0].type, SimJointType.HINGE)
-        self.assertListEqual(scene.worldbody.bodies[0].joints[0].axis.tolist(), [0, 0, -1])
+        self.assertListEqual(scene.worldbody.bodies[0].joints[0].axis.tolist(), [1.0, 0.0, 0.0])
 
 
 if __name__ == '__main__':

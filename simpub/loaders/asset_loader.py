@@ -1,6 +1,5 @@
 import io
 import math
-from os import PathLike
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -11,7 +10,6 @@ import trimesh
 
 from hashlib import md5
 from PIL import Image
-
 
 class TextureLoader:
   RES_PATH = Path(simpub.__file__).parent
@@ -94,32 +92,35 @@ class MeshLoader:
   @staticmethod
   def from_loaded_mesh(mesh : trimesh.Trimesh, name : str, scale : Optional[np.ndarray] = None):
     if scale is not None: mesh.apply_scale(scale)
-    mesh.apply_transform(trimesh.transformations.euler_matrix(math.pi, math.pi / 2.0, -math.pi / 2.0))
-    indices = mesh.faces.astype(np.int32)
-    vertices = mesh.vertices.astype(np.float32)
-    normals =  mesh.vertex_normals.astype(np.float32)
-    uvs = mesh.visual.uv.astype(np.float32) if hasattr(mesh.visual, "uv") else None
+    # trimesh stores meshes in right hand x-up unity needs left hand y-up
+    mesh = mesh.apply_transform(trimesh.transformations.euler_matrix(-math.pi / 2.0, 0, 0))
 
     bin_buffer = io.BytesIO()
-
     ## Vertices
-    verts = vertices.flatten()
+    verts = mesh.vertices.astype(np.float32)
+    verts[:, 2] = -verts[:, 2]
+    verts = verts.flatten()
     vertices_layout = bin_buffer.tell(), verts.shape[0]
     bin_buffer.write(verts)
 
     ## Normals
-    norms = normals.flatten()
+    norms = mesh.vertex_normals.astype(np.float32)
+    norms[:, 2] = -norms[:, 2]
+    norms = norms.flatten()
     normal_layout = bin_buffer.tell(), norms.shape[0]
     bin_buffer.write(norms) 
 
     ## Indices
+    indices = mesh.faces.astype(np.int32)
+    indices = indices[:, [2, 1, 0]]
     indices = indices.flatten() 
     indices_layout = bin_buffer.tell(), indices.shape[0]
     bin_buffer.write(indices) 
 
     ## Texture coords
     uv_layout = 0, 0
-    if uvs is not None:
+    if hasattr(mesh.visual, "uv"):
+      uvs = mesh.visual.uv.astype(np.float32)
       uvs[:, 1] = 1 - uvs[:, 1]
       uvs = uvs.flatten() 
       uv_layout = bin_buffer.tell(), uvs.shape[0]
