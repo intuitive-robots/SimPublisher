@@ -1,5 +1,5 @@
 from simpub.receiver import SimReceiver
-from simpub.simdata import UnityScene
+from simpub.unity_data import UnityScene
 
 
 recv = SimReceiver()

@@ -14,8 +14,6 @@ def mat2transform(matrix):
     return mat2euler(matrix[:3, :3]), pos
 
 
-
-
 def quat2euler(q):
     if q is None:
         return np.array([0, 0, 0])
