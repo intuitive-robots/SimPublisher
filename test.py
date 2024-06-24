@@ -1,7 +1,7 @@
 
 from simpub import SimPublisher
-from simpub.loaders.json import JsonScene
-from simpub.loaders import mjcf_parser
+from simpub.mjcf.json import JsonScene
+from simpub.mjcf import mjcf_parser
 
 
 # scene = [scene for scene in Path("scenes").rglob("*/scene.xml")][int(sys.argv[1])]

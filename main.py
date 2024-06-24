@@ -1,41 +1,56 @@
+from simpub.mjcf import MJCFParser
+from simpub import SimPublisher
+import mujoco
+import glfw
 
-import math
-import numpy as np
-from simpub import SimPublisher, MJCFScene
-import mujoco as mj
+xml_path = "model/alr_lab/scene.xml"
+parser = MJCFParser(xml_path)
 
-from simpub.simdata import UnityJointType
-from simpub.transform import quat2euler
-
-scene = MJCFScene.from_file("scenes/agility_cassie/scene.xml")
-
+scene = parser.parse()
 publisher = SimPublisher(scene)
 
-model : mj._structs.MjModel = mj.MjModel.from_xml_string(scene.xml_string, scene.xml_assets)
-data : mj._structs.MjData = mj.MjData(model)
+model = mujoco.MjModel.from_xml_path(xml_path)
+data = mujoco.MjData(model)
+# model = load_model_from_xml(scene.xml_string)
+# sim = MjSim(model)
+glfw.init()
+window = glfw.create_window(1200, 900, "MuJoCo Simulation", None, None)
+glfw.make_context_current(window)
+context = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_150)
+
+# 仿真和可视化循环
+while not glfw.window_should_close(window):
+    mujoco.mj_step(model, data)
+
+    # 获取窗口尺寸并更新渲染器视图
+    viewport = mujoco.MjrRect(0, 0, *glfw.get_framebuffer_size(window))
+    mujoco.mjv_updateScene(model, data, mujoco.MjvOption(), mujoco.MjvPerturb(), mujoco.MjvScene())
+    mujoco.mjr_render(viewport, mujoco.MjvScene(), context)
+
+    # 交换OpenGL缓冲区
+    glfw.swap_buffers(window)
+    glfw.poll_events()
+
+# 关闭窗口和OpenGL上下文
+glfw.terminate()
 # REVIEW: I suggest to use the SimPublisher to track them automatically
 # and also usrs can specify joints they want or don't want to track
-for joint in scene.worldbody.get_joints({UnityJointType.HINGE}):
-    mjjoint = data.joint(joint.name)
-    publisher.track_joint(joint.name, (mjjoint,), lambda x: np.degrees([x.qpos[0], x.qvel[0]]))
+# for joint in scene.worldbody.get_joints({UnityJointType.HINGE}):
+#     mjjoint = data.joint(joint.name)
+#     publisher.track_joint(joint.name, (mjjoint,), lambda x: np.degrees([x.qpos[0], x.qvel[0]]))
 
-for joint in scene.worldbody.get_joints({UnityJointType.SLIDE}):
-    mjjoint = data.joint(joint.name)
-    publisher.track_joint(joint.name, (mjjoint,), lambda x: np.concatenate([x.qpos, x.qvel]))
+# for joint in scene.worldbody.get_joints({UnityJointType.SLIDE}):
+#     mjjoint = data.joint(joint.name)
+#     publisher.track_joint(joint.name, (mjjoint,), lambda x: np.concatenate([x.qpos, x.qvel]))
 
-for joint in scene.worldbody.get_joints({UnityJointType.BALL}):
-    mjjoint = data.joint(joint.name)
-    publisher.track_joint(joint.name, (mjjoint,), lambda x: np.concatenate([quat2euler(x.qpos), x.qvel]))
+# for joint in scene.worldbody.get_joints({UnityJointType.BALL}):
+#     mjjoint = data.joint(joint.name)
+    # publisher.track_joint(joint.name, (mjjoint,), lambda x: np.concatenate([quat2euler(x.qpos), x.qvel]))
 
+# publisher.start()
 
+# while True:
+#     mujoco.mj_step(model, data)
+#     viewer.render()
 
-
-publisher.start()
-
-mj.mj_resetDataKeyframe(model, data, 0)
-
-mj.mj_forward(model,data)
-while True:
-  mj.mj_step(model, data)
-  
 publisher.shutdown()
