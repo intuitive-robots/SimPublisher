@@ -5,18 +5,16 @@ import copy
 import os
 from os.path import join as pjoin
 from typing import List, Dict
-import numpy as np
 from pathlib import Path
-from simpub.mjcf.asset_loader import MeshLoader, TextureLoader
-from simpub.data.unity import SimObject, UnityScene
-from simpub.data.unity import UnityMaterial, UnityTransform
-from simpub.data.unity import UnityVisual
-from simpub.data.unity import UnityJoint, UnityJointType
+from simpub.parser.mjcf.asset_loader import MeshLoader, TextureLoader
+from simpub.simdata import SimObject, SimScene
+from simpub.simdata import SimMaterial, SimTransform
+from simpub.simdata import SimVisual
 from .utils import str2list, str2listabs, ros2unity
-from .utils import get_rot_from_xml, TypeMap, scale2unity
+from .utils import get_rot_from_xml, scale2unity, TypeMap
 
 
-class MJCFScene(UnityScene):
+class MJCFScene(SimScene):
 
     def __init__(self) -> None:
         super().__init__()
@@ -190,12 +188,7 @@ class MJCFParser:
         for assets in xml.findall("./asset"):
             for asset in assets:
                 if asset.tag == "mesh":
-                    # REVIEW: the link you are using is for latest xml, please check the mujoco210 version
-                    # https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset-mesh
                     asset_file = pjoin(self._meshdir, asset.attrib["file"])
-                    # scale = np.fromstring(
-                    #     asset.get("scale", "1 1 1"), dtype=np.float32, sep=" "
-                    # )
                     scale = str2list(asset.get("scale", "1 1 1"))
                     mesh, bin_data = MeshLoader.from_file(
                         asset_file,
@@ -206,16 +199,12 @@ class MJCFParser:
                     mj_scene.raw_data[mesh.dataID] = bin_data
 
                 elif asset.tag == "material":
-                    # https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset-material
-                    # color = np.fromstring(
-                    #     asset.get("rgba", "1 1 1 1"), dtype=np.float32, sep=' '
-                    # )
                     color = str2list(
                         asset.get("rgba", "1 1 1 1")
                     )
                     emission = float(asset.get("emission", "0.0"))
                     emissionColor = [emission * c for c in color]
-                    material = UnityMaterial(
+                    material = SimMaterial(
                         tag=asset.get("name") or asset.get("type"),
                         color=color,
                         emissionColor=emissionColor,
@@ -224,20 +213,13 @@ class MJCFParser:
                         reflectance=float(asset.get("reflectance", "0.0"))
                     )
                     material.texture = asset.get("texture", None)
-                    # material.texsize = np.fromstring(
-                    #     asset.get("texrepeat", "1 1"), dtype=np.int32, sep=' '
-                    # )
                     material.texsize = str2list(
                         asset.get("texrepeat", "1 1")
                     )
                     mj_scene.materials.append(material)
                 elif asset.tag == "texture":
-                    # https://mujoco.readthedocs.io/en/latest/XMLreference.html#asset-texture
                     name = asset.get("name") or asset.get("type")
                     builtin = asset.get("builtin", "none")
-                    # tint = np.fromstring(
-                    #     asset.get("rgb1", "1 1 1"), dtype=np.float32, sep=' '
-                    # )
                     tint = str2list(asset.get("rgb1", "1 1 1"))
                     if builtin != "none":
                         texture, bin_data = TextureLoader.fromBuiltin(
@@ -258,55 +240,25 @@ class MJCFParser:
         mj_scene.root = SimObject(name="root")
         for worldbody in xml.findall("./worldbody"):
             for geom in worldbody.findall("geom"):
-                # TODO: Check the group attribute
-                group = max(set(int(val) for geom in worldbody.findall("./geom") if (val := geom.get("group") is not None)) or { 0 })
-                visual = self._load_visual(geom, group)
+                visual = self._load_visual(geom)
                 if visual is not None:
                     mj_scene.root.visuals.append(visual)
             for body in worldbody.findall("./body"):
                 self._load_body(body, mj_scene.root)
 
-    def _load_visual(self, visual: XMLNode) -> UnityVisual:
+    def _load_visual(self, visual: XMLNode) -> SimVisual:
         visual_type = visual.get("type", "box")
         pos = ros2unity(str2list(visual.get("pos", "0 0 0")))
         rot = get_rot_from_xml(visual)
         size = str2listabs(visual.get("size", "0.1 0.1 0.1"))
         scale = scale2unity(size, visual_type)
-        trans = UnityTransform(pos=pos, rot=rot, scale=scale)
-        return UnityVisual(
+        trans = SimTransform(pos=pos, rot=rot, scale=scale)
+        return SimVisual(
             type=TypeMap[visual_type],
             trans=trans,
             mesh=visual.get("mesh"),
             material=visual.get("material"),
             color=str2list(visual.get("rgba", "1 1 1 1")),
-        )
-
-    def _load_joint(self, body: XMLNode, parent_name: str):
-        # return UnityJoint(
-        #     name=body.get("name", parent_name),
-        #     type=UnityJointType.FREE,
-        # )
-        if body.find("freejoint") is not None:
-            return UnityJoint(
-                name=body.get("name", parent_name),
-                type=UnityJointType.FREE,
-            )
-        joint = body.find("joint")
-        if joint is None:
-            return None
-        print(joint.get("range", "1000000 100000"))
-        range = str2list(joint.get("range", "1000000 100000"))
-        if self._use_degree:
-            range = np.degrees(range)
-        axis = ros2unity(str2list(joint.get("axis", "1 0 0")))
-        trans = UnityTransform(pos=ros2unity(str2list(joint.get("pos", "0 0 0"))))
-        return UnityJoint(
-            name=joint.get("name", parent_name),
-            axis=axis,
-            minrot=range[0],
-            maxrot=range[1],
-            trans=trans,
-            type=UnityJointType(joint.get("type", "hinge").upper()),
         )
 
     def _load_body(
@@ -319,19 +271,14 @@ class MJCFParser:
         if name in self.no_rendered_objects:
             return
 
-        trans = UnityTransform(
+        trans = SimTransform(
             pos=ros2unity(
                 str2list(body.get("pos", "0 0 0"))
             ),
             rot=get_rot_from_xml(body)
         )
 
-        joint = self._load_joint(body, name)
-
-        # TODO: Check the group attribute
-        # group = max(set(int(val) for geom in body.findall("./geom") if (val := geom.get("group") is not None)) or { 0 })
-
-        visuals: List[UnityVisual] = list()
+        visuals: List[SimVisual] = list()
         for geom in body.findall("geom"):
             visual = self._load_visual(geom)
             if visual is not None:
@@ -340,10 +287,8 @@ class MJCFParser:
             name=name,
             trans=trans,
             visuals=visuals,
-            joint=joint,
         )
         parent.children.append(new_gameobject)
         for child in body.findall("body"):
             self._load_body(child, new_gameobject)
-
         return
