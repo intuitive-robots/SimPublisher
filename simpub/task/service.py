@@ -65,7 +65,7 @@ class ReplyService:
         else:
             self.port = self.reply_socket.bind_to_random_port("tcp://*")
 
-        while self.running: 
+        while self.running:
             message = self.reply_socket.recv().decode()  # This is blocking so no sleep necessary
 
             tag, *args = message.split(":", 1)

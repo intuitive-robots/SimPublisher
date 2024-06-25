@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from simpub.mjcf.mjcf_parser import MJCFParser
-from simpub.unity_data import UnityJointType, UnityVisualType
+from simpub.data.unity import UnityJointType, UnityVisualType
 
 
 class TestMJCFParserFunction(unittest.TestCase):

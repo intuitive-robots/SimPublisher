@@ -8,10 +8,10 @@ from typing import List, Dict
 import numpy as np
 from pathlib import Path
 from simpub.mjcf.asset_loader import MeshLoader, TextureLoader
-from simpub.unity_data import UnityGameObject, UnityScene
-from simpub.unity_data import UnityMaterial, UnityTransform
-from simpub.unity_data import UnityVisual
-from simpub.unity_data import UnityJoint, UnityJointType
+from simpub.data.unity import SimObject, UnityScene
+from simpub.data.unity import UnityMaterial, UnityTransform
+from simpub.data.unity import UnityVisual
+from simpub.data.unity import UnityJoint, UnityJointType
 from .utils import str2list, str2listabs, ros2unity
 from .utils import get_rot_from_xml, TypeMap, scale2unity
 
@@ -255,7 +255,7 @@ class MJCFParser:
                     raise RuntimeError("Invalid asset", asset.tag)
 
     def _load_worldbody(self, xml: XMLNode, mj_scene: MJCFScene) -> None:
-        mj_scene.root = UnityGameObject(name="root")
+        mj_scene.root = SimObject(name="root")
         for worldbody in xml.findall("./worldbody"):
             for geom in worldbody.findall("geom"):
                 # TODO: Check the group attribute
@@ -312,7 +312,7 @@ class MJCFParser:
     def _load_body(
         self,
         body: XMLNode,
-        parent: UnityGameObject,
+        parent: SimObject,
     ) -> None:
         name = body.get("name")
 
@@ -336,7 +336,7 @@ class MJCFParser:
             visual = self._load_visual(geom)
             if visual is not None:
                 visuals.append(visual)
-        new_gameobject = UnityGameObject(
+        new_gameobject = SimObject(
             name=name,
             trans=trans,
             visuals=visuals,

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, field, asdict, fields
+from dataclasses import dataclass, field, asdict
 from typing import Optional, Tuple, List, Dict
 from enum import Enum
 import numpy as np
@@ -8,9 +8,9 @@ import json
 
 
 class UnityJointType(str, Enum):
-    FIXED = "FIXED"  # Fixed joint for unmovable objects
-    FREE = "FREE"  # Free joint for free movement for one single body
-    SLIDE = "SLIDE"  # Slide joint for linear movement
+    FIXED = "FIXED"
+    FREE = "FREE"
+    SLIDE = "SLIDE"
     BALL = "BALL"
     HINGE = "HINGE"
 
@@ -34,17 +34,12 @@ class UnityAssetType(str, Enum):
 
 @dataclass
 class UnityData:
-
-    def to_string(self) -> str:
-        return json.dumps(asdict(self))
+    pass
 
 
 @dataclass
 class UnityAsset(UnityData):
     tag: str
-
-    def __repr__(self):
-        return f"<{type(self)} tag={self.tag}>"
 
 
 @dataclass
@@ -60,8 +55,7 @@ class UnityMesh(UnityAsset):
 
 @dataclass
 class UnityMaterial(UnityAsset):
-    # All the color values are within the 0 - 1.0 range
-    color: List[float]
+    color: List[float]  # All the color values are within the 0 - 1.0 range
     emissionColor: List[float]
     specular: float = 0.5
     shininess: float = 0.5
@@ -96,9 +90,6 @@ class UnityTransform(UnityData):
             scale=scale.tolist(),
         )
 
-    def __repr__(self) -> str:
-        return f"<UnityTransform pos={self.pos} rot={self.rot} scale={self.scale}>"
-
 
 @dataclass
 class UnityVisual(UnityData):
@@ -108,9 +99,6 @@ class UnityVisual(UnityData):
     mesh: str = None
     material: str = None
     color: List[float] = None
-
-    def __repr__(self) -> str:
-        return f"<UnityVisual tupe={self.type}>"
 
 
 @dataclass
@@ -123,38 +111,20 @@ class UnityJoint(UnityData):
     trans: UnityTransform = field(default_factory=UnityTransform)
     axis: List[float] = field(default_factory=lambda: [0, 0, 0])
 
-    def __repr__(self) -> str:
-        return f"<UnityJoint name={self.name} type={self.type}>"
-
 
 @dataclass
-class UnityGameObject(UnityData):
+class SimObject(UnityData):
     name: str
     trans: UnityTransform = field(default_factory=UnityTransform)
     joint: UnityJoint = None
     visuals: List[UnityVisual] = field(default_factory=list)
-    children: List[UnityGameObject] = field(default_factory=list)
-
-    # def get_joints(self, *types) -> List[UnityJoint]:
-    #     select: set = set(types) if len(types) > 0 else set(UnityJointType)
-    #     joints = list()
-    #     found = [self]
-    #     while found and (current := found.pop()):
-    #         connected_joints = current.joint
-    #         joints.extend(joint for joint in connected_joints if joint.type in select)
-    #         found.extend(current.bodies)
-    #     return joints
-
-    # def __repr__(self) -> str:
-    #     return f"<UnityGameObject visuals={len(self.visuals)} " \
-    #            f"joint={len(self.joint)} " \
-    #            f"children={len(self.children)}>"
+    children: List[SimObject] = field(default_factory=list)
 
 
-class UnityScene:
+class UnityScene(UnityData):
 
     def __init__(self) -> None:
-        self.root: UnityGameObject = None
+        self.root: SimObject = None
         self.id: str = str(random.randint(int(1e9), int(1e10 - 1)))
         self.meshes: List[UnityMesh] = list()
         self.textures: List[UnityMesh] = list()

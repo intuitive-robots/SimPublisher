@@ -58,64 +58,60 @@ if __name__ == "__main__":
     robot = sim_factory.create_robot(scene)
 
     scene.start()
-    
-    publisher = SFPublisher(scene, )
-    # publisher = SimPublisher(parser.parse(no_rendered_objects=["panda_rb0_link0"]))
+
+    publisher = SFPublisher(scene)
     publisher.start()
 
     duration = (
         2  # you can specify how long a trajectory can be executed with the duration
     )
 
-    while True:
-        scene.next_step()
+    scene.start_logging()  # this will start logging robots internal state
+    robot.set_desired_gripper_width(0.0)  # we set the gripper to clos at the beginning
 
-    # scene.start_logging()  # this will start logging robots internal state
-    # robot.set_desired_gripper_width(0.0)  # we set the gripper to clos at the beginning
+    home_position = robot.current_c_pos.copy()  # store home position
+    home_orientation = robot.current_c_quat.copy()  # store initial orientation
 
-    # home_position = robot.current_c_pos.copy()  # store home position
-    # home_orientation = robot.current_c_quat.copy()  # store initial orientation
+    # execute the pick and place movements
+    robot.gotoCartPositionAndQuat(
+        [0.5, -0.2, 0.6 - 0.1], [0, 1, 0, 0], duration=duration
+    )
+    robot.set_desired_gripper_width(0.04)
+    robot.smooth_spline = False
+    robot.gotoCartPositionAndQuat(
+        [0.5, -0.2, 0.52 - 0.1], [0, 1, 0, 0], duration=duration
+    )
+    robot.close_fingers(duration=0.3)
+    robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
+    robot.gotoCartPositionAndQuat(
+        [0.5, 0.2, 0.6 - 0.1], [0, 1, 0, 0], duration=duration
+    )
+    robot.set_desired_gripper_width(0.04)
+    robot.gotoCartPositionAndQuat(
+        [0.6, -0.1, 0.6 - 0.1], [0, 1, 0, 0], duration=duration
+    )
+    robot.gotoCartPositionAndQuat(
+        [0.6, -0.1, 0.52 - 0.1], [0, 1, 0, 0], duration=duration
+    )
+    robot.close_fingers(duration=0.3)
+    robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
+    robot.gotoCartPositionAndQuat(
+        [0.5, 0.2, 0.6 - 0.1], [0, 1, 0, 0], duration=duration
+    )
+    robot.set_desired_gripper_width(0.04)
+    robot.gotoCartPositionAndQuat(
+        [0.4, -0.1, 0.6 - 0.1], [0, 1, 0, 0], duration=duration
+    )
+    robot.gotoCartPositionAndQuat(
+        [0.4, -0.1, 0.52 - 0.1], [0, 1, 0, 0], duration=duration
+    )
+    robot.close_fingers(duration=0.3)
+    robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
+    robot.gotoCartPositionAndQuat(
+        [0.5, 0.2, 0.65 - 0.1], [0, 1, 0, 0], duration=duration
+    )
+    robot.set_desired_gripper_width(0.04)
+    robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
 
-    # # execute the pick and place movements
-    # robot.gotoCartPositionAndQuat(
-    #     [0.5, -0.2, 0.6 - 0.1], [0, 1, 0, 0], duration=duration
-    # )
-    # robot.set_desired_gripper_width(0.04)
-    # robot.smooth_spline = False
-    # robot.gotoCartPositionAndQuat(
-    #     [0.5, -0.2, 0.52 - 0.1], [0, 1, 0, 0], duration=duration
-    # )
-    # robot.close_fingers(duration=0.3)
-    # robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
-    # robot.gotoCartPositionAndQuat(
-    #     [0.5, 0.2, 0.6 - 0.1], [0, 1, 0, 0], duration=duration
-    # )
-    # robot.set_desired_gripper_width(0.04)
-    # robot.gotoCartPositionAndQuat(
-    #     [0.6, -0.1, 0.6 - 0.1], [0, 1, 0, 0], duration=duration
-    # )
-    # robot.gotoCartPositionAndQuat(
-    #     [0.6, -0.1, 0.52 - 0.1], [0, 1, 0, 0], duration=duration
-    # )
-    # robot.close_fingers(duration=0.3)
-    # robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
-    # robot.gotoCartPositionAndQuat(
-    #     [0.5, 0.2, 0.6 - 0.1], [0, 1, 0, 0], duration=duration
-    # )
-    # robot.set_desired_gripper_width(0.04)
-    # robot.gotoCartPositionAndQuat(
-    #     [0.4, -0.1, 0.6 - 0.1], [0, 1, 0, 0], duration=duration
-    # )
-    # robot.gotoCartPositionAndQuat(
-    #     [0.4, -0.1, 0.52 - 0.1], [0, 1, 0, 0], duration=duration
-    # )
-    # robot.close_fingers(duration=0.3)
-    # robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
-    # robot.gotoCartPositionAndQuat(
-    #     [0.5, 0.2, 0.65 - 0.1], [0, 1, 0, 0], duration=duration
-    # )
-    # robot.set_desired_gripper_width(0.04)
-    # robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
-
-    # scene.stop_logging()
-    # robot.robot_logger.plot(RobotPlotFlags.JOINTS | RobotPlotFlags.END_EFFECTOR)
+    scene.stop_logging()
+    robot.robot_logger.plot(RobotPlotFlags.JOINTS | RobotPlotFlags.END_EFFECTOR)
