@@ -1,13 +1,17 @@
-from typing import List
+
+from xml.etree.ElementTree import Element as XMLNode
+import numpy as np
+from typing import List, Dict
 import xml.etree.ElementTree as ET
 from os.path import join as pjoin
 
 from alr_sim.sims.mj_beta import MjScene
 from alr_sim.sims.mj_beta.mj_utils.mj_scene_parser import MjSceneParser
 from alr_sim.utils.sim_path import sim_framework_path
-from xml.etree.ElementTree import Element as XMLNode
-from ..mjcf.mjcf_parser import MJCFParser
-from simpub.mjcf.mjcf_parser import MJCFScene
+
+from simpub.parser.mjcf import MJCFParser, MJCFScene
+from simpub.server import ServerBase
+from .mj_publisher import MujocoPublisher
 
 
 class SFParser(MJCFParser):
@@ -52,3 +56,17 @@ class SFParser(MJCFParser):
         print(f"assetdir: {self._assetdir}")
         print(f"meshdir: {self._meshdir}")
         print(f"texturedir: {self._texturedir}")
+
+
+class SFPublisher(MujocoPublisher):
+
+    def __init__(self, sf_mj_sim: MjScene) -> None:
+        self.parser = SFParser(sf_mj_sim)
+        self.sim_scene = self.parser.parse()
+        self.scene_message = self.sim_scene.to_string()
+        self.mj_data: MjScene = sf_mj_sim.data
+        self.mj_model: MjScene = sf_mj_sim.model
+        self.tracked_obj_trans: Dict[str, np.ndarray] = dict()
+        for child in self.sim_scene.root.children:
+            self.tracking_object(child)
+        ServerBase.__init__(self)

@@ -4,7 +4,7 @@ from scipy.spatial.transform import Rotation
 from xml.etree.ElementTree import Element as XMLNode
 import re
 
-from simpub.scenestruct.unity import UnityVisualType
+from simpub.simdata import VisualType
 
 RMap: Dict[str, Callable] = {
     "quat": lambda x: quat2quat(x),
@@ -100,14 +100,14 @@ def ros2unity_quat(quat: List[float]) -> List[float]:
     return [quat[1], -quat[2], -quat[0], quat[3]]
 
 
-TypeMap: Dict[str, UnityVisualType] = {
-    "plane": UnityVisualType.PLANE,
-    "sphere": UnityVisualType.SPHERE,
-    "capsule": UnityVisualType.CAPSULE,
-    "ellipsoid": UnityVisualType.CAPSULE,
-    "cylinder": UnityVisualType.CYLINDER,
-    "box": UnityVisualType.CUBE,
-    "mesh": UnityVisualType.MESH
+TypeMap: Dict[str, VisualType] = {
+    "plane": VisualType.PLANE,
+    "sphere": VisualType.SPHERE,
+    "capsule": VisualType.CAPSULE,
+    "ellipsoid": VisualType.CAPSULE,
+    "cylinder": VisualType.CYLINDER,
+    "box": VisualType.CUBE,
+    "mesh": VisualType.MESH
 }
 
 

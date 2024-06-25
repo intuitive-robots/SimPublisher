@@ -1,7 +1,7 @@
 from alr_sim.core.logger import RobotPlotFlags
 from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.universal_sim.PrimitiveObjects import Box
-from simpub.simulation_framework.sf_publisher import SFPublisher
+from simpub.sim.sf_publisher import SFPublisher
 
 if __name__ == "__main__":
     box1 = Box(

@@ -11,6 +11,8 @@ import threading
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor, Future
 
+from simpub.simdata import SimScene
+
 
 class PortSet(str, Enum):
     DISCOVERY = 5520
@@ -50,6 +52,7 @@ class DiscoveryTask(TaskBase):
         self._message = discovery_message.encode()
 
     def execute(self):
+        print("Discovery Task has been started")
         self._running = True
         self.conn = socket(AF_INET, SOCK_DGRAM)  # create UDP socket
         self.conn.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
@@ -81,10 +84,12 @@ class ServerBase(abc.ABC):
         self.thread.start()
 
     def thread_task(self):
+        print("Server Tasks has been started")
         with ThreadPoolExecutor(max_workers=5) as executor:
             self.executor = executor
             for task in self.tasks:
                 self.futures.append(executor.submit(task.execute))
+        self._running = False
 
     @abc.abstractmethod
     def shutdown(self):
@@ -97,7 +102,7 @@ class StreamTask(TaskBase):
         self,
         context: zmq.Context,
         update_func: Callable[[], Dict],
-        port: int = PORTSET["STREAMING_PORT"],
+        port: int = PortSet.STREAMING,
         topic: str = "simulation_update",
         fps: int = 30,
     ):
@@ -108,6 +113,7 @@ class StreamTask(TaskBase):
         self._dt: float = 1 / fps
 
     def execute(self):
+        print("Stream Task has been started")
         self._running = True
         self.pub_socket: zmq.Socket = self._context.socket(zmq.PUB)
         last = 0.0
@@ -115,9 +121,9 @@ class StreamTask(TaskBase):
             diff = time.monotonic() - last
             if diff < self._dt:
                 time.sleep(self._dt - diff)
-            update_dict = self._update_func()
+            last = time.monotonic()
             msg = {
-                "data": update_dict,
+                "data": self._update_func(),
                 "time": time.monotonic()
             }
             self.pub_socket.send_string(json.dumps(msg))
@@ -130,13 +136,9 @@ class MsgService(TaskBase):
 
     def __init__(
         self,
-        publisher: SimPublisher,
         context: zmq.Context,
-        port: int = PORTSET["SERVICE_PORT"],
-        topic: str = "simulation_update",
-        fps: int = 30,
+        port: int = PortSet.SERVICE,
     ):
-        self._publisher: SimPublisher = publisher
         self._context: zmq.Context = context
         self._port: int = port
         self._running: bool = False
@@ -165,28 +167,43 @@ class MsgService(TaskBase):
             raise RuntimeError("Action was already registred", tag)
         self._actions[tag] = action
 
+    def on_shutdown(self):
+        self._running = False
+
 
 class SimPublisher(ServerBase):
 
-    def __init__(self):
+    def __init__(self, sim_scene: SimScene) -> None:
+        self.sim_scene = sim_scene
         super().__init__()
 
     def initialize_task(self):
-        self.stream_task = StreamTask(self, self.zmqContext)
+        print("Initializing tasks")
+        self.tasks: List[TaskBase] = []
+        discovery_data = {
+            "SERVICE": PortSet.SERVICE,
+            "STREAMING": PortSet.STREAMING,
+        }
+        discovery_message = f"SimPub:{json.dumps(discovery_data)}"
+        self.discovery_task = DiscoveryTask(discovery_message)
+        # self.tasks.append(self.discovery_task)
+
+        self.stream_task = StreamTask(self.zmqContext, self.get_update)
         self.tasks.append(self.stream_task)
-        self.service = MsgService(self, self.zmqContext)
-        self.tasks.append(self.service)
 
-    def setup_zmq(self):
-        return super().setup_zmq()
+        self.msg_service = MsgService(self.zmqContext)
+        self.msg_service.register_action("SCENE", self._on_scene_request)
+        self.msg_service.register_action("ASSET", self._on_asset_request)
+        self.tasks.append(self.msg_service)
 
-    @abc.abstractmethod
-    def start(self):
-        raise NotImplementedError
+    def _on_scene_request(self, socket: zmq.Socket, tag: str):
+        socket.send_string(self.sim_scene.to_string())
 
-    @abc.abstractmethod
-    def loop(self):
-        raise NotImplementedError
+    def _on_asset_request(self, socket: zmq.Socket, tag: str):
+        if tag not in self.sim_scene.raw_data:
+            print("Received invalid data request")
+            return
+        socket.send(self.sim_scene.raw_data[tag])
 
     @abc.abstractmethod
     def get_update(self) -> Dict:
