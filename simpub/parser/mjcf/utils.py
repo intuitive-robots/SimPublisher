@@ -4,7 +4,7 @@ from scipy.spatial.transform import Rotation
 from xml.etree.ElementTree import Element as XMLNode
 import re
 
-from simpub.unity_data import UnityVisualType
+from simpub.scenestruct.unity import UnityVisualType
 
 RMap: Dict[str, Callable] = {
     "quat": lambda x: quat2quat(x),
@@ -24,7 +24,6 @@ def get_rot_from_xml(obj_xml: XMLNode) -> List[float]:
             )
             break
     return ros2unity_quat(result)
-    # return [-result[0], result[1], result[2]]
 
 
 def str2list(input_str: str) -> List[float]:
@@ -36,7 +35,6 @@ def str2listabs(input_str: str, sep: str = ' ') -> List[float]:
 
 
 def rotation2unity(rotation: Rotation) -> List[float]:
-    print(rotation.as_quat().tolist())
     return rotation.as_quat().tolist()
 
 

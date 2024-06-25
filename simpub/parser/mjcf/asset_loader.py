@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import simpub
-from simpub.unity_data import UnityMesh, UnityTexture
+from simpub.data.unity import UnityMesh, UnityTexture
 import numpy as np
 import trimesh
 
@@ -116,7 +116,9 @@ class MeshLoader:
     ) -> Tuple[UnityMesh, bytes]:
         if scale is not None:
             mesh.apply_scale(scale)
-        mesh.apply_transform(trimesh.transformations.euler_matrix(math.pi, - math.pi / 2.0,  - math.pi / 2.0))
+        # mesh.apply_transform(trimesh.transformations.euler_matrix(math.pi, - math.pi / 2.0,  - math.pi / 2.0))
+        # mesh = mesh.apply_transform(trimesh.transformations.euler_matrix(-math.pi / 2.0, 0, 0))
+        mesh = mesh.apply_transform(trimesh.transformations.euler_matrix(-math.pi / 2.0, math.pi / 2.0, 0))
         indices = mesh.faces.astype(np.int32)
 
         # def process(array):

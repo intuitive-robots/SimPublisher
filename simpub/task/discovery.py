@@ -5,6 +5,17 @@ from socket import socket, AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST, SO_REU
 BROADCAST_MASK = "255.255.255.255"
 
 
+class DiscoverTask:
+    
+    def __init__(self, callback, port: int, message: str, intervall=2):
+        self._port = port
+        self._running = True
+        self._intervall = intervall
+        self._message = message.encode()
+        self._callback = callback
+        self._thread = Thread(target=self._loop)
+
+
 class DiscoveryReceiver:
 
     def __init__(self, callback, port: int):
@@ -32,25 +43,3 @@ class DiscoveryReceiver:
         self._thread.join()
 
 
-class DiscoverySender:
-
-    def __init__(self, discovery_message: str, port: int, intervall=2):
-        self._port = port
-        self._running = True
-        self._intervall = intervall
-        self._message = discovery_message.encode()
-        self._thread = Thread(target=self._loop)
-
-    def _loop(self):
-        self.conn = socket(AF_INET, SOCK_DGRAM) # create UDP socket
-        self.conn.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)  # this is a broadcast socket
-        while self._running:
-            self.conn.sendto(self._message, (BROADCAST_MASK, self._port))
-            sleep(self._intervall)
-
-    def start(self):
-        self._thread.start()
-
-    def stop(self):
-        self._running = False
-        self._thread.join()
