@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, Future
 from simpub.simdata import SimScene
 
 
-class PortSet(str, Enum):
+class PortSet(int, Enum):
     DISCOVERY = 5520
     SERVICE = 5521
     STREAMING = 5522
@@ -38,13 +38,13 @@ class TaskBase(abc.ABC):
         raise NotImplementedError
 
 
-class DiscoveryTask(TaskBase):
+class BroadcastTask(TaskBase):
 
     def __init__(
         self,
         discovery_message: str,
         port: int = PortSet.DISCOVERY,
-        intervall: int = 2
+        intervall: float = 0.5,
     ):
         self._port = port
         self._running = True
@@ -52,7 +52,6 @@ class DiscoveryTask(TaskBase):
         self._message = discovery_message.encode()
 
     def execute(self):
-        print("Discovery Task has been started")
         self._running = True
         self.conn = socket(AF_INET, SOCK_DGRAM)  # create UDP socket
         self.conn.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
@@ -103,19 +102,21 @@ class StreamTask(TaskBase):
         context: zmq.Context,
         update_func: Callable[[], Dict],
         port: int = PortSet.STREAMING,
-        topic: str = "simulation_update",
+        topic: str = "SceneUpdate",
         fps: int = 30,
     ):
         self._context: zmq.Context = context
         self._update_func = update_func
         self._port: int = port
+        self._topic: str = topic
         self._running: bool = False
         self._dt: float = 1 / fps
 
     def execute(self):
-        print("Stream Task has been started")
+        print("Stream task has been started")
         self._running = True
         self.pub_socket: zmq.Socket = self._context.socket(zmq.PUB)
+        self.pub_socket.bind(f"tcp://*:{self._port}")
         last = 0.0
         while self._running:
             diff = time.monotonic() - last
@@ -123,10 +124,10 @@ class StreamTask(TaskBase):
                 time.sleep(self._dt - diff)
             last = time.monotonic()
             msg = {
-                "data": self._update_func(),
+                "updateData": self._update_func(),
                 "time": time.monotonic()
             }
-            self.pub_socket.send_string(json.dumps(msg))
+            self.pub_socket.send_string(f"{json.dumps(msg)}")
 
     def on_shutdown(self):
         self.pub_socket.close(0)
@@ -145,6 +146,7 @@ class MsgService(TaskBase):
         self._actions: Dict[str, Callable[[zmq.Socket, str], None]] = {}
 
     def execute(self):
+        self._running = True
         self.reply_socket: zmq.Socket = self._context.socket(zmq.REP)
         self.reply_socket.bind(f"tcp://*:{self._port}")
         while self._running:
@@ -173,20 +175,33 @@ class MsgService(TaskBase):
 
 class SimPublisher(ServerBase):
 
-    def __init__(self, sim_scene: SimScene) -> None:
+    def __init__(
+        self,
+        sim_scene: SimScene,
+        no_rendered_objects: List[str] = None,
+        no_tracked_objects: List[str] = None,
+    ) -> None:
         self.sim_scene = sim_scene
+        if no_rendered_objects is None:
+            self.no_rendered_objects = []
+        else:
+            self.no_rendered_objects = no_rendered_objects
+        if no_tracked_objects is None:
+            self.no_tracked_objects = []
+        else:
+            self.no_tracked_objects = no_tracked_objects
         super().__init__()
 
     def initialize_task(self):
-        print("Initializing tasks")
         self.tasks: List[TaskBase] = []
         discovery_data = {
             "SERVICE": PortSet.SERVICE,
             "STREAMING": PortSet.STREAMING,
         }
-        discovery_message = f"SimPub:{json.dumps(discovery_data)}"
-        self.discovery_task = DiscoveryTask(discovery_message)
-        # self.tasks.append(self.discovery_task)
+        time_stamp = str(time.time())
+        discovery_message = f"SimPub:{time_stamp}:{json.dumps(discovery_data)}"
+        self.broadcast_task = BroadcastTask(discovery_message)
+        self.tasks.append(self.broadcast_task)
 
         self.stream_task = StreamTask(self.zmqContext, self.get_update)
         self.tasks.append(self.stream_task)

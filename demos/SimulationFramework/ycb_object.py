@@ -1,8 +1,7 @@
 from alr_sim.core.logger import RobotPlotFlags
 from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.mj_beta.mj_utils.mj_scene_object import YCBMujocoObject
-from simpub.simulation_framework.sf_publisher import SFPublisher
-import os
+from simpub.sim.sf_publisher import SFPublisher
 
 if __name__ == "__main__":
     ######################################################################################

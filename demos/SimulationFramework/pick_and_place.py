@@ -59,14 +59,13 @@ if __name__ == "__main__":
 
     scene.start()
 
-    publisher = SFPublisher(scene)
+    publisher = SFPublisher(scene, no_tracked_objects=["table_plane", "table0"])
     publisher.start()
 
     duration = (
         2  # you can specify how long a trajectory can be executed with the duration
     )
 
-    scene.start_logging()  # this will start logging robots internal state
     robot.set_desired_gripper_width(0.0)  # we set the gripper to clos at the beginning
 
     home_position = robot.current_c_pos.copy()  # store home position
@@ -113,5 +112,6 @@ if __name__ == "__main__":
     robot.set_desired_gripper_width(0.04)
     robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
 
-    scene.stop_logging()
-    robot.robot_logger.plot(RobotPlotFlags.JOINTS | RobotPlotFlags.END_EFFECTOR)
+    while True:
+        scene.next_step()
+

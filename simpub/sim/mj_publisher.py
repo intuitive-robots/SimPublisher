@@ -12,25 +12,38 @@ from simpub.simdata import SimObject
 
 class MujocoPublisher(SimPublisher):
 
-    def __init__(self, mj_model, mj_data, mjcf_path: str) -> None:
-        self.mj_scene = mj_model
+    def __init__(
+        self,
+        mj_model,
+        mj_data,
+        mjcf_path: str,
+        no_rendered_objects: List[str] = None,
+        no_tracked_objects: List[str] = None,
+    ) -> None:
+        self.mj_model = mj_model
         self.mj_data = mj_data
         self.parser = MJCFParser(mjcf_path)
-        self.sim_scene: MJCFScene = self.parser.parse()
+        sim_scene = self.parser.parse()
         self.tracked_obj_trans: Dict[str, np.ndarray] = dict()
+        super().__init__(
+            self,
+            sim_scene,
+            no_rendered_objects,
+            no_tracked_objects
+        )
         for child in self.sim_scene.root.children:
-            self.tracking_object(child)
-        ServerBase.__init__(self)
+            self.set_update_objects(child)
 
-    def tracking_object(self, obj: SimObject):
+    def set_update_objects(self, obj: SimObject):
+        if obj.name in self.no_tracked_objects:
+            return
         body_id = mj_name2id(self.mj_model, mjtObj.mjOBJ_BODY, obj.name)
-        body_jnt_addr = self.mj_model.body_jntadr[body_id]
-        pos = self.mj_model.body_pos[body_jnt_addr]
-        rot = self.mj_model.body_quat[body_jnt_addr]
+        pos = self.mj_data.xpos[body_id]
+        rot = self.mj_data.xquat[body_id]
         trans = (pos, rot)
         self.tracked_obj_trans[obj.name] = trans
         for child in obj.children:
-            self.tracking_object(child)
+            self.set_update_objects(child)
 
     def initialize_task(self):
         super().initialize_task()
@@ -40,16 +53,13 @@ class MujocoPublisher(SimPublisher):
         for name, trans in self.tracked_obj_trans.items():
             pos, rot = trans
             state[name] = [
-                -pos[1], pos[2], pos[0], rot[1], -rot[2], -rot[0], rot[3]
+                -pos[1], pos[2], pos[0], rot[2], -rot[3], -rot[1], rot[0]
             ]
         return state
 
     def shutdown(self):
-        self.discovery_task.shutdown()
         self.stream_task.shutdown()
         self.msg_service.shutdown()
 
         self.running = False
         self.thread.join()
-
-
