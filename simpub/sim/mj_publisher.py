@@ -1,12 +1,9 @@
-import json
 from mujoco import mj_name2id, mjtObj
-import zmq
-import random
 from typing import List, Dict
 import numpy as np
 
-from simpub.server import SimPublisher, ServerBase
-from simpub.parser.mjcf import MJCFParser, MJCFScene
+from simpub.server import SimPublisher
+from simpub.parser.mjcf import MJCFParser
 from simpub.simdata import SimObject
 
 
