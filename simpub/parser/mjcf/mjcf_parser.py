@@ -20,22 +20,6 @@ class MJCFScene(SimScene):
         super().__init__()
         self.xml_string: str = None
 
-
-def print_element(element: XMLNode, indent=""):
-    print(f"{indent}<{element.tag}", end="")
-    if element.attrib:
-        for key, value in element.attrib.items():
-            print(f' {key}="{value}"', end="")
-    print(">")
-
-    if element.text and element.text.strip():
-        print(f"{indent}  {element.text.strip()}")
-    for child in element:
-        print_element(child, indent + "  ")
-
-    print(f"{indent}</{element.tag}>")
-
-
 class MJCFDefault:
     def __init__(
         self,
@@ -140,7 +124,6 @@ class MJCFParser:
         default_dict: Dict[str, MJCFDefault] = dict()
         default_dict["main"] = MJCFDefault()
         # only start _loading default tags under the mujoco tag
-        # print_element(root_xml)
         for default_child_xml in root_xml.findall("./default"):
             self._parse_default(default_child_xml, default_dict)
         # replace the class attribute with the default values
@@ -153,11 +136,9 @@ class MJCFParser:
         parent: MJCFDefault = None,
     ) -> None:
         default = MJCFDefault(default_xml, parent)
-        print(default.class_name, default._dict)
         default_dict[default.class_name] = default
         for default_child_xml in default_xml.findall("default"):
             self._parse_default(default_child_xml, default_dict, default)
-        # print(default.class_name, default._dict)
 
     def _import_default(
         self,
@@ -180,7 +161,6 @@ class MJCFParser:
             if "childclass" in xml.attrib
             else parent_name
         )
-        # print(default_name, default_dict[default_name]._dict)
         for child in xml:
             self._import_default(child, default_dict, parent_name)
 

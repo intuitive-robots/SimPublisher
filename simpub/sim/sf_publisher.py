@@ -30,7 +30,6 @@ class SFParser(MJCFParser):
         if no_rendered_objects is None:
             no_rendered_objects = []
         self.no_rendered_objects = no_rendered_objects
-        # print(self.sf_mj_scene_parser.mj_xml_string)
         raw_xml = ET.fromstring(self.sf_mj_scene_parser.mj_xml_string)
         return self._parse_xml(raw_xml)
 
