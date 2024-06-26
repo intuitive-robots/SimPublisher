@@ -40,7 +40,9 @@ class SFParser(MJCFParser):
                 True if compiler.get("angle", "degree") == "degree" else False
             )
             self._eulerseq = compiler.get("eulerseq", "xyz")
-            self._assetdir = sim_framework_path("models", "mj", "robot", "assets")
+            self._assetdir = sim_framework_path(
+                "models", "mj", "robot", "assets"
+            )
 
             if "meshdir" in compiler.attrib:
                 self._meshdir = pjoin(self._path, compiler.get("meshdir", ""))

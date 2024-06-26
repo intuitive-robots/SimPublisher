@@ -20,6 +20,7 @@ class MJCFScene(SimScene):
         super().__init__()
         self.xml_string: str = None
 
+
 class MJCFDefault:
     def __init__(
         self,
@@ -206,7 +207,9 @@ class MJCFParser:
                             name, builtin, tint
                         )
                     else:
-                        asset_file = pjoin(self._texturedir, asset.attrib["file"])
+                        asset_file = pjoin(
+                            self._texturedir, asset.attrib["file"]
+                        )
                         byte_data = Path(asset_file, "rb").read_bytes()
                         texture, bin_data = TextureLoader.from_bytes(
                             name, byte_data, asset.get("type", "cube"), tint
