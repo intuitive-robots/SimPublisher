@@ -10,7 +10,7 @@ from alr_sim.sims.mj_beta.mj_utils.mj_scene_parser import MjSceneParser
 from alr_sim.utils.sim_path import sim_framework_path
 
 from simpub.parser.mjcf import MJCFParser, MJCFScene
-from simpub.server import ServerBase
+from simpub.server import SimPublisher
 from .mj_publisher import MujocoPublisher
 
 
@@ -60,13 +60,22 @@ class SFParser(MJCFParser):
 
 class SFPublisher(MujocoPublisher):
 
-    def __init__(self, sf_mj_sim: MjScene) -> None:
+    def __init__(
+        self,
+        sf_mj_sim: MjScene,
+        no_rendered_objects: List[str] = None,
+        no_tracked_objects: List[str] = None,
+    ) -> None:
         self.parser = SFParser(sf_mj_sim)
-        self.sim_scene = self.parser.parse()
-        self.scene_message = self.sim_scene.to_string()
         self.mj_data: MjScene = sf_mj_sim.data
         self.mj_model: MjScene = sf_mj_sim.model
         self.tracked_obj_trans: Dict[str, np.ndarray] = dict()
+        SimPublisher.__init__(
+            self,
+            self.parser.parse(),
+            no_rendered_objects,
+            no_tracked_objects
+        )
+        self.scene_message = self.sim_scene.to_string()
         for child in self.sim_scene.root.children:
-            self.tracking_object(child)
-        ServerBase.__init__(self)
+            self.set_update_objects(child)
