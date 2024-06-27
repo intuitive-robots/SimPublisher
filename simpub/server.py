@@ -15,9 +15,9 @@ from simpub.simdata import SimScene
 
 
 class PortSet(int, Enum):
-    DISCOVERY = 5520
-    SERVICE = 5521
-    STREAMING = 5522
+    DISCOVERY = 7720
+    SERVICE = 7721
+    STREAMING = 7722
 
 
 class TaskBase(abc.ABC):
@@ -103,7 +103,7 @@ class StreamTask(TaskBase):
         update_func: Callable[[], Dict],
         port: int = PortSet.STREAMING,
         topic: str = "SceneUpdate",
-        fps: int = 30,
+        fps: int = 45,
     ):
         self._context: zmq.Context = context
         self._update_func = update_func
