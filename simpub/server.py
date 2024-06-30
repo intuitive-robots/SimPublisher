@@ -23,10 +23,10 @@ class PortSet(int, Enum):
 class TaskBase(abc.ABC):
 
     def __init__(self):
-        self._running: bool = False
+        self.running: bool = False
 
     def shutdown(self):
-        self._running = False
+        self.running = False
         self.on_shutdown()
 
     @abc.abstractmethod
@@ -47,52 +47,20 @@ class BroadcastTask(TaskBase):
         intervall: float = 0.5,
     ):
         self._port = port
-        self._running = True
+        self.running = True
         self._intervall = intervall
         self._message = discovery_message.encode()
 
     def execute(self):
-        self._running = True
+        self.running = True
         self.conn = socket(AF_INET, SOCK_DGRAM)  # create UDP socket
         self.conn.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
-        while self._running:
+        while self.running:
             self.conn.sendto(self._message, ("255.255.255.255", self._port))
             sleep(self._intervall)
 
     def on_shutdown(self):
-        self._running = False
-
-
-class ServerBase(abc.ABC):
-
-    def __init__(self):
-        self._running: bool = False
-        self.executor: ThreadPoolExecutor
-        self.futures: List[Future] = []
-        self.tasks: List[TaskBase] = []
-        self.zmqContext = zmq.Context()
-        self.initialize_task()
-
-    @abc.abstractmethod
-    def initialize_task(self):
-        raise NotImplementedError
-
-    def start(self):
-        self._running = True
-        self.thread = threading.Thread(target=self.thread_task)
-        self.thread.start()
-
-    def thread_task(self):
-        print("Server Tasks has been started")
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            self.executor = executor
-            for task in self.tasks:
-                self.futures.append(executor.submit(task.execute))
-        self._running = False
-
-    @abc.abstractmethod
-    def shutdown(self):
-        raise NotImplementedError
+        self.running = False
 
 
 class StreamTask(TaskBase):
@@ -109,16 +77,16 @@ class StreamTask(TaskBase):
         self._update_func = update_func
         self._port: int = port
         self._topic: str = topic
-        self._running: bool = False
+        self.running: bool = False
         self._dt: float = 1 / fps
 
     def execute(self):
         print("Stream task has been started")
-        self._running = True
+        self.running = True
         self.pub_socket: zmq.Socket = self._context.socket(zmq.PUB)
         self.pub_socket.bind(f"tcp://*:{self._port}")
         last = 0.0
-        while self._running:
+        while self.running:
             diff = time.monotonic() - last
             if diff < self._dt:
                 time.sleep(self._dt - diff)
@@ -142,14 +110,14 @@ class MsgService(TaskBase):
     ):
         self._context: zmq.Context = context
         self._port: int = port
-        self._running: bool = False
+        self.running: bool = False
         self._actions: Dict[str, Callable[[zmq.Socket, str], None]] = {}
 
     def execute(self):
-        self._running = True
+        self.running = True
         self.reply_socket: zmq.Socket = self._context.socket(zmq.REP)
         self.reply_socket.bind(f"tcp://*:{self._port}")
-        while self._running:
+        while self.running:
             message = self.reply_socket.recv().decode()
             tag, *args = message.split(":", 1)
             if tag == "END":
@@ -170,7 +138,58 @@ class MsgService(TaskBase):
         self._actions[tag] = action
 
     def on_shutdown(self):
-        self._running = False
+        self.running = False
+
+
+class ServerBase(abc.ABC):
+
+    def __init__(self, host: str = "localhost"):
+        self.host: str = host
+        self.running: bool = False
+        self.executor: ThreadPoolExecutor
+        self.futures: List[Future] = []
+        self.tasks: List[TaskBase] = []
+        self.zmqContext = zmq.Context()
+        self.initialize_task()
+
+    @abc.abstractmethod
+    def initialize_task(self):
+        raise NotImplementedError
+
+    def start(self):
+        self.running = True
+        self.thread = threading.Thread(target=self.thread_task)
+        self.thread.start()
+
+    def thread_task(self):
+        print("Server Tasks has been started")
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            self.executor = executor
+            for task in self.tasks:
+                self.futures.append(executor.submit(task.execute))
+        self.running = False
+
+    @abc.abstractmethod
+    def shutdown(self):
+        raise NotImplementedError
+
+
+class MsgServer(ServerBase):
+    def __init__(self, host: str = "localhost"):
+        super().__init__(host)
+
+    def initialize_task(self):    
+        self.tasks: List[TaskBase] = []
+        discovery_data = {
+            "SERVICE": PortSet.SERVICE,
+        }
+        time_stamp = str(time.time())
+        discovery_message = f"SimPub:{time_stamp}:{json.dumps(discovery_data)}"
+        self.broadcast_task = BroadcastTask(discovery_message)
+        self.tasks.append(self.broadcast_task)
+
+        self.msg_service = MsgService(self.zmqContext)
+        self.tasks.append(self.msg_service)
 
 
 class SimPublisher(ServerBase):
@@ -178,6 +197,7 @@ class SimPublisher(ServerBase):
     def __init__(
         self,
         sim_scene: SimScene,
+        host: str = "localhost",
         no_rendered_objects: List[str] = None,
         no_tracked_objects: List[str] = None,
     ) -> None:
@@ -190,7 +210,7 @@ class SimPublisher(ServerBase):
             self.no_tracked_objects = []
         else:
             self.no_tracked_objects = no_tracked_objects
-        super().__init__()
+        super().__init__(host)
 
     def initialize_task(self):
         self.tasks: List[TaskBase] = []
