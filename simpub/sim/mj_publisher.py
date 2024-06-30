@@ -14,6 +14,7 @@ class MujocoPublisher(SimPublisher):
         mj_model,
         mj_data,
         mjcf_path: str,
+        host: str = "localhost",
         no_rendered_objects: List[str] = None,
         no_tracked_objects: List[str] = None,
     ) -> None:
@@ -26,7 +27,8 @@ class MujocoPublisher(SimPublisher):
             self,
             sim_scene,
             no_rendered_objects,
-            no_tracked_objects
+            no_tracked_objects,
+            host,
         )
         for child in self.sim_scene.root.children:
             self.set_update_objects(child)
