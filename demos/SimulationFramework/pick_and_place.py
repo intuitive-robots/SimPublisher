@@ -1,7 +1,8 @@
-from alr_sim.core.logger import RobotPlotFlags
 from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.universal_sim.PrimitiveObjects import Box
 from simpub.sim.sf_publisher import SFPublisher
+
+host = None  # you need to specify the host like "192.168.1.25"
 
 if __name__ == "__main__":
     box1 = Box(
@@ -59,17 +60,18 @@ if __name__ == "__main__":
 
     scene.start()
 
-    publisher = SFPublisher(scene, no_tracked_objects=["table_plane", "table0"])
+    assert host is not None, "Please specify the host"
+    publisher = SFPublisher(
+        scene, host, no_tracked_objects=["table_plane", "table0"]
+    )
     publisher.start()
 
-    duration = (
-        2  # you can specify how long a trajectory can be executed with the duration
-    )
+    duration = 2
 
-    robot.set_desired_gripper_width(0.0)  # we set the gripper to clos at the beginning
+    robot.set_desired_gripper_width(0.0)
 
-    home_position = robot.current_c_pos.copy()  # store home position
-    home_orientation = robot.current_c_quat.copy()  # store initial orientation
+    home_position = robot.current_c_pos.copy()
+    home_orientation = robot.current_c_quat.copy()
 
     # execute the pick and place movements
     robot.gotoCartPositionAndQuat(
@@ -81,7 +83,9 @@ if __name__ == "__main__":
         [0.5, -0.2, 0.52 - 0.1], [0, 1, 0, 0], duration=duration
     )
     robot.close_fingers(duration=0.3)
-    robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
+    robot.gotoCartPositionAndQuat(
+        home_position, home_orientation, duration=duration
+    )
     robot.gotoCartPositionAndQuat(
         [0.5, 0.2, 0.6 - 0.1], [0, 1, 0, 0], duration=duration
     )
@@ -93,7 +97,9 @@ if __name__ == "__main__":
         [0.6, -0.1, 0.52 - 0.1], [0, 1, 0, 0], duration=duration
     )
     robot.close_fingers(duration=0.3)
-    robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
+    robot.gotoCartPositionAndQuat(
+        home_position, home_orientation, duration=duration
+    )
     robot.gotoCartPositionAndQuat(
         [0.5, 0.2, 0.6 - 0.1], [0, 1, 0, 0], duration=duration
     )
@@ -105,13 +111,16 @@ if __name__ == "__main__":
         [0.4, -0.1, 0.52 - 0.1], [0, 1, 0, 0], duration=duration
     )
     robot.close_fingers(duration=0.3)
-    robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
+    robot.gotoCartPositionAndQuat(
+        home_position, home_orientation, duration=duration
+    )
     robot.gotoCartPositionAndQuat(
         [0.5, 0.2, 0.65 - 0.1], [0, 1, 0, 0], duration=duration
     )
     robot.set_desired_gripper_width(0.04)
-    robot.gotoCartPositionAndQuat(home_position, home_orientation, duration=duration)
+    robot.gotoCartPositionAndQuat(
+        home_position, home_orientation, duration=duration
+    )
 
     while True:
         scene.next_step()
-

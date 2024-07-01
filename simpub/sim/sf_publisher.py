@@ -64,7 +64,7 @@ class SFPublisher(MujocoPublisher):
     def __init__(
         self,
         sf_mj_sim: MjScene,
-        host: str = "localhost",
+        host: str = "127.0.0.1",
         no_rendered_objects: List[str] = None,
         no_tracked_objects: List[str] = None,
     ) -> None:

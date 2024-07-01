@@ -1,13 +1,12 @@
-from alr_sim.core.logger import RobotPlotFlags
 from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.mj_beta.mj_utils.mj_scene_object import YCBMujocoObject
 from simpub.sim.sf_publisher import SFPublisher
 
+host = None  # you need to specify the host like "192.168.1.25"
+
 if __name__ == "__main__":
-    ######################################################################################
-    # THIS DEMO REQUIRES YOU TO DOWNLOAD THE SF-ObjectDataset somewhere on your computer #
-    ######################################################################################
-    ycb_base_folder = "/home/xinkai/project/SF-ObjectDataset/YCB"
+
+    ycb_base_folder = "/path/to/SF-ObjectDataset/objects/ycb/"
     clamp = YCBMujocoObject(
         ycb_base_folder=ycb_base_folder,
         object_id="051_large_clamp",
@@ -23,16 +22,17 @@ if __name__ == "__main__":
 
     # Setup the scene
     sim_factory = SimRepository.get_factory("mj_beta")
-
-    # Setting the dt to 0.0005 to reduce jittering of the gripper due to more difficult Physics Simulation
     scene = sim_factory.create_scene(object_list=object_list, dt=0.0005)
     robot = sim_factory.create_robot(scene, dt=0.0005)
     scene.start()
 
-    publisher = SFPublisher(scene)
+    assert host is not None, "Please specify the host"
+    publisher = SFPublisher(
+        scene, host, no_tracked_objects=["table_plane", "table0"]
+    )
     publisher.start()
 
-    robot.set_desired_gripper_width(0.4)  # we set the gripper to clos at the beginning
+    robot.set_desired_gripper_width(0.4)
 
     # execute the pick and place movements
     robot.gotoCartPositionAndQuat(
@@ -52,5 +52,3 @@ if __name__ == "__main__":
     robot.open_fingers()
 
     robot.wait(10)
-
-    scene.stop_logging()

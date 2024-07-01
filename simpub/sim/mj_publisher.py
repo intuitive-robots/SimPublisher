@@ -14,7 +14,7 @@ class MujocoPublisher(SimPublisher):
         mj_model,
         mj_data,
         mjcf_path: str,
-        host: str = "localhost",
+        host: str = "127.0.0.1",
         no_rendered_objects: List[str] = None,
         no_tracked_objects: List[str] = None,
     ) -> None:
