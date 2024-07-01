@@ -4,11 +4,12 @@ from typing import Dict, List, Callable
 import zmq
 import time
 from time import sleep
-from socket import socket, AF_INET, SOCK_DGRAM
-from socket import SOL_SOCKET, SO_BROADCAST
+import socket
+from socket import AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST
 import json
 import threading
 from enum import Enum
+import struct
 from concurrent.futures import ThreadPoolExecutor, Future
 
 from simpub.simdata import SimScene
@@ -43,20 +44,27 @@ class BroadcastTask(TaskBase):
     def __init__(
         self,
         discovery_message: str,
+        host: str = "127.0.0.1",
+        mask: str = "255.255.255.0",
         port: int = PortSet.DISCOVERY,
-        intervall: float = 0.5,
+        intervall: float = 1.0,
     ):
         self._port = port
         self.running = True
         self._intervall = intervall
         self._message = discovery_message.encode()
+        # calculate broadcast ip
+        ip_bin = struct.unpack('!I', socket.inet_aton(host))[0]
+        netmask_bin = struct.unpack('!I', socket.inet_aton(mask))[0]
+        broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
+        self.broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
 
     def execute(self):
         self.running = True
-        self.conn = socket(AF_INET, SOCK_DGRAM)  # create UDP socket
+        self.conn = socket.socket(AF_INET, SOCK_DGRAM)
         self.conn.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
         while self.running:
-            self.conn.sendto(self._message, ("255.255.255.255", self._port))
+            self.conn.sendto(self._message, (self.broadcast_ip, self._port))
             sleep(self._intervall)
 
     def on_shutdown(self):
@@ -69,22 +77,22 @@ class StreamTask(TaskBase):
         self,
         context: zmq.Context,
         update_func: Callable[[], Dict],
+        host: str = "127.0.0.1",
         port: int = PortSet.STREAMING,
         topic: str = "SceneUpdate",
         fps: int = 45,
     ):
         self._context: zmq.Context = context
         self._update_func = update_func
-        self._port: int = port
         self._topic: str = topic
         self.running: bool = False
         self._dt: float = 1 / fps
+        self.pub_socket: zmq.Socket = self._context.socket(zmq.PUB)
+        self.pub_socket.bind(f"tcp://{host}:{port}")
 
     def execute(self):
         print("Stream task has been started")
         self.running = True
-        self.pub_socket: zmq.Socket = self._context.socket(zmq.PUB)
-        self.pub_socket.bind(f"tcp://*:{self._port}")
         last = 0.0
         while self.running:
             diff = time.monotonic() - last
@@ -106,17 +114,18 @@ class MsgService(TaskBase):
     def __init__(
         self,
         context: zmq.Context,
+        host: str = "127.0.0.1",
         port: int = PortSet.SERVICE,
     ):
         self._context: zmq.Context = context
         self._port: int = port
         self.running: bool = False
         self._actions: Dict[str, Callable[[zmq.Socket, str], None]] = {}
+        self.reply_socket: zmq.Socket = self._context.socket(zmq.REP)
+        self.reply_socket.bind(f"tcp://{host}:{port}")
 
     def execute(self):
         self.running = True
-        self.reply_socket: zmq.Socket = self._context.socket(zmq.REP)
-        self.reply_socket.bind(f"tcp://*:{self._port}")
         while self.running:
             message = self.reply_socket.recv().decode()
             tag, *args = message.split(":", 1)
@@ -143,7 +152,7 @@ class MsgService(TaskBase):
 
 class ServerBase(abc.ABC):
 
-    def __init__(self, host: str = "localhost"):
+    def __init__(self, host: str = "127.0.0.1"):
         self.host: str = host
         self.running: bool = False
         self.executor: ThreadPoolExecutor
@@ -161,6 +170,9 @@ class ServerBase(abc.ABC):
         self.thread = threading.Thread(target=self.thread_task)
         self.thread.start()
 
+    def join(self):
+        self.thread.join()
+
     def thread_task(self):
         print("Server Tasks has been started")
         with ThreadPoolExecutor(max_workers=5) as executor:
@@ -169,13 +181,16 @@ class ServerBase(abc.ABC):
                 self.futures.append(executor.submit(task.execute))
         self.running = False
 
-    @abc.abstractmethod
     def shutdown(self):
-        raise NotImplementedError
+        print("Trying to shutdown server")
+        for task in self.tasks:
+            task.shutdown()
+        self.thread.join()
+        print("All the threads have been stopped")
 
 
 class MsgServer(ServerBase):
-    def __init__(self, host: str = "localhost"):
+    def __init__(self, host: str = "127.0.0.1"):
         super().__init__(host)
 
     def initialize_task(self):    
@@ -197,7 +212,7 @@ class SimPublisher(ServerBase):
     def __init__(
         self,
         sim_scene: SimScene,
-        host: str = "localhost",
+        host: str = "127.0.0.1",
         no_rendered_objects: List[str] = None,
         no_tracked_objects: List[str] = None,
     ) -> None:
