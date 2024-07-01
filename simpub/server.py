@@ -200,10 +200,10 @@ class MsgServer(ServerBase):
         }
         time_stamp = str(time.time())
         discovery_message = f"SimPub:{time_stamp}:{json.dumps(discovery_data)}"
-        self.broadcast_task = BroadcastTask(discovery_message)
+        self.broadcast_task = BroadcastTask(discovery_message, self.host)
         self.tasks.append(self.broadcast_task)
 
-        self.msg_service = MsgService(self.zmqContext)
+        self.msg_service = MsgService(self.zmqContext, self.host)
         self.tasks.append(self.msg_service)
 
 
@@ -235,13 +235,15 @@ class SimPublisher(ServerBase):
         }
         time_stamp = str(time.time())
         discovery_message = f"SimPub:{time_stamp}:{json.dumps(discovery_data)}"
-        self.broadcast_task = BroadcastTask(discovery_message)
+        self.broadcast_task = BroadcastTask(discovery_message, self.host)
         self.tasks.append(self.broadcast_task)
 
-        self.stream_task = StreamTask(self.zmqContext, self.get_update)
+        self.stream_task = StreamTask(
+            self.zmqContext, self.get_update, self.host
+        )
         self.tasks.append(self.stream_task)
 
-        self.msg_service = MsgService(self.zmqContext)
+        self.msg_service = MsgService(self.zmqContext, self.host)
         self.msg_service.register_action("SCENE", self._on_scene_request)
         self.msg_service.register_action("ASSET", self._on_asset_request)
         self.tasks.append(self.msg_service)
