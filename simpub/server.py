@@ -103,7 +103,7 @@ class StreamTask(TaskBase):
                 "updateData": self._update_func(),
                 "time": time.monotonic()
             }
-            self.pub_socket.send_string(f"{json.dumps(msg)}")
+            self.pub_socket.send_string(f"{self._topic}:{json.dumps(msg)}")
 
     def on_shutdown(self):
         self.pub_socket.close(0)

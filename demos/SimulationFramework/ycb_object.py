@@ -2,7 +2,7 @@ from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.mj_beta.mj_utils.mj_scene_object import YCBMujocoObject
 from simpub.sim.sf_publisher import SFPublisher
 
-host = None  # you need to specify the host like "192.168.1.25"
+host = "127.0.0.1"  # you need to specify the host like "192.168.1.25"
 
 if __name__ == "__main__":
 
@@ -18,7 +18,40 @@ if __name__ == "__main__":
         visual_only=False,
     )
 
-    object_list = [clamp]
+    lemon = YCBMujocoObject(
+        ycb_base_folder=ycb_base_folder,
+        object_id="014_lemon",
+        object_name="lemon",
+        pos=[0.4, 0.2, 0.1],
+        quat=[0, 0, 0, 1],
+        static=False,
+        alpha=1.0,
+        visual_only=False,
+    )
+
+    mug = YCBMujocoObject(
+        ycb_base_folder=ycb_base_folder,
+        object_id="025_mug",
+        object_name="mug",
+        pos=[0.2, 0.1, 0.1],
+        quat=[0, 0, 0, 1],
+        static=False,
+        alpha=1.0,
+        visual_only=False,
+    )
+
+    hammer = YCBMujocoObject(
+        ycb_base_folder=ycb_base_folder,
+        object_id="048_hammer",
+        object_name="hammer",
+        pos=[0.3, -0.2, 0.1],
+        quat=[0, 0, 0, 1],
+        static=False,
+        alpha=1.0,
+        visual_only=False,
+    )
+
+    object_list = [clamp, lemon, mug, hammer]
 
     # Setup the scene
     sim_factory = SimRepository.get_factory("mj_beta")
@@ -51,4 +84,5 @@ if __name__ == "__main__":
 
     robot.open_fingers()
 
-    robot.wait(10)
+    while True:
+        scene.next_step()

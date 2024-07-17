@@ -24,7 +24,7 @@ class TextureLoader:
         img: Image.Image
         if builtin_name == "checker":
             img = Image.open(
-                TextureLoader.RES_PATH / "res/image/builtin/checker_grey.png"
+                TextureLoader.RES_PATH / "parser/mjcf/builtin/checker_grey.png"
             ).convert("RGBA")
         elif builtin_name in {"gradient", "flat"}:
             img = Image.new("RGBA", (256, 256), (1, 1, 1, 1))
@@ -39,11 +39,11 @@ class TextureLoader:
         texture_hash = md5(tex_data).hexdigest()
 
         texture = SimTexture(
-            tag=name,
+            id=name,
             width=width,
             height=height,
-            textype="2d",
-            dataID=texture_hash
+            textureType="2d",
+            dataHash=texture_hash
         )
         return texture, tex_data
 
@@ -63,11 +63,11 @@ class TextureLoader:
         texture_hash = md5(tex_data).hexdigest()
 
         texture = SimTexture(
-            tag=name,
+            id=name,
             width=width,
             height=height,
-            textype=texture_type,
-            dataID=texture_hash,
+            textureType=texture_type,
+            dataHash=texture_hash,
         )
 
         return texture, tex_data
@@ -143,22 +143,22 @@ class MeshLoader:
         indices_layout = bin_buffer.tell(), indices.shape[0]
         bin_buffer.write(indices)
         # Texture coords
-        uv_layout = 0, 0
+        uv_layout = (0, 0)
         if hasattr(mesh.visual, "uv"):
             uvs = mesh.visual.uv.astype(np.float32)
             uvs[:, 1] = 1 - uvs[:, 1]
-            uvs = uvs.flatten() 
+            uvs = uvs.flatten()
             uv_layout = bin_buffer.tell(), uvs.shape[0]
 
         bin_data = bin_buffer.getvalue()
         hash = md5(bin_data).hexdigest()
 
         mesh = SimMesh(
-            tag=name,
+            id=name,
             indicesLayout=indices_layout,
             verticesLayout=vertices_layout,
             normalsLayout=normal_layout,
             uvLayout=uv_layout,
-            dataID=hash
+            dataHash=hash
         )
         return mesh, bin_data
