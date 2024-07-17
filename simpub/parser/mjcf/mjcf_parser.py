@@ -177,7 +177,7 @@ class MJCFParser:
                         scale,
                     )
                     mj_scene.meshes.append(mesh)
-                    mj_scene.raw_data[mesh.dataID] = bin_data
+                    mj_scene.raw_data[mesh.dataHash] = bin_data
 
                 elif asset.tag == "material":
                     color = str2list(
@@ -186,7 +186,7 @@ class MJCFParser:
                     emission = float(asset.get("emission", "0.0"))
                     emissionColor = [emission * c for c in color]
                     material = SimMaterial(
-                        tag=asset.get("name") or asset.get("type"),
+                        id=asset.get("name") or asset.get("type"),
                         color=color,
                         emissionColor=emissionColor,
                         specular=float(asset.get("specular", "0.5")),
@@ -210,12 +210,12 @@ class MJCFParser:
                         asset_file = pjoin(
                             self._texturedir, asset.attrib["file"]
                         )
-                        byte_data = Path(asset_file, "rb").read_bytes()
+                        byte_data = Path(asset_file).read_bytes()
                         texture, bin_data = TextureLoader.from_bytes(
                             name, byte_data, asset.get("type", "cube"), tint
                         )
                     mj_scene.textures.append(texture)
-                    mj_scene.raw_data[texture.dataID] = bin_data
+                    mj_scene.raw_data[texture.dataHash] = bin_data
                 else:
                     raise RuntimeError("Invalid asset", asset.tag)
 
@@ -263,6 +263,9 @@ class MJCFParser:
 
         visuals: List[SimVisual] = list()
         for geom in body.findall("geom"):
+            # geom group 3 is for collision
+            if int(geom.get("group", "2")) == 3:
+                continue
             visual = self._load_visual(geom)
             if visual is not None:
                 visuals.append(visual)

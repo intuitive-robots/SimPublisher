@@ -31,12 +31,12 @@ class SimData:
 
 @dataclass
 class SimAsset(SimData):
-    tag: str
+    id: str
 
 
 @dataclass
 class SimMesh(SimAsset):
-    dataID: str
+    dataHash: str
     # (offset: bytes, count: int)
     indicesLayout: Tuple[int, int]
     normalsLayout: Tuple[int, int]
@@ -53,16 +53,16 @@ class SimMaterial(SimAsset):
     shininess: float = 0.5
     reflectance: float = 0
     texture: Optional[str] = None
-    texsize: Tuple[int, int] = (1, 1)
+    textureSize: Tuple[int, int] = field(default_factory=lambda: (1, 1))
     type: AssetType = AssetType.MATERIAL
 
 
 @dataclass
 class SimTexture(SimAsset):
-    dataID: str
+    dataHash: str
     width: int = 0
     height: int = 0
-    textype: str = "cube"
+    textureType: str = "cube"
     type: AssetType = AssetType.TEXTURE
 
 
