@@ -26,7 +26,12 @@ class MetaQuest3(XRDivece):
         self.quest = quest
         self.input_data_str: str = ""
 
+    def update(self, data):
+        self.input_data_str = data
+
     def get_input_data(self) -> MetaQuest3InputData:
+        if self.input_data_str == "":
+            return None
         json_dict = json.loads(self.input_data_str)
         return MetaQuest3InputData(
             left__pos=json_dict["left__pos"],
