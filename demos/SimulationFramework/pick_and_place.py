@@ -2,7 +2,7 @@ from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.universal_sim.PrimitiveObjects import Box
 from simpub.sim.sf_publisher import SFPublisher
 
-host = "127.0.0.1"  # you need to specify the host like "192.168.1.25"
+host = "192.168.0.134"  # you need to specify the host like "192.168.1.25"
 
 if __name__ == "__main__":
     box1 = Box(

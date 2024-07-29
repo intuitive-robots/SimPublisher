@@ -5,8 +5,6 @@ class InputData:
     def __init__(self, json_str: str) -> None:
         self.json_str = json_str
         self.data = json.loads(json_str)
-    
-    # def 
 
 
 class XRDivece:
@@ -31,5 +29,4 @@ class XRDivece:
 
     def get_input_data(self) -> InputData:
         raise NotImplementedError
-
 

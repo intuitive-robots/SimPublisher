@@ -114,7 +114,7 @@ class SubscribeTask(TaskBase):
     def __init__(
         self,
         context: zmq.Context,
-        callback_func: Callable[[], Dict],
+        callback_func: Callable[[str], None],
         host: str,
         port: int,
         topic: str,
@@ -131,9 +131,13 @@ class SubscribeTask(TaskBase):
         print("Subscribe task has been started")
         self.running = True
         while self.running:
+            print("here")
             message = self.sub_socket.recv_string()
             self._callback_func(message)
+        print("finish")
 
+    def on_shutdown(self):
+        self.sub_socket.close(0)
 
 class MsgService(TaskBase):
 
@@ -230,7 +234,7 @@ class MsgServer(ServerBase):
             "SERVICE": PortSet.SERVICE,
         }
         time_stamp = str(time.time())
-        discovery_message = f"SimPub:{time_stamp}:{json.dumps(discovery_data)}"
+        discovery_message = f"HDAR:{time_stamp}:{json.dumps(discovery_data)}"
         self.broadcast_task = BroadcastTask(discovery_message, self.host)
         self.tasks.append(self.broadcast_task)
 
