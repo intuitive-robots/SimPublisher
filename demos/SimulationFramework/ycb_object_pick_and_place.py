@@ -1,10 +1,14 @@
+import argparse
 from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.mj_beta.mj_utils.mj_scene_object import YCBMujocoObject
 from simpub.sim.sf_publisher import SFPublisher
 
-host = "192.168.0.134"  # you need to specify the host like "192.168.1.25"
-
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", type=str, default="127.0.0.1")
+    args = parser.parse_args()
+    host = args.host
 
     ycb_base_folder = "/home/xinkai/project/SF-ObjectDataset/YCB"
     clamp = YCBMujocoObject(
