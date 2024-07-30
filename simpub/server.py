@@ -131,7 +131,6 @@ class SubscribeTask(TaskBase):
         print("Subscribe task has been started")
         self.running = True
         while self.running:
-            print("here")
             message = self.sub_socket.recv_string()
             self._callback_func(message)
         print("finish")

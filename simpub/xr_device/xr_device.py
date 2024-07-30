@@ -8,8 +8,7 @@ class InputData:
 
 
 class XRDivece:
-    def __init__(self, name):
-        self.name = name
+    def __init__(self):
         self._state = "off"
 
     def turn_on(self):
