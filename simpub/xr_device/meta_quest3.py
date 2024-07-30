@@ -21,29 +21,32 @@ class MetaQuest3InputData:
 
 
 class MetaQuest3(XRDivece):
-    def __init__(self, name, xray, quest):
-        super().__init__(name, xray)
-        self.quest = quest
-        self.input_data_str: str = ""
+    def __init__(self):
+        super().__init__()
+        self.input_data: dict = None
 
-    def update(self, data):
-        self.input_data_str = data
+    def update(self, data: str):
+        # print(data)
+        if data == "MetaQuest3/InputData":
+            return
+        self.input_data = json.loads(data)
+        # print("here")
 
     def get_input_data(self) -> MetaQuest3InputData:
-        if self.input_data_str == "":
+        if self.input_data is None:
             return None
-        json_dict = json.loads(self.input_data_str)
+        input_data = self.input_data
         return MetaQuest3InputData(
-            left__pos=json_dict["left__pos"],
-            left_rot=json_dict["left_rot"],
-            left_index_trigger=json_dict["left_index_trigger"],
-            left_hand_trigger=json_dict["left_hand_trigger"],
-            right_pos=json_dict["right_pos"],
-            right_rot=json_dict["right_rot"],
-            right_index_trigger=json_dict["right_index_trigger"],
-            right_hand_trigger=json_dict["right_hand_trigger"],
-            A=json_dict["A"],
-            B=json_dict["B"],
-            X=json_dict["X"],
-            Y=json_dict["Y"],
+            left__pos=input_data["left_pos"],
+            left_rot=input_data["left_rot"],
+            left_index_trigger=input_data["left_index_trigger"],
+            left_hand_trigger=input_data["left_hand_trigger"],
+            right_pos=input_data["right_pos"],
+            right_rot=input_data["right_rot"],
+            right_index_trigger=input_data["right_index_trigger"],
+            right_hand_trigger=input_data["right_hand_trigger"],
+            A=input_data["A"],
+            B=input_data["B"],
+            X=input_data["X"],
+            Y=input_data["Y"],
         )

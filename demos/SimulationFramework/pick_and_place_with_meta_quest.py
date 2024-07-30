@@ -8,21 +8,22 @@ from simpub.sim.sf_publisher import SFPublisher
 from simpub.server import SubscribeTask
 from simpub.xr_device.meta_quest3 import MetaQuest3
 
-# class MetaQuest3Controller(CartPosQuatImpedenceController):
+class MetaQuest3Controller(CartPosQuatImpedenceController):
 
-#     def __init__(self, device):
-#         super().__init__()
-#         self.device: MetaQuest3 = device
+    def __init__(self, device):
+        super().__init__()
+        self.device: MetaQuest3 = device
 
-#     def getControl(self, robot):
-#         input_data = self.device.get_input_data()
-#         if input_data is not None:
-#             desired_pos = input_data.right_pos
-#             desired_quat = input_data.right_rot
-#             desired_pos_local = robot._localize_cart_pos(desired_pos)
-#             desired_quat_local = robot._localize_cart_quat(desired_quat)
-#             self.setSetPoint(np.hstack((desired_pos_local, desired_quat_local)))
-#         return super().getControl(robot)
+    def getControl(self, robot):
+        input_data = self.device.get_input_data()
+        if input_data is not None:
+            desired_pos = input_data.right_pos
+            desired_quat = input_data.right_rot
+            desired_pos_local = robot._localize_cart_pos(desired_pos)
+            desired_quat_local = robot._localize_cart_quat(desired_quat)
+            desired_quat_local = [0, 1, 0, 0]
+            self.setSetPoint(np.hstack((desired_pos_local, desired_quat_local)))
+        return super().getControl(robot)
 
 
 if __name__ == "__main__":
@@ -83,20 +84,22 @@ if __name__ == "__main__":
 
     scene = sim_factory.create_scene(object_list=object_list)
     robot = sim_factory.create_robot(scene)
-    # robot_controller = MetaQuest3Controller(robot)
-    # robot_controller.executeController(robot, maxDuration=1000, block=False)
+
 
     scene.start()
 
     publisher = SFPublisher(
         scene, args.host, no_tracked_objects=["table_plane", "table0"]
     )
-    # meta_quest3 = MetaQuest3()
+    meta_quest3 = MetaQuest3()
+    robot_controller = MetaQuest3Controller(meta_quest3)
+    robot_controller.executeController(robot, maxDuration=1000, block=False)
     publisher.start()
     sub_task = SubscribeTask(
         publisher.zmqContext, 
-        print,
-        host="192.168.0.143", 
+        # print,
+        meta_quest3.update,
+        host="192.168.0.102", 
         port="7721", 
         topic="MetaQuest3/InputData"
     )
