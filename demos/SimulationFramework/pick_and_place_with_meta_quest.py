@@ -5,7 +5,6 @@ from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.universal_sim.PrimitiveObjects import Box
 from alr_sim.controllers.IKControllers import CartPosQuatImpedenceController
 from simpub.sim.sf_publisher import SFPublisher
-from simpub.server import SubscribeTask
 from simpub.xr_device.meta_quest3 import MetaQuest3
 
 
@@ -22,7 +21,13 @@ class MetaQuest3Controller(CartPosQuatImpedenceController):
             desired_quat = input_data.right_rot
             desired_pos_local = robot._localize_cart_pos(desired_pos)
             desired_quat_local = robot._localize_cart_quat(desired_quat)
+            desired_quat_local = [0, 1, 0, 0]
+            if input_data.right_index_trigger:
+                robot.close_fingers(duration=0.0)
+            else:
+                robot.open_fingers()
             self.setSetPoint(np.hstack((desired_pos_local, desired_quat_local)))
+            
         return super().getControl(robot)
 
 
@@ -90,7 +95,8 @@ if __name__ == "__main__":
     publisher = SFPublisher(
         scene, args.host, no_tracked_objects=["table_plane", "table0"]
     )
-    meta_quest3 = MetaQuest3(publisher)
+    meta_quest3 = MetaQuest3(publisher, "192.168.0.102")
+    # meta_quest3 = MetaQuest3(publisher, "192.168.0.143")
     robot_controller = MetaQuest3Controller(meta_quest3)
     robot_controller.executeController(robot, maxDuration=1000, block=False)
     publisher.start()
