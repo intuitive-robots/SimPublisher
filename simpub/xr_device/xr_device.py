@@ -1,5 +1,7 @@
 import json
 
+from simpub.server import SimPublisher
+
 
 class InputData:
     def __init__(self, json_str: str) -> None:
@@ -8,14 +10,20 @@ class InputData:
 
 
 class XRDivece:
-    def __init__(self):
+    def __init__(
+        self,
+        publisher: SimPublisher,
+        addr: str = "127.0.0.1",
+        port: str = "7725",
+    ) -> None:
         self._state = "off"
+        self.publisher = publisher
+        self.addr = addr
+        self.port = port
+        self.create_task()
 
-    def turn_on(self):
-        self._state = "on"
-
-    def turn_off(self):
-        self._state = "off"
+    def create_task(self):
+        raise NotImplementedError
 
     def is_on(self):
         return self._state == "on"
@@ -23,9 +31,5 @@ class XRDivece:
     def is_off(self):
         return self._state == "off"
 
-    def __str__(self):
-        return f"{self.name} is {self._state}"
-
     def get_input_data(self) -> InputData:
         raise NotImplementedError
-
