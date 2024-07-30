@@ -114,29 +114,35 @@ class SubscribeTask(TaskBase):
     def __init__(
         self,
         context: zmq.Context,
-        callback_func: Callable[[str], None],
-        host: str,
+        addr: str,
         port: int,
-        topic: str,
     ):
         self._context: zmq.Context = context
-        self._callback_func = callback_func
-        self._topic: str = topic
         self.running: bool = False
         self.sub_socket: zmq.Socket = self._context.socket(zmq.SUB)
-        self.sub_socket.connect(f"tcp://{host}:{port}")
-        self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
+        self.sub_socket.connect(f"tcp://{addr}:{port}")
+        self._callback_func_list: Dict[str, Callable[[str], None]] = {}
+        self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
 
     def execute(self):
         print("Subscribe task has been started")
         self.running = True
         while self.running:
             message = self.sub_socket.recv_string()
-            self._callback_func(message)
-        print("finish")
+            topic, msg = message.split(":", 1)
+            if topic in self._callback_func_list:
+                self._callback_func_list[topic](msg)
+
+    def register_callback(
+        self,
+        topic: str,
+        callback_func: Callable[[str], None]
+    ) -> None:
+        self._callback_func_list[topic] = callback_func
 
     def on_shutdown(self):
         self.sub_socket.close(0)
+
 
 class MsgService(TaskBase):
 
@@ -177,8 +183,6 @@ class MsgService(TaskBase):
 
     def on_shutdown(self):
         self.running = False
-
-
 
 
 class ServerBase(abc.ABC):

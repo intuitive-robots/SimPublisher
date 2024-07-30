@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 import json
 
+from simpub.server import SimPublisher
+from simpub.server import SubscribeTask
 from .xr_device import XRDivece
 
 
@@ -21,16 +23,26 @@ class MetaQuest3InputData:
 
 
 class MetaQuest3(XRDivece):
-    def __init__(self):
-        super().__init__()
+    def __init__(
+        self,
+        publisher: SimPublisher,
+        addr: str = "127.0.0.1",
+        port: str = "7723",
+    ) -> None:
+        super().__init__(publisher, addr, port)
         self.input_data: dict = None
 
+    def create_task(self):
+        sub_task = SubscribeTask(
+            self.publisher.zmqContext,
+            addr=self.addr,
+            port=self.port,
+        )
+        sub_task.register_callback("MetaQuest3/InputData", self.update)
+        self.publisher.add_task(sub_task)
+
     def update(self, data: str):
-        # print(data)
-        if data == "MetaQuest3/InputData":
-            return
         self.input_data = json.loads(data)
-        # print("here")
 
     def get_input_data(self) -> MetaQuest3InputData:
         if self.input_data is None:
