@@ -2,7 +2,6 @@ from dataclasses import dataclass
 import json
 
 from simpub.server import SimPublisher
-from simpub.server import SubscribeTask
 from .xr_device import XRDivece
 
 
@@ -32,14 +31,8 @@ class MetaQuest3(XRDivece):
         super().__init__(publisher, addr, port)
         self.input_data: dict = None
 
-    def create_task(self):
-        sub_task = SubscribeTask(
-            self.publisher.zmqContext,
-            addr=self.addr,
-            port=self.port,
-        )
-        sub_task.register_callback("MetaQuest3/InputData", self.update)
-        self.publisher.add_task(sub_task)
+    def setup_subscribe_topic(self):
+        self.subscribe_topic("MetaQuest3/InputData", self.update)
 
     def update(self, data: str):
         self.input_data = json.loads(data)

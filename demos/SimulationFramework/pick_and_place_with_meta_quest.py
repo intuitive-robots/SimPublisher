@@ -27,7 +27,6 @@ class MetaQuest3Controller(CartPosQuatImpedenceController):
             else:
                 robot.open_fingers()
             self.setSetPoint(np.hstack((desired_pos_local, desired_quat_local)))
-            
         return super().getControl(robot)
 
 
@@ -95,7 +94,8 @@ if __name__ == "__main__":
     publisher = SFPublisher(
         scene, args.host, no_tracked_objects=["table_plane", "table0"]
     )
-    meta_quest3 = MetaQuest3(publisher, "192.168.0.102")
+    meta_quest3 = MetaQuest3(publisher)
+    # meta_quest3 = MetaQuest3(publisher, "192.168.0.102")
     # meta_quest3 = MetaQuest3(publisher, "192.168.0.143")
     robot_controller = MetaQuest3Controller(meta_quest3)
     robot_controller.executeController(robot, maxDuration=1000, block=False)
