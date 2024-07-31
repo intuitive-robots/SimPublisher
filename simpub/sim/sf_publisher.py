@@ -3,6 +3,7 @@ from xml.etree.ElementTree import Element as XMLNode
 import numpy as np
 from typing import List, Dict
 import xml.etree.ElementTree as ET
+import os
 from os.path import join as pjoin
 
 from alr_sim.sims.mj_beta import MjScene
@@ -22,6 +23,7 @@ class SFParser(MJCFParser):
         self._use_degree = False
         self._meshdir = "assets"
         self._texturedir = "textures"
+        self._mj_sim_assets = mj_sim.mj_scene_parser.assets
 
     def parse(
         self,
@@ -32,6 +34,25 @@ class SFParser(MJCFParser):
         self.no_rendered_objects = no_rendered_objects
         raw_xml = ET.fromstring(self.sf_mj_scene_parser.mj_xml_string)
         return self._parse_xml(raw_xml)
+
+    def _merge_includes(self, root_xml: XMLNode) -> XMLNode:
+        for child in root_xml:
+            if child.tag != "include":
+                self._merge_includes(child)
+                continue
+            sub_xml_path = os.path.join(self._path, child.attrib["file"])
+            if os.path.exists(sub_xml_path):
+                sub_xml_root = self.get_root_from_xml_file(sub_xml_path)
+            else:
+                for name, asset in self._mj_sim_assets.items():
+                    if name.endswith(child.attrib["file"]):
+                        sub_xml_root = ET.fromstring(asset)
+                        break
+            root_xml.extend(sub_xml_root)
+        for child in root_xml:
+            if child.tag == "include":
+                root_xml.remove(child)
+        return root_xml
 
     def _load_compiler(self, xml: XMLNode) -> None:
 
