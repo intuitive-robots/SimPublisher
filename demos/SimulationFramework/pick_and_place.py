@@ -1,10 +1,16 @@
+import argparse
 from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.universal_sim.PrimitiveObjects import Box
 from simpub.sim.sf_publisher import SFPublisher
 
-host = None  # you need to specify the host like "192.168.1.25"
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", type=str, default="127.0.0.1")
+    args = parser.parse_args()
+    host = args.host
+
     box1 = Box(
         name="box1",
         init_pos=[0.5, -0.2, 0.5],

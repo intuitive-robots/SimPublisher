@@ -103,10 +103,45 @@ class StreamTask(TaskBase):
                 "updateData": self._update_func(),
                 "time": time.monotonic()
             }
-            self.pub_socket.send_string(f"{json.dumps(msg)}")
+            self.pub_socket.send_string(f"{self._topic}:{json.dumps(msg)}")
 
     def on_shutdown(self):
         self.pub_socket.close(0)
+
+
+class SubscribeTask(TaskBase):
+
+    def __init__(
+        self,
+        context: zmq.Context,
+        addr: str,
+        port: int,
+    ):
+        self._context: zmq.Context = context
+        self.running: bool = False
+        self.sub_socket: zmq.Socket = self._context.socket(zmq.SUB)
+        self.sub_socket.connect(f"tcp://{addr}:{port}")
+        self._callback_func_list: Dict[str, Callable[[str], None]] = {}
+        self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
+
+    def execute(self):
+        print("Subscribe task has been started")
+        self.running = True
+        while self.running:
+            message = self.sub_socket.recv_string()
+            topic, msg = message.split(":", 1)
+            if topic in self._callback_func_list:
+                self._callback_func_list[topic](msg)
+
+    def register_callback(
+        self,
+        topic: str,
+        callback_func: Callable[[str], None]
+    ) -> None:
+        self._callback_func_list[topic] = callback_func
+
+    def on_shutdown(self):
+        self.sub_socket.close(0)
 
 
 class MsgService(TaskBase):
@@ -188,6 +223,9 @@ class ServerBase(abc.ABC):
         self.thread.join()
         print("All the threads have been stopped")
 
+    def add_task(self, task: TaskBase):
+        self.tasks.append(task)
+
 
 class MsgServer(ServerBase):
     def __init__(self, host: str = "127.0.0.1"):
@@ -199,7 +237,7 @@ class MsgServer(ServerBase):
             "SERVICE": PortSet.SERVICE,
         }
         time_stamp = str(time.time())
-        discovery_message = f"SimPub:{time_stamp}:{json.dumps(discovery_data)}"
+        discovery_message = f"HDAR:{time_stamp}:{json.dumps(discovery_data)}"
         self.broadcast_task = BroadcastTask(discovery_message, self.host)
         self.tasks.append(self.broadcast_task)
 
@@ -236,17 +274,17 @@ class SimPublisher(ServerBase):
         time_stamp = str(time.time())
         discovery_message = f"SimPub:{time_stamp}:{json.dumps(discovery_data)}"
         self.broadcast_task = BroadcastTask(discovery_message, self.host)
-        self.tasks.append(self.broadcast_task)
+        self.add_task(self.broadcast_task)
 
         self.stream_task = StreamTask(
             self.zmqContext, self.get_update, self.host
         )
-        self.tasks.append(self.stream_task)
+        self.add_task(self.stream_task)
 
         self.msg_service = MsgService(self.zmqContext, self.host)
         self.msg_service.register_action("SCENE", self._on_scene_request)
         self.msg_service.register_action("ASSET", self._on_asset_request)
-        self.tasks.append(self.msg_service)
+        self.add_task(self.msg_service)
 
     def _on_scene_request(self, socket: zmq.Socket, tag: str):
         socket.send_string(self.sim_scene.to_string())
