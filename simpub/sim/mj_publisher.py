@@ -24,7 +24,6 @@ class MujocoPublisher(SimPublisher):
         sim_scene = self.parser.parse()
         self.tracked_obj_trans: Dict[str, np.ndarray] = dict()
         super().__init__(
-            self,
             sim_scene,
             no_rendered_objects,
             no_tracked_objects,
