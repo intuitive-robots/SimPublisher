@@ -1,49 +1,53 @@
 import zmq
-from typing import Dict, Callable
-import json
+from typing import Callable
+from time import sleep
 
-from .simpub_manager import ConnectionAbstract, PortSet
+from .simpub_manager import ConnectionAbstract, PortSet, IPAddress
+from .log import logger
 
 
 class Subscriber(ConnectionAbstract):
 
-    def __init__(self, topic: str):
+    def __init__(self, topic: str, _callback: Callable[[str], None]) -> None:
         super().__init__()
         self.topic: str = topic
-        self._callback: Callable[[str], None] = {}
+        self._callback: Callable[[str], None] = _callback
+        self.manager.submit_task(self.wait_for_connection)
 
-    def setting_up_socket(self):
-        return super().setting_up_socket()
+    # def setting_up_socket(self):
+    #     return super().setting_up_socket()
 
     def wait_for_connection(self):
+        logger.info(f"Waiting for connection to topic: {self.topic}")
         while self.running:
+            sleep(0.01)
             if self.topic not in self.manager.topic_map:
                 continue
-            host = self.manager.topic_map[self.topic]
-            if host in self.manager.sub_socket_dict:
-                self._socket = self.manager.sub_socket_dict[host]
+            target = self.manager.topic_map[self.topic]
+            self.manager.topic_callback[self.topic] = self._callback
+            if target in self.manager.sub_socket_dict:
+                # for host that already connected
+                self._socket = self.manager.sub_socket_dict[target]
                 break
-            self.sub_socket = self.manager.zmq_context.socket(zmq.SUB)
-            self.manager.sub_socket_dict[host] = self.sub_socket
-            self._socket.connect(f"tcp://{host}:{PortSet.TOOPIC}")
-            self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
+            # create a new socket for a new host
+            self._socket = self.manager.zmq_context.socket(zmq.SUB)
+            self.manager.sub_socket_dict[target] = self._socket
+            self._socket.connect(f"tcp://{target}:{PortSet.TOOPIC}")
+            self._socket.setsockopt_string(zmq.SUBSCRIBE, "")
+            self.manager.submit_task(self.subscribe_loop, target)
+            break
+        if self.running:
+            logger.info(f"Connected to to topic: {self.topic} at {target}")
 
-    def register_callback(
-        self,
-        _callback: Callable[[str], None]
-    ) -> None:
-        # TODO: Make it like rospy
-        def msg_callback(msg: str):
-            json.loads(msg)
-            _callback(msg)
-
-
-    def execute(self):
-        print(f"Waiting for topic: {self.topic}")
-        self.running = True
-        self.wait_for_connection()
+    def subscribe_loop(self, host: IPAddress):
+        _socket = self.manager.sub_socket_dict[host]
+        topic_list = self.manager.host_topic[host]
+        topic_callback = self.manager.topic_callback
         while self.running:
-            message = self._socket.recv_string()
+            message = _socket.recv_string()
             topic, msg = message.split(":", 1)
-            if topic in self._callback_func_list:
-                self._callback_func_list[topic](msg)
+            if topic in topic_list:
+                topic_callback[topic](msg)
+
+    def on_shutdown(self):
+        return super().on_shutdown()
