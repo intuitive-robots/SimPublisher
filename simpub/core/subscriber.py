@@ -2,7 +2,7 @@ import zmq
 from typing import Callable
 from time import sleep
 
-from .simpub_manager import ConnectionAbstract, PortSet, IPAddress
+from .net_manager import ConnectionAbstract, PortSet, IPAddress
 from .log import logger
 
 
@@ -13,9 +13,6 @@ class Subscriber(ConnectionAbstract):
         self.topic: str = topic
         self._callback: Callable[[str], None] = _callback
         self.manager.submit_task(self.wait_for_connection)
-
-    # def setting_up_socket(self):
-    #     return super().setting_up_socket()
 
     def wait_for_connection(self):
         logger.info(f"Waiting for connection to topic: {self.topic}")

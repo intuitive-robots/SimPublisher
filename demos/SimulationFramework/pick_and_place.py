@@ -70,7 +70,6 @@ if __name__ == "__main__":
     publisher = SFPublisher(
         scene, host, no_tracked_objects=["table_plane", "table0"]
     )
-    publisher.start()
 
     duration = 2
 

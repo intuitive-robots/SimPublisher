@@ -30,7 +30,7 @@ class ConnectionAbstract(abc.ABC):
 
     def __init__(self):
         self.running: bool = False
-        self.manager: SimPubManager = SimPubManager()
+        self.manager: NetManager = NetManager.manager
         self.host: str = self.manager.host
 
     def shutdown(self):
@@ -42,19 +42,12 @@ class ConnectionAbstract(abc.ABC):
         raise NotImplementedError
 
 
-class SimPubManager:
+class NetManager:
 
-    _manager = None
-    _initialized = False
-
-    def __new__(cls, *args, **kwargs):
-        if cls._manager is None:
-            cls._manager = super().__new__(cls, *args, **kwargs)
-        return cls._manager
+    manager = None
 
     def __init__(self, host: str = "127.0.0.1"):
-        if self._initialized:
-            return
+        NetManager.manager = self
         self._initialized = True
         self.host: IPAddress = host
         self.zmq_context = zmq.Context()
@@ -140,3 +133,9 @@ class SimPubManager:
             sub_socket.close(0)
         self.running = False
         logger.info("Server has been shut down")
+
+
+def init_net_manager(host: str):
+    if NetManager.manager is not None:
+        return NetManager.manager
+    return NetManager(host)
