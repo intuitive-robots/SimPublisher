@@ -1,5 +1,5 @@
 
-from .simpub_manager import ConnectionAbstract
+from .net_manager import ConnectionAbstract
 from .log import logger
 
 

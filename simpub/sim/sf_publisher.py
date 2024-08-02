@@ -11,7 +11,7 @@ from alr_sim.sims.mj_beta.mj_utils.mj_scene_parser import MjSceneParser
 from alr_sim.utils.sim_path import sim_framework_path
 
 from simpub.parser.mjcf import MJCFParser, MJCFScene
-from simpub.server import SimPublisher
+from ..core.simpub_server import SimPublisher
 from .mj_publisher import MujocoPublisher
 
 
