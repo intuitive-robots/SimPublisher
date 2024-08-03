@@ -13,7 +13,7 @@ from .log import logger
 
 IPAddress = NewType("IPAddress", str)
 Topic = NewType("Topic", str)
-
+Service = NewType("Service", str)
 
 class PortSet(int, enum.Enum):
     DISCOVERY = 7720
@@ -21,9 +21,10 @@ class PortSet(int, enum.Enum):
     TOOPIC = 7722
 
 
-class ClientInfo(TypedDict):
-    Host: IPAddress
-    Topics: List[Topic]
+class HostInfo(TypedDict):
+    host: IPAddress
+    topics: List[Topic]
+    services: List[Service]
 
 
 class ConnectionAbstract(abc.ABC):
@@ -53,10 +54,10 @@ class NetManager:
         self.zmq_context = zmq.Context()
         # subscriber
         self.sub_socket_dict: Dict[IPAddress, zmq.Socket] = {}
-        self.sub_socket = self.zmq_context.socket(zmq.SUB)
-        self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
-        self.topic_map: Dict[Topic, IPAddress] = {}
-        self.host_topic: Dict[IPAddress, List[Topic]] = {}
+        # self.sub_socket = self.zmq_context.socket(zmq.SUB)
+        # self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
+        # self.topic_map: Dict[Topic, IPAddress] = {}
+        # self.host_topic: Dict[IPAddress, List[Topic]] = {}
         self.topic_callback: Dict[Topic, Callable] = {}
         # publisher
         self.pub_socket = self.zmq_context.socket(zmq.PUB)
@@ -65,12 +66,13 @@ class NetManager:
         self.service_socket = self.zmq_context.socket(zmq.REP)
         self.service_socket.bind(f"tcp://{host}:{PortSet.SERVICE}")
         self.service_callback: Dict[str, Callable] = {}
-        self.service_map: Dict[str, IPAddress] = {}
         # message for broadcasting
-        self.connection_map = {
-            "Topic": self.topic_map,
-            "Service": self.service_map
-        }
+        self.local_info = HostInfo()
+        self.local_info["host"] = host
+        self.local_info["topics"] = []
+        self.local_info["services"] = []
+        # host info
+        self.host_info: List[HostInfo] = []
         # setting up thread pool
         self.running: bool = True
         self.executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=5)
@@ -89,8 +91,8 @@ class NetManager:
 
     def service_loop(self):
         logger.info("The service is running...")
-        self.manager.register_service(
-            "Register", self.host, self.register_client
+        self.manager.register_local_service(
+            "Register", self.register_client
         )
         while self.running:
             message = self.service_socket.recv_string()
@@ -112,28 +114,25 @@ class NetManager:
         broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
         broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
         while self.running:
-            msg = f"SimPub:{json.dumps(self.connection_map)}"
+            msg = f"SimPub:{json.dumps(self.local_info)}"
             _socket.sendto(msg.encode(), (broadcast_ip, PortSet.DISCOVERY))
             sleep(0.5)
         logger.info("Broadcasting has been stopped")
 
     def register_client(self, msg: str):
-        info: ClientInfo = json.loads(msg)
-        for topic in info["Topics"]:
-            self.register_topic(topic, info["Host"])
+        client_info: HostInfo = json.loads(msg)
+        # for topic in info["Topics"]:
+        #     self.register_local_topic(topic, info["Host"])
 
-    def register_topic(self, topic: Topic, host: IPAddress):
+    def register_local_topic(self, topic: Topic, host: IPAddress):
         if host in self.host_topic:
             logger.warning(f"Host {host} is already registered")
-        self.topic_map[topic] = host
-        if host not in self.host_topic:
-            self.host_topic[host] = []
-        self.host_topic[host].append(topic)
+        self.local_info["topics"].append(topic)
 
-    def register_service(
-        self, service: str, host: IPAddress, callback: Callable
+    def register_local_service(
+        self, service: str, callback: Callable
     ) -> None:
-        self.service_map[service] = host
+        self.local_info["services"].append(service)
         self.service_callback[service] = callback
 
     def shutdown(self):

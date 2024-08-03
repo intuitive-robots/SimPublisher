@@ -9,8 +9,8 @@ class Service(ConnectionAbstract):
     def __init__(self, service_name: str, callback: Callable[[str], str]):
         super().__init__()
         self.service_name = service_name
-        self.manager.register_service(
-            service_name, self.host, callback
+        self.manager.register_local_service(
+            service_name, callback
         )
         logger.info(f"Service {self.service_name} is ready")
 
