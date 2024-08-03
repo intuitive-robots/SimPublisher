@@ -65,11 +65,11 @@ class NetManager:
         self.service_socket = self.zmq_context.socket(zmq.REP)
         self.service_socket.bind(f"tcp://{host}:{PortSet.SERVICE}")
         self.service_callback: Dict[str, Callable] = {}
-        self.service_map: Dict[str, IPAddress] = []
+        self.service_map: Dict[str, IPAddress] = {}
         # message for broadcasting
         self.connection_map = {
-            "TOPIC": self.topic_map,
-            "SERVICE": self.service_map
+            "Topic": self.topic_map,
+            "Service": self.service_map
         }
         # setting up thread pool
         self.running: bool = True
@@ -89,14 +89,17 @@ class NetManager:
 
     def service_loop(self):
         logger.info("The service is running...")
-        self.service_map["Register"] = self.register_client
+        self.manager.register_service(
+            "Register", self.host, self.register_client
+        )
         while self.running:
             message = self.service_socket.recv_string()
-            service, msg = message.split(":", 1)
+            service, request = message.split(":", 1)
             if service in self.service_map:
-                self.executor.submit(self.service_map[service], msg)
+                # the zmq service socket is blocked and only run one at a time
+                self.service_callback[service](request, self.service_socket)
             else:
-                self.service_socket.send_string("INVALID")
+                self.service_socket.send_string("Invild Service")
 
     def broadcast_loop(self):
         logger.info("The server is broadcasting...")
@@ -121,9 +124,17 @@ class NetManager:
 
     def register_topic(self, topic: Topic, host: IPAddress):
         if host in self.host_topic:
-            pass
+            logger.warning(f"Host {host} is already registered")
         self.topic_map[topic] = host
+        if host not in self.host_topic:
+            self.host_topic[host] = []
         self.host_topic[host].append(topic)
+
+    def register_service(
+        self, service: str, host: IPAddress, callback: Callable
+    ) -> None:
+        self.service_map[service] = host
+        self.service_callback[service] = callback
 
     def shutdown(self):
         logger.info("Shutting down the server")

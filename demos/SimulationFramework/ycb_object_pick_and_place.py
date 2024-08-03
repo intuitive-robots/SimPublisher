@@ -67,7 +67,6 @@ if __name__ == "__main__":
     publisher = SFPublisher(
         scene, host, no_tracked_objects=["table_plane", "table0"]
     )
-    publisher.start()
 
     robot.set_desired_gripper_width(0.4)
 

@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 import json
+from typing import TypedDict
 
 from simpub.server import SimPublisher
-from .xr_device import XRDivece
+from .xr_device import XRDevice
 
 
 @dataclass
@@ -21,7 +22,7 @@ class MetaQuest3InputData:
     Y: bool
 
 
-class MetaQuest3(XRDivece):
+class MetaQuest3(XRDevice):
     def __init__(
         self,
         publisher: SimPublisher,
