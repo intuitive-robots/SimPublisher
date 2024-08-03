@@ -11,7 +11,7 @@ class InputData:
         self.data = json.loads(json_str)
 
 
-class XRDivece:
+class XRDevice:
     def __init__(
         self,
         publisher: SimPublisher,

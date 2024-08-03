@@ -7,6 +7,7 @@ from simpub.simdata import SimScene
 from .net_manager import init_net_manager
 from .publisher import Streamer
 from .service import Service
+from .log import logger
 
 
 class ServerBase(abc.ABC):
@@ -43,12 +44,12 @@ class SimPublisher(ServerBase):
         self.scene_service = Service("Scene", self._on_scene_request)
         self.asset_service = Service("Asset", self._on_asset_request)
 
-    def _on_scene_request(self, socket: zmq.Socket, tag: str):
+    def _on_scene_request(self, req: str, socket: zmq.Socket) -> None:
         socket.send_string(self.sim_scene.to_string())
 
-    def _on_asset_request(self, socket: zmq.Socket, tag: str):
+    def _on_asset_request(self, tag: str, socket: zmq.Socket) -> None:
         if tag not in self.sim_scene.raw_data:
-            print("Received invalid data request")
+            logger.warning("Received invalid data request")
             return
         socket.send(self.sim_scene.raw_data[tag])
 
