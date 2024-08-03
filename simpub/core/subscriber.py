@@ -8,20 +8,28 @@ from .log import logger
 
 class Subscriber(ConnectionAbstract):
 
-    def __init__(self, topic: str, _callback: Callable[[str], None]) -> None:
+    def __init__(self, topic: str, callback: Callable[[str], None]) -> None:
         super().__init__()
         self.topic: str = topic
-        self._callback: Callable[[str], None] = _callback
+        self._callback: Callable[[str], None] = callback
         self.manager.submit_task(self.wait_for_connection)
 
     def wait_for_connection(self):
         logger.info(f"Waiting for connection to topic: {self.topic}")
         while self.running:
             sleep(0.01)
-            if self.topic not in self.manager.topic_map:
+            target_info = None
+            for info in self.manager.host_info:
+                if self.topic in info["topics"]:
+                    target_info = info
+                    break
+            if target_info is None:
                 continue
-            target = self.manager.topic_map[self.topic]
+            # if self.topic not in self.manager.topic_map:
+            #     continue
+            # target = self.manager.topic_map[self.topic]
             self.manager.topic_callback[self.topic] = self._callback
+            target = target_info["host"]
             if target in self.manager.sub_socket_dict:
                 # for host that already connected
                 self._socket = self.manager.sub_socket_dict[target]
@@ -38,7 +46,7 @@ class Subscriber(ConnectionAbstract):
 
     def subscribe_loop(self, host: IPAddress):
         _socket = self.manager.sub_socket_dict[host]
-        topic_list = self.manager.host_topic[host]
+        topic_list = self.manager.host_info[host]["topics"]
         topic_callback = self.manager.topic_callback
         while self.running:
             message = _socket.recv_string()
