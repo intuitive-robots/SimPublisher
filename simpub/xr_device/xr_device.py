@@ -14,11 +14,10 @@ class XRDevice:
 
     def __init__(
         self,
-        device: str = "UnityEditor",
+        device_name: str = "UnityEditor",
     ) -> None:
-        self._state = "off"
-        self.device = device
-        self.log_subscriber = Subscriber(f"{device}/Log", self.print_log)
+        self.device = device_name
+        self.log_subscriber = Subscriber(f"{device_name}/Log", self.print_log)
 
     def print_log(self, log: str):
         logger.info(f"{self.type} Log: {log}")
