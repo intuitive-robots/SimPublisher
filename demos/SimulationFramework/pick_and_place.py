@@ -1,7 +1,9 @@
 import argparse
+
 from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.universal_sim.PrimitiveObjects import Box
 from simpub.sim.sf_publisher import SFPublisher
+from simpub.xr_device.xr_device import XRDevice
 
 
 if __name__ == "__main__":
@@ -70,6 +72,7 @@ if __name__ == "__main__":
     publisher = SFPublisher(
         scene, host, no_tracked_objects=["table_plane", "table0"]
     )
+    device = XRDevice()
 
     duration = 2
 

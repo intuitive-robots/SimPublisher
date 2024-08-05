@@ -11,7 +11,7 @@ class Publisher(ConnectionAbstract):
         super().__init__()
         self.topic = topic
         self.socket = self.manager.pub_socket
-        self.manager.register_local_topic(self.topic, self.host)
+        self.manager.register_local_topic(self.topic)
         logger.info(f"Publisher for topic {self.topic} is ready")
 
     def publish(self, data: Dict):
