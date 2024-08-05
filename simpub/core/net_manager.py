@@ -15,14 +15,22 @@ IPAddress = NewType("IPAddress", str)
 Topic = NewType("Topic", str)
 Service = NewType("Service", str)
 
-class PortSet(int, enum.Enum):
+
+class ServerPort(int, enum.Enum):
     DISCOVERY = 7720
     SERVICE = 7721
-    TOOPIC = 7722
+    TOPIC = 7722
+
+
+class ClientPort(int, enum.Enum):
+    DISCOVERY = 7720
+    SERVICE = 7723
+    TOPIC = 7724
 
 
 class HostInfo(TypedDict):
-    host: IPAddress
+    name: str
+    ip: IPAddress
     topics: List[Topic]
     services: List[Service]
 
@@ -32,7 +40,8 @@ class ConnectionAbstract(abc.ABC):
     def __init__(self):
         self.running: bool = False
         self.manager: NetManager = NetManager.manager
-        self.host: str = self.manager.host
+        self.host_ip: str = self.manager.local_info["ip"]
+        self.host_name: str = self.manager.local_info["host"]
 
     def shutdown(self):
         self.running = False
@@ -47,32 +56,32 @@ class NetManager:
 
     manager = None
 
-    def __init__(self, host: str = "127.0.0.1"):
+    def __init__(
+        self,
+        host_ip: IPAddress = "127.0.0.1",
+        host_name: str = "SimPub"
+    ) -> None:
         NetManager.manager = self
         self._initialized = True
-        self.host: IPAddress = host
         self.zmq_context = zmq.Context()
         # subscriber
         self.sub_socket_dict: Dict[IPAddress, zmq.Socket] = {}
-        # self.sub_socket = self.zmq_context.socket(zmq.SUB)
-        # self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
-        # self.topic_map: Dict[Topic, IPAddress] = {}
-        # self.host_topic: Dict[IPAddress, List[Topic]] = {}
         self.topic_callback: Dict[Topic, Callable] = {}
         # publisher
         self.pub_socket = self.zmq_context.socket(zmq.PUB)
-        self.pub_socket.bind(f"tcp://{host}:{PortSet.TOOPIC}")
+        self.pub_socket.bind(f"tcp://{host_ip}:{ServerPort.TOPIC}")
         # service
         self.service_socket = self.zmq_context.socket(zmq.REP)
-        self.service_socket.bind(f"tcp://{host}:{PortSet.SERVICE}")
+        self.service_socket.bind(f"tcp://{host_ip}:{ServerPort.SERVICE}")
         self.service_callback: Dict[str, Callable] = {}
         # message for broadcasting
         self.local_info = HostInfo()
-        self.local_info["host"] = host
+        self.local_info["host"] = host_name
+        self.local_info["ip"] = host_ip
         self.local_info["topics"] = []
         self.local_info["services"] = []
         # host info
-        self.host_info: List[HostInfo] = []
+        self.clients_info: Dict[str, HostInfo] = {}
         # setting up thread pool
         self.running: bool = True
         self.executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=5)
@@ -80,8 +89,8 @@ class NetManager:
         self.submit_task(self.broadcast_loop)
         self.submit_task(self.service_loop)
 
-    def submit_task(self, task: Callable):
-        future = self.executor.submit(task)
+    def submit_task(self, task: Callable, *args):
+        future = self.executor.submit(task, *args)
         self.futures.append(future)
 
     def join(self):
@@ -92,12 +101,12 @@ class NetManager:
     def service_loop(self):
         logger.info("The service is running...")
         self.manager.register_local_service(
-            "Register", self.register_client
+            "Register", self.register_client_callback
         )
         while self.running:
             message = self.service_socket.recv_string()
             service, request = message.split(":", 1)
-            if service in self.service_map:
+            if service in self.service_callback.keys():
                 # the zmq service socket is blocked and only run one at a time
                 self.service_callback[service](request, self.service_socket)
             else:
@@ -109,24 +118,30 @@ class NetManager:
         _socket = socket.socket(AF_INET, SOCK_DGRAM)
         _socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
         # calculate broadcast ip
-        ip_bin = struct.unpack('!I', socket.inet_aton(self.host))[0]
+        local_info = self.local_info
+        ip_bin = struct.unpack('!I', socket.inet_aton(local_info["ip"]))[0]
         netmask_bin = struct.unpack('!I', socket.inet_aton("255.255.255.0"))[0]
         broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
         broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
         while self.running:
-            msg = f"SimPub:{json.dumps(self.local_info)}"
-            _socket.sendto(msg.encode(), (broadcast_ip, PortSet.DISCOVERY))
+            msg = f"SimPub:{json.dumps(local_info)}"
+            _socket.sendto(msg.encode(), (broadcast_ip, ServerPort.DISCOVERY))
             sleep(0.5)
         logger.info("Broadcasting has been stopped")
 
-    def register_client(self, msg: str):
+    def register_client_callback(self, msg: str, socket: zmq.Socket):
+        # NOTE: something woring with sending message, but it solved somehow
+        socket.send_string("The info has been registered")
         client_info: HostInfo = json.loads(msg)
-        # for topic in info["Topics"]:
-        #     self.register_local_topic(topic, info["Host"])
+        client_name = client_info["name"]
+        # NOTE: the client info may be updated so the reference cannot be used
+        # NOTE: TypeDict is somehow block if the key is not in the dict
+        self.clients_info[client_name] = client_info
+        logger.info(f"Host {client_name} has been registered")
 
-    def register_local_topic(self, topic: Topic, host: IPAddress):
-        if host in self.host_topic:
-            logger.warning(f"Host {host} is already registered")
+    def register_local_topic(self, topic: Topic):
+        if topic in self.local_info["topics"]:
+            logger.warning(f"Host {topic} is already registered")
         self.local_info["topics"].append(topic)
 
     def register_local_service(
