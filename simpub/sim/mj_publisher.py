@@ -2,7 +2,7 @@ from mujoco import mj_name2id, mjtObj
 from typing import List, Dict
 import numpy as np
 
-from simpub.server import SimPublisher
+from ..core.simpub_server import SimPublisher
 from simpub.parser.mjcf import MJCFParser
 from simpub.simdata import SimObject
 
@@ -43,9 +43,6 @@ class MujocoPublisher(SimPublisher):
         for child in obj.children:
             self.set_update_objects(child)
 
-    def initialize_task(self):
-        super().initialize_task()
-
     def get_update(self) -> Dict[str, List[float]]:
         state = {}
         for name, trans in self.tracked_obj_trans.items():
@@ -54,10 +51,3 @@ class MujocoPublisher(SimPublisher):
                 -pos[1], pos[2], pos[0], rot[2], -rot[3], -rot[1], rot[0]
             ]
         return state
-
-    def shutdown(self):
-        self.stream_task.shutdown()
-        self.msg_service.shutdown()
-
-        self.running = False
-        self.thread.join()

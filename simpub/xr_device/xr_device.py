@@ -1,8 +1,6 @@
 import json
-from typing import Callable
 
-from simpub.server import SimPublisher
-from simpub.server import SubscribeTask
+from ..core.subscriber import Subscriber, logger
 
 
 class InputData:
@@ -11,44 +9,18 @@ class InputData:
         self.data = json.loads(json_str)
 
 
-class XRDivece:
+class XRDevice:
+    type = "XRDevice"
+
     def __init__(
         self,
-        publisher: SimPublisher,
-        addr: str = "127.0.0.1",
-        port: str = "7723",
+        device_name: str = "UnityEditor",
     ) -> None:
-        self._state = "off"
-        self.publisher = publisher
-        self.addr = addr
-        self.port = port
-        self.sub_task = SubscribeTask(
-            self.publisher.zmqContext,
-            addr=self.addr,
-            port=self.port,
-        )
-        self.publisher.add_task(self.sub_task)
-        self.subscribe_topic("UnityLog", self.print_log)
-        self.setup_subscribe_topic()
+        self.device = device_name
+        self.log_subscriber = Subscriber(f"{device_name}/Log", self.print_log)
 
     def print_log(self, log: str):
-        print(f"UnityLog: {log}")
-
-    def subscribe_topic(
-        self,
-        topic: str,
-        callback: Callable[[str], None],
-    ) -> None:
-        self.sub_task.register_callback(topic, callback)
-
-    def setup_subscribe_topic(self):
-        raise NotImplementedError
-
-    def is_on(self):
-        return self._state == "on"
-
-    def is_off(self):
-        return self._state == "off"
+        logger.info(f"{self.type} Log: {log}")
 
     def get_input_data(self) -> InputData:
-        raise NotImplementedError
+        pass
