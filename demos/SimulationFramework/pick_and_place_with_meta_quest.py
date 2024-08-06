@@ -6,6 +6,7 @@ from alr_sim.sims.universal_sim.PrimitiveObjects import Box
 from alr_sim.controllers.IKControllers import CartPosQuatImpedenceController
 from simpub.sim.sf_publisher import SFPublisher
 from simpub.xr_device.meta_quest3 import MetaQuest3
+from scipy.spatial.transform import Rotation as R
 
 
 class MetaQuest3Controller(CartPosQuatImpedenceController):
@@ -22,7 +23,6 @@ class MetaQuest3Controller(CartPosQuatImpedenceController):
             desired_quat = hand["rot"]
             desired_pos_local = robot._localize_cart_pos(desired_pos)
             desired_quat_local = robot._localize_cart_quat(desired_quat)
-            desired_quat_local = [0, 1, 0, 0]
             if hand["index_trigger"]:
                 robot.close_fingers(duration=0.0)
             else:
