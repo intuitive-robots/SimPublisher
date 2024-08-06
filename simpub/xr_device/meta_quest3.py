@@ -1,4 +1,5 @@
 from typing import TypedDict
+import json
 
 from ..core.subscriber import Subscriber
 from ..core.publisher import Publisher
@@ -38,12 +39,12 @@ class MetaQuest3(XRDevice):
         )
         self.viborate_publisher = Publisher(f"{device_name}/Vibration")
 
-    def update(self, data: MetaQuest3InputData):
-        self.input_data = data
+    def update(self, data: str):
+        self.input_data = json.loads(data)
 
     def get_input_data(self) -> MetaQuest3InputData:
         return self.input_data
 
     # TODO: Vibration Data Structure
-    def publish_viborate(self, hand: str = "right"):
+    def publish_vibrate(self, hand: str = "right"):
         self.viborate_publisher.publish_string(hand)
