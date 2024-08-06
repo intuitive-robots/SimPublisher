@@ -15,7 +15,11 @@ class Publisher(ConnectionAbstract):
         logger.info(f"Publisher for topic {self.topic} is ready")
 
     def publish(self, data: Dict):
-        self.socket.send_json(data)
+        msg = f"{self.topic}:{dumps(data)}"
+        self.socket.send_string(msg)
+
+    def publish_string(self, string: str):
+        self.socket.send_string(f"{self.topic}:{string}")
 
     def on_shutdown(self):
         super().on_shutdown()

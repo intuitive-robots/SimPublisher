@@ -8,8 +8,8 @@ from .xr_device import XRDevice
 class MetaQuest3Hand(TypedDict):
     pos: list[float]
     rot: list[float]
-    index_trigger: float
-    hand_trigger: float
+    index_trigger: bool
+    hand_trigger: bool
 
 
 class MetaQuest3InputData(TypedDict):
@@ -20,10 +20,10 @@ class MetaQuest3InputData(TypedDict):
     X: bool
     Y: bool
 
-
-class Viborate(TypedDict):
+# TODO: Vibration Data Structure
+class Vibration(TypedDict):
     hand: str
-    intensity: float
+    amplitude: float
 
 
 class MetaQuest3(XRDevice):
@@ -44,5 +44,6 @@ class MetaQuest3(XRDevice):
     def get_input_data(self) -> MetaQuest3InputData:
         return self.input_data
 
-    def publish_viborate(self, signal: Viborate):
-        self.viborate_publisher.publish(signal)
+    # TODO: Vibration Data Structure
+    def publish_viborate(self, hand: str = "right"):
+        self.viborate_publisher.publish_string(hand)

@@ -3,7 +3,7 @@ import argparse
 from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.universal_sim.PrimitiveObjects import Box
 from simpub.sim.sf_publisher import SFPublisher
-from simpub.xr_device.xr_device import XRDevice
+from simpub.xr_device.meta_quest3 import MetaQuest3
 
 
 if __name__ == "__main__":
@@ -72,7 +72,15 @@ if __name__ == "__main__":
     publisher = SFPublisher(
         scene, host, no_tracked_objects=["table_plane", "table0"]
     )
-    device = XRDevice()
+    device = MetaQuest3("ALRMetaQuest3")
+
+
+    counter = 0
+    while True:
+        scene.next_step()
+        if counter % 1000 == 0:
+            device.publish_viborate()
+        counter += 1
 
     duration = 2
 
@@ -130,5 +138,4 @@ if __name__ == "__main__":
         home_position, home_orientation, duration=duration
     )
 
-    while True:
-        scene.next_step()
+

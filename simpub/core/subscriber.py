@@ -16,10 +16,7 @@ class Subscriber(ConnectionAbstract):
         self.manager.submit_task(self.wait_for_connection)
 
     def check_topic(self) -> HostInfo:
-        print("Checking topic")
-        print(self.manager.clients_info)
         for client_info in self.manager.clients_info.values():
-            print(client_info)
             if self.topic in client_info["topics"]:
                 return client_info
         return None
@@ -33,10 +30,6 @@ class Subscriber(ConnectionAbstract):
                 continue
             # for ip which is already connected, only need to set the callback
             self.manager.topic_callback[self.topic] = self._callback
-        # if target_info["ip"] in self.manager.sub_socket_dict:
-        #     # for ip that is already connected
-        #     self._socket = self.manager.sub_socket_dict[target_info["ip"]]
-        #     break
             # create a new socket for a new host
             addr = target_info["ip"]
             self._socket = self.manager.zmq_context.socket(zmq.SUB)
