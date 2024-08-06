@@ -17,12 +17,13 @@ class MetaQuest3Controller(CartPosQuatImpedenceController):
     def getControl(self, robot):
         input_data = self.device.get_input_data()
         if input_data is not None:
-            desired_pos = input_data.right_pos
-            desired_quat = input_data.right_rot
+            hand = input_data["right"]
+            desired_pos = hand["pos"]
+            desired_quat = hand["rot"]
             desired_pos_local = robot._localize_cart_pos(desired_pos)
             desired_quat_local = robot._localize_cart_quat(desired_quat)
             desired_quat_local = [0, 1, 0, 0]
-            if input_data.right_index_trigger:
+            if hand["index_trigger"]:
                 robot.close_fingers(duration=0.0)
             else:
                 robot.open_fingers()
@@ -94,12 +95,9 @@ if __name__ == "__main__":
     publisher = SFPublisher(
         scene, args.host, no_tracked_objects=["table_plane", "table0"]
     )
-    meta_quest3 = MetaQuest3(publisher)
-    # meta_quest3 = MetaQuest3(publisher, "192.168.0.102")
-    # meta_quest3 = MetaQuest3(publisher, "192.168.0.143")
+    meta_quest3 = MetaQuest3("ALRMetaQuest3")
     robot_controller = MetaQuest3Controller(meta_quest3)
     robot_controller.executeController(robot, maxDuration=1000, block=False)
-    publisher.start()
 
     while True:
         scene.next_step()

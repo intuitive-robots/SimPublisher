@@ -72,15 +72,7 @@ if __name__ == "__main__":
     publisher = SFPublisher(
         scene, host, no_tracked_objects=["table_plane", "table0"]
     )
-    device = MetaQuest3("ALRMetaQuest3")
-
-
-    counter = 0
-    while True:
-        scene.next_step()
-        if counter % 1000 == 0:
-            device.publish_viborate()
-        counter += 1
+    device = MetaQuest3()
 
     duration = 2
 
