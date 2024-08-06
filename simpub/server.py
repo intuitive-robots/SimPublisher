@@ -282,8 +282,8 @@ class SimPublisher(ServerBase):
         self.add_task(self.stream_task)
 
         self.msg_service = MsgService(self.zmqContext, self.host)
-        self.msg_service.register_action("SCENE", self._on_scene_request)
-        self.msg_service.register_action("ASSET", self._on_asset_request)
+        self.msg_service.register_action("Scene", self._on_scene_request)
+        self.msg_service.register_action("Asset", self._on_asset_request)
         self.add_task(self.msg_service)
 
     def _on_scene_request(self, socket: zmq.Socket, tag: str):
