@@ -32,12 +32,16 @@ class Subscriber(ConnectionAbstract):
             self.manager.topic_callback[self.topic] = self._callback
             # create a new socket for a new host
             addr = target_info["ip"]
-            self._socket = self.manager.zmq_context.socket(zmq.SUB)
-            self.manager.sub_socket_dict[addr] = self._socket
-            self._socket.connect(f"tcp://{addr}:{ClientPort.TOPIC}")
-            self._socket.setsockopt_string(zmq.SUBSCRIBE, "")
-            logger.info(f"Connect to {addr} for topic: {self.topic}")
-            self.manager.submit_task(self.subscribe_loop, target_info)
+            if addr in self.manager.sub_socket_dict.keys():
+                self._socket = self.manager.sub_socket_dict[addr]
+                logger.info(f"Already connected to {addr} for topic: {self.topic}")
+            else:
+                self._socket = self.manager.zmq_context.socket(zmq.SUB)
+                self.manager.sub_socket_dict[addr] = self._socket
+                self._socket.connect(f"tcp://{addr}:{ClientPort.TOPIC}")
+                self._socket.setsockopt_string(zmq.SUBSCRIBE, "")
+                logger.info(f"Connect to {addr} for topic: {self.topic}")
+                self.manager.submit_task(self.subscribe_loop, target_info)
             break
 
     def subscribe_loop(self, host_info: HostInfo):
