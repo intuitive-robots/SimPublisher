@@ -54,6 +54,18 @@ import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
+#
+import gymnasium as gym
+import torch
+
+import carb
+
+from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
+
+import omni.isaac.lab_tasks  # noqa: F401
+from omni.isaac.lab_tasks.utils import parse_env_cfg
+#
+
 print("=" * 20)
 print(ISAACLAB_NUCLEUS_DIR)
 
@@ -289,7 +301,8 @@ class IsaacSimPublisher(SimPublisher):
         )
         scene.root.children.append(obj2)
 
-        root_path = "/World/Origin1"
+        # root_path = "/World/Origin1"
+        root_path = "/World"
         obj2 = self.parse_prim_tree(root=stage.GetPrimAtPath(root_path))
         assert obj2 is not None
         scene.root.children.append(obj2)
@@ -302,8 +315,11 @@ class IsaacSimPublisher(SimPublisher):
         indent=0,
         parent_path=None,
     ) -> SimObject | None:
-        if root.GetTypeName() not in {"Xform", "Mesh"}:  # Cube
-            return
+        if root.GetTypeName() not in {"Xform", "Mesh", "Scope"}:  # Cube
+            # not good...
+            # perhaps traverse twice and preserve only prims with meshes as children
+            if root.GetName() != "World":
+                return
 
         purpose_attr = root.GetAttribute("purpose")
         if purpose_attr and purpose_attr.Get() in {"proxy", "guide"}:
@@ -380,7 +396,17 @@ class IsaacSimPublisher(SimPublisher):
                 np.int32
             )
 
-            mesh_obj = trimesh.Trimesh(vertices=points, faces=indices.reshape(-1, 3))
+            face_vertex_counts = np.asarray(
+                mesh_prim.GetFaceVertexCountsAttr().Get()
+            ).astype(np.int32)
+
+            # either only triangular faces or only quad faces
+            assert len(set(face_vertex_counts)) == 1
+            num_vert_per_face = face_vertex_counts[0]
+
+            mesh_obj = trimesh.Trimesh(
+                vertices=points, faces=indices.reshape(-1, num_vert_per_face)
+            )
             mesh_obj = mesh_obj.apply_transform(
                 trimesh.transformations.euler_matrix(-math.pi / 2.0, math.pi / 2.0, 0)
             )
@@ -574,11 +600,12 @@ def parse_stage(stage: Usd.Stage):
     publisher = IsaacSimPublisher(host="192.168.0.134", stage=stage)
 
 
-def main():
+def run_custom_scene():
     """Main function."""
     # sim_utils.SimulationContext is a singleton class
     # if SimulationContext.instance() is None:
     #     self.sim: SimulationContext = SimulationContext(self.cfg.sim)
+    # or: print(env.sim)
 
     # Initialize the simulation context
     sim_cfg = sim_utils.SimulationCfg()
@@ -606,9 +633,95 @@ def main():
     run_simulator(sim, scene_entities, scene_origins)
 
 
+def pre_process_actions(
+    task: str, delta_pose: torch.Tensor, gripper_command: bool
+) -> torch.Tensor:
+    """Pre-process actions for the environment."""
+    # compute actions based on environment
+    if "Reach" in task:
+        # note: reach is the only one that uses a different action space
+        # compute actions
+        return delta_pose
+    else:
+        # resolve gripper command
+        gripper_vel = torch.zeros(delta_pose.shape[0], 1, device=delta_pose.device)
+        gripper_vel[:] = -1.0 if gripper_command else 1.0
+        # compute actions
+        return torch.concat([delta_pose, gripper_vel], dim=1)
+
+
+def run_sample_env_1():
+    """Running keyboard teleoperation with Isaac Lab manipulation environment."""
+    task = "Isaac-Lift-Cube-Franka-IK-Rel-v0"
+
+    # parse configuration
+    env_cfg = parse_env_cfg(
+        task_name=task,
+        use_gpu=False,
+        num_envs=1,
+        use_fabric=False,
+    )
+    # modify configuration
+    env_cfg.terminations.time_out = None
+
+    # create environment
+    env = gym.make(task, cfg=env_cfg)
+    # print(env.sim)
+
+    # check environment name (for reach , we don't allow the gripper)
+    if "Reach" in task:
+        carb.log_warn(
+            f"The environment '{task}' does not support gripper control. The device command will be ignored."
+        )
+
+    # create controller
+    sensitivity = 10
+    teleop_interface = Se3Keyboard(
+        pos_sensitivity=0.005 * sensitivity,
+        rot_sensitivity=0.005 * sensitivity,
+    )
+
+    # add teleoperation key for env reset
+    teleop_interface.add_callback("L", env.reset)
+    # print helper for keyboard
+    print(teleop_interface)
+
+    # reset environment
+    env.reset()
+    teleop_interface.reset()
+
+    print("simulation context:", env.sim)
+    print("stage:", env.sim.stage)
+    if env.sim is not None and env.sim.stage is not None:
+        print("parsing usd stage...")
+        parse_stage(env.sim.stage)
+
+    # simulate environment
+    while simulation_app.is_running():
+        # run everything in inference mode
+        with torch.inference_mode():
+            # get keyboard command
+            delta_pose, gripper_command = teleop_interface.advance()
+            delta_pose = delta_pose.astype("float32")
+            # convert to torch
+            delta_pose = torch.tensor(delta_pose, device=env.unwrapped.device).repeat(
+                env.unwrapped.num_envs, 1
+            )
+            # pre-process actions
+            actions = pre_process_actions(task, delta_pose, gripper_command)
+            # apply actions
+            env.step(actions)
+
+    # close the simulator
+    env.close()
+
+
 if __name__ == "__main__":
-    # run the main function
-    main()
+    # run simulation on sample scenes
+
+    # run_custom_scene()
+    run_sample_env_1()
+
     # close sim app
     simulation_app.close()
 
