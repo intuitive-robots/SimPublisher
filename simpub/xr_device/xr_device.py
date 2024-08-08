@@ -23,7 +23,7 @@ class XRDevice:
         self.connected = False
         self.manager: NetManager = NetManager.manager
         self.device = device_name
-        self.info = None
+        self.client_info = None
         # subscriber
         self.sub_socket = self.manager.zmq_context.socket(zmq.SUB)
         self.sub_topic_callback: Dict[Topic, Callable] = {}
@@ -39,12 +39,14 @@ class XRDevice:
             if client_info is not None:
                 print(client_info)
                 self.connected = True
-                self.info = client_info
+                self.client_info = client_info
                 logger.info(f"Connected to {self.device}")
                 break
             time.sleep(0.05)
-        self.req_socket.connect(f"tcp://{self.info['ip']}:{ClientPort.SERVICE}")
-        self.sub_socket.connect(f"tcp://{self.info['ip']}:{ClientPort.TOPIC}")
+        self.req_socket.connect(
+            f"tcp://{self.client_info['ip']}:{ClientPort.SERVICE}")
+        self.sub_socket.connect(
+            f"tcp://{self.client_info['ip']}:{ClientPort.TOPIC}")
         self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
         self.manager.submit_task(self.subscribe_loop)
 
@@ -53,7 +55,10 @@ class XRDevice:
         self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
 
     def request(self, service: str, req: str) -> str:
-        if self.info is None or service not in self.info["services"]:
+        if self.client_info is None:
+            logger.error(f"Device {self.device} is not connected")
+            return ""
+        if service not in self.client_info["services"]:
             logger.error(f"Service {service} is not available")
             return ""
         self.req_socket.send_string(f"{service}:{req}")
