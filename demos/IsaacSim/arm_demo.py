@@ -549,7 +549,7 @@ class IsaacSimPublisher(SimPublisher):
         if (attr := root.GetAttribute("physics:rigidBodyEnabled")) and attr.Get():
             print(f"tracking {sim_object.name}")
             self.tracked_prims.append(
-                {"name": sim_object.name, "prim": root, prim_path: ""}
+                {"name": sim_object.name, "prim": root, "prim_path": prim_path}
             )
 
         child: Usd.Prim
@@ -574,15 +574,15 @@ class IsaacSimPublisher(SimPublisher):
         return sim_object
 
     def get_update(self) -> dict[str, list[float]]:
+        import omni
+        import omni.usd
+
+        from pxr import Usd, UsdUtils
+        from usdrt import Usd as RtUsd
+        from usdrt import UsdGeom as RtGeom
+        from usdrt import Rt
+
         def print_state():
-            import omni
-            import omni.usd
-
-            from pxr import Usd, UsdUtils
-            from usdrt import Usd as RtUsd
-            from usdrt import UsdGeom as RtGeom
-            from usdrt import Rt
-
             prim = self.rt_stage.GetPrimAtPath("/World/Origin1/Robot/panda_hand")
             print(prim)
             print(prim.GetTypeName())
@@ -590,7 +590,16 @@ class IsaacSimPublisher(SimPublisher):
             prim = Rt.Xformable(prim)
             print(prim.GetWorldPositionAttr().Get())
 
-        print_state()
+            rot = prim.GetWorldOrientationAttr().Get()
+            print(rot)
+            print(
+                rot.GetReal(),
+                rot.GetImaginary()[0],
+                rot.GetImaginary()[1],
+                rot.GetImaginary()[2],
+            )
+
+        # print_state()
 
         state = {}
 
@@ -605,7 +614,7 @@ class IsaacSimPublisher(SimPublisher):
         # print(timecode)
         for tracked_prim in self.tracked_prims:
             prim_name = tracked_prim["name"]
-            # prim_path = tracked_prim["path"]
+            prim_path = tracked_prim["prim_path"]
             prim = tracked_prim["prim"]
 
             # cur_trans = get_physx_interface().get_rigidbody_transformation(prim_path)
@@ -629,6 +638,33 @@ class IsaacSimPublisher(SimPublisher):
                 rot[1],
                 rot[2],
                 rot[3],
+            ]
+
+            rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
+            # print(rt_prim)
+            # print(rt_prim.GetTypeName())
+
+            rt_prim = Rt.Xformable(rt_prim)
+            pos = rt_prim.GetWorldPositionAttr().Get()
+            rot = rt_prim.GetWorldOrientationAttr().Get()
+
+            # print(rt_prim.GetWorldPositionAttr().Get())
+            # print(rot)
+            # print(
+            #     rot.GetReal(),
+            #     rot.GetImaginary()[0],
+            #     rot.GetImaginary()[1],
+            #     rot.GetImaginary()[2],
+            # )
+
+            state[prim_name] = [
+                -pos[1],
+                pos[2],
+                pos[0],
+                rot.GetImaginary()[1],
+                -rot.GetImaginary()[2],
+                -rot.GetImaginary()[0],
+                rot.GetReal(),
             ]
 
         return state
