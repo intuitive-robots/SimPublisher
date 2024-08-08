@@ -10,7 +10,7 @@ import trimesh
 import random
 import math
 
-from simpub.server import SimPublisher
+from simpub.core.simpub_server import SimPublisher
 from simpub.simdata import (
     SimScene,
     SimObject,
@@ -499,11 +499,12 @@ class IsaacSimPublisher(SimPublisher):
             )
             sim_object.visuals.append(sim_mesh)
 
-            # track meshes
-            if prim_path == "/World/Origin1/Robot/panda_hand":
-                self.tracked_prims.append(
-                    {"name": sim_object.name, "prim": root, prim_path: ""}
-                )
+        # track prims with rigid objects attached
+        if (attr := root.GetAttribute("physics:rigidBodyEnabled")) and attr.Get():
+            print(f"tracking {sim_object.name}")
+            self.tracked_prims.append(
+                {"name": sim_object.name, "prim": root, prim_path: ""}
+            )
 
         child: Usd.Prim
 
@@ -526,11 +527,9 @@ class IsaacSimPublisher(SimPublisher):
 
         return sim_object
 
-    def initialize_task(self):
-        super().initialize_task()
-
     def get_update(self) -> dict[str, list[float]]:
         state = {}
+
         # for name, trans in self.tracked_obj_trans.items():
         #     pos, rot = trans
         #     state[name] = [-pos[1], pos[2], pos[0], rot[2], -rot[3], -rot[1], rot[0]]
@@ -538,8 +537,8 @@ class IsaacSimPublisher(SimPublisher):
         timeline = omni.timeline.get_timeline_interface()
         timecode = timeline.get_current_time() * timeline.get_time_codes_per_seconds()
 
-        print()
-        print(timecode)
+        # print()
+        # print(timecode)
         for tracked_prim in self.tracked_prims:
             prim_name = tracked_prim["name"]
             # prim_path = tracked_prim["path"]
@@ -549,7 +548,7 @@ class IsaacSimPublisher(SimPublisher):
             # print(cur_trans)
 
             trans_mat = omni.usd.get_world_transform_matrix(prim, timecode)
-            print(f"{prim_name}: {trans_mat}")
+            # print(f"{prim_name}: {trans_mat}")
 
             translate = trans_mat.ExtractTranslation()
             translate = [-translate[1], translate[2], translate[0]]
@@ -559,28 +558,20 @@ class IsaacSimPublisher(SimPublisher):
             rot = [imag[1], -imag[2], -imag[0], rot.GetReal()]
 
             state[prim_name] = [
-                -translate[1],
-                translate[2],
                 translate[0],
-                rot[2],
-                -rot[3],
-                -rot[1],
+                translate[1],
+                translate[2],
                 rot[0],
+                rot[1],
+                rot[2],
+                rot[3],
             ]
 
         return state
 
-    def shutdown(self):
-        self.stream_task.shutdown()
-        self.msg_service.shutdown()
-
-        self.running = False
-        self.thread.join()
-
 
 def parse_stage(stage: Usd.Stage):
     publisher = IsaacSimPublisher(host="192.168.0.134", stage=stage)
-    publisher.start()
 
 
 def main():
