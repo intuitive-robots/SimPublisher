@@ -6,6 +6,8 @@ import numpy as np
 import random
 import json
 
+# TODO: Using dict not dataclass to store for too many never-used attributes
+
 
 class VisualType(str, Enum):
     CUBE = "CUBE"
