@@ -16,6 +16,8 @@ class ServerBase(abc.ABC):
         self.host: str = host
         self.net_manager = init_net_manager(host)
 
+    def join(self):
+        self.net_manager.join()
 
 class MsgServer(ServerBase):
     pass

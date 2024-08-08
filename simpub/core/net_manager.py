@@ -8,7 +8,7 @@ from socket import AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST
 import struct
 from time import sleep
 import json
-
+import uuid
 from .log import logger
 
 IPAddress = NewType("IPAddress", str)
@@ -117,6 +117,7 @@ class NetManager:
         # set up udp socket
         _socket = socket.socket(AF_INET, SOCK_DGRAM)
         _socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+        _id = str(uuid.uuid4())
         # calculate broadcast ip
         local_info = self.local_info
         ip_bin = struct.unpack('!I', socket.inet_aton(local_info["ip"]))[0]
@@ -124,7 +125,7 @@ class NetManager:
         broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
         broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
         while self.running:
-            msg = f"SimPub:{json.dumps(local_info)}"
+            msg = f"SimPub:{_id}:{json.dumps(local_info)}"
             _socket.sendto(msg.encode(), (broadcast_ip, ServerPort.DISCOVERY))
             sleep(0.5)
         logger.info("Broadcasting has been stopped")
