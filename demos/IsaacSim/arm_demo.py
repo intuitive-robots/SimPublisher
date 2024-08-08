@@ -224,6 +224,8 @@ class IsaacSimPublisher(SimPublisher):
         print("=" * 50)
         print("parsing stage:", stage)
 
+        self.use_usdrt_stage(stage)
+
         scene = SimScene()
         self.sim_scene = scene
 
@@ -308,6 +310,24 @@ class IsaacSimPublisher(SimPublisher):
         scene.root.children.append(obj2)
 
         return scene
+
+    def use_usdrt_stage(self, stage: Usd.Stage):
+        import omni
+        import omni.usd
+
+        from pxr import Usd, UsdUtils
+        from usdrt import Usd as RtUsd
+        from usdrt import UsdGeom as RtGeom
+        from usdrt import Rt
+
+        stage_id = UsdUtils.StageCache.Get().Insert(stage)
+        stage_id = stage_id.ToLongInt()
+        print("usdrt stage id:", stage_id)
+
+        rtstage = RtUsd.Stage.Attach(stage_id)
+        print("usdrt stage:", rtstage)
+
+        self.rt_stage = rtstage
 
     def parse_prim_tree(
         self,
@@ -554,6 +574,24 @@ class IsaacSimPublisher(SimPublisher):
         return sim_object
 
     def get_update(self) -> dict[str, list[float]]:
+        def print_state():
+            import omni
+            import omni.usd
+
+            from pxr import Usd, UsdUtils
+            from usdrt import Usd as RtUsd
+            from usdrt import UsdGeom as RtGeom
+            from usdrt import Rt
+
+            prim = self.rt_stage.GetPrimAtPath("/World/Origin1/Robot/panda_hand")
+            print(prim)
+            print(prim.GetTypeName())
+
+            prim = Rt.Xformable(prim)
+            print(prim.GetWorldPositionAttr().Get())
+
+        print_state()
+
         state = {}
 
         # for name, trans in self.tracked_obj_trans.items():
@@ -597,7 +635,8 @@ class IsaacSimPublisher(SimPublisher):
 
 
 def parse_stage(stage: Usd.Stage):
-    publisher = IsaacSimPublisher(host="192.168.0.134", stage=stage)
+    # publisher = IsaacSimPublisher(host="192.168.0.134", stage=stage)
+    publisher = IsaacSimPublisher(host="127.0.0.1", stage=stage)
 
 
 def run_custom_scene():
