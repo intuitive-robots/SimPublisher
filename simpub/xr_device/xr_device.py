@@ -37,7 +37,6 @@ class XRDevice:
         while not self.connected:
             client_info = self.manager.clients_info.get(self.device)
             if client_info is not None:
-                print(client_info)
                 self.connected = True
                 self.client_info = client_info
                 logger.info(f"Connected to {self.device}")
