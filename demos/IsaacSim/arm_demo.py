@@ -609,10 +609,10 @@ def run_custom_scene():
 
     # Initialize the simulation context
     sim_cfg = sim_utils.SimulationCfg()
-    sim_cfg.use_fabric = False
-    sim_cfg.device = "cpu"
-    sim_cfg.use_gpu_pipeline = False
-    sim_cfg.physx.use_gpu = False
+    # sim_cfg.use_fabric = False
+    # sim_cfg.device = "cpu"
+    # sim_cfg.use_gpu_pipeline = False
+    # sim_cfg.physx.use_gpu = False
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # Set main camera
@@ -719,8 +719,8 @@ def run_sample_env_1():
 if __name__ == "__main__":
     # run simulation on sample scenes
 
-    # run_custom_scene()
-    run_sample_env_1()
+    run_custom_scene()
+    # run_sample_env_1()
 
     # close sim app
     simulation_app.close()
