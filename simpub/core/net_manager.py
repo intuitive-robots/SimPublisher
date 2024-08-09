@@ -101,23 +101,27 @@ class NetManager:
         self.executor.shutdown()
 
     def service_loop(self):
-        logger.info("The service is running...")
-        # default service for client registration
-        self.register_local_service(
-            "Register", self.register_client_callback
-        )
-        self.register_local_service(
-            "GetServerTimestamp", self.get_server_timestamp_callback
-        )
-        while self.running:
-            message = self.service_socket.recv_string()
-            service, request = message.split(":", 1)
-            if service in self.service_callback.keys():
-                # the zmq service socket is blocked and only run one at a time
-                self.service_callback[service](request, self.service_socket)
-            else:
-                self.service_socket.send_string("Invild Service")
-        logger.info("Service has been stopped")
+        try:
+            logger.info("The service is running...")
+            # default service for client registration
+            self.register_local_service(
+                "Register", self.register_client_callback
+            )
+            self.register_local_service(
+                "GetServerTimestamp", self.get_server_timestamp_callback
+            )
+            while self.running:
+                message = self.service_socket.recv_string()
+                service, request = message.split(":", 1)
+                if service in self.service_callback.keys():
+                    # the zmq service socket is blocked and only run one at a time
+                    self.service_callback[service](request, self.service_socket)
+                else:
+                    self.service_socket.send_string("Invild Service")
+        except Exception as e:
+            logger.error(f"Service Loop from Net Manager throw an exception of {e}")
+        finally:
+            logger.info("Service has been stopped")
 
     def broadcast_loop(self):
         logger.info("The server is broadcasting...")

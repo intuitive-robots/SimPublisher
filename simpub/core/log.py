@@ -16,7 +16,7 @@ class CustomLogger(logging.Logger):
 
 class CustomFormatter(logging.Formatter):
     """Custom log formatter that adds colors"""
-    FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
+    FORMAT = "[%(asctime)s] [%(levelname)s] %(message)s"
 
     FORMATS = {
         logging.DEBUG: Fore.YELLOW + FORMAT + Fore.RESET,
