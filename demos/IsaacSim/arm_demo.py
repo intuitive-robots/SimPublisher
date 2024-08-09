@@ -671,8 +671,8 @@ class IsaacSimPublisher(SimPublisher):
 
 
 def parse_stage(stage: Usd.Stage):
-    # publisher = IsaacSimPublisher(host="192.168.0.134", stage=stage)
-    publisher = IsaacSimPublisher(host="127.0.0.1", stage=stage)
+    publisher = IsaacSimPublisher(host="192.168.0.134", stage=stage)
+    # publisher = IsaacSimPublisher(host="127.0.0.1", stage=stage)
 
 
 def run_custom_scene():
@@ -684,6 +684,8 @@ def run_custom_scene():
 
     # Initialize the simulation context
     sim_cfg = sim_utils.SimulationCfg()
+
+    # # use cpu simulation
     # sim_cfg.use_fabric = False
     # sim_cfg.device = "cpu"
     # sim_cfg.use_gpu_pipeline = False
@@ -732,9 +734,9 @@ def run_sample_env_1():
     # parse configuration
     env_cfg = parse_env_cfg(
         task_name=task,
-        use_gpu=False,
+        use_gpu=True,
         num_envs=1,
-        use_fabric=False,
+        use_fabric=True,
     )
     # modify configuration
     env_cfg.terminations.time_out = None
