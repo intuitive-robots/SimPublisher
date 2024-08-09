@@ -12,6 +12,7 @@ from simpub.simdata import SimMaterial, SimTransform
 from simpub.simdata import SimVisual
 from .utils import str2list, str2listabs, ros2unity
 from .utils import get_rot_from_xml, scale2unity, TypeMap
+from ...core.log import logger
 
 
 class MJCFScene(SimScene):
@@ -91,7 +92,7 @@ class MJCFParser:
                 continue
             sub_xml_path = os.path.join(self._path, child.attrib["file"])
             if not os.path.exists(sub_xml_path):
-                print(f"Warning: File '{sub_xml_path}' does not exist.")
+                logger.warning(f"Warning: File '{sub_xml_path}' does not exist.")
                 continue
             sub_xml_root = self.get_root_from_xml_file(sub_xml_path)
             root_xml.extend(sub_xml_root)
@@ -117,9 +118,9 @@ class MJCFParser:
                 )
             else:
                 self._texturedir = self._assetdir
-        print(f"assetdir: {self._assetdir}")
-        print(f"meshdir: {self._meshdir}")
-        print(f"texturedir: {self._texturedir}")
+        logger.info(f"assetdir: {self._assetdir}")
+        logger.info(f"meshdir: {self._meshdir}")
+        logger.info(f"texturedir: {self._texturedir}")
 
     def _load_defaults(self, root_xml: XMLNode) -> None:
         default_dict: Dict[str, MJCFDefault] = dict()

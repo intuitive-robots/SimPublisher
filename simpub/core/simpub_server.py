@@ -19,6 +19,7 @@ class ServerBase(abc.ABC):
     def join(self):
         self.net_manager.join()
 
+
 class MsgServer(ServerBase):
     pass
 
