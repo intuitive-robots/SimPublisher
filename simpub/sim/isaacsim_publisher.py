@@ -1,14 +1,10 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
-import argparse
 import io
 from hashlib import md5
-import trimesh
 import random
 import math
+
+import numpy as np
+import trimesh
 
 from simpub.core.simpub_server import SimPublisher
 from simpub.simdata import (
@@ -20,198 +16,9 @@ from simpub.simdata import (
     SimMesh,
 )
 
-from omni.isaac.lab.app import AppLauncher
-
-# add argparse arguments
-parser = argparse.ArgumentParser(
-    description="This script demonstrates different single-arm manipulators."
-)
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
-
-import numpy as np
-import torch
-
-import omni.usd
-from pxr import Usd, UsdGeom, UsdUtils, UsdPhysics, Gf
-import numpy as np
 import omni
-import carb
-from omni.physx.scripts import utils
-from omni.physx import get_physx_interface
-
-import omni.isaac.core.utils.prims as prim_utils
-
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-
-#
-import gymnasium as gym
-import torch
-
-import carb
-
-from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
-
-import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.utils import parse_env_cfg
-#
-
-print("=" * 20)
-print(ISAACLAB_NUCLEUS_DIR)
-
-##
-# Pre-defined configs
-##
-# isort: off
-from omni.isaac.lab_assets import (
-    FRANKA_PANDA_CFG,
-    UR10_CFG,
-    KINOVA_JACO2_N7S300_CFG,
-    KINOVA_JACO2_N6S300_CFG,
-    KINOVA_GEN3_N7_CFG,
-    SAWYER_CFG,
-)
-
-# isort: on
-
-
-def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
-    """Defines the origins of the the scene."""
-    # currently this function is unimportant, since we only test with a single origin/env.
-
-    # create tensor based on number of environments
-    env_origins = torch.zeros(num_origins, 3)
-    # create a grid of origins
-    num_rows = np.floor(np.sqrt(num_origins))
-    num_cols = np.ceil(num_origins / num_rows)
-    xx, yy = torch.meshgrid(
-        torch.arange(num_rows), torch.arange(num_cols), indexing="xy"
-    )
-    env_origins[:, 0] = (
-        spacing * xx.flatten()[:num_origins] - spacing * (num_rows - 1) / 2
-    )
-    env_origins[:, 1] = (
-        spacing * yy.flatten()[:num_origins] - spacing * (num_cols - 1) / 2
-    )
-    env_origins[:, 2] = 0.0
-    # return the origins
-    return env_origins.tolist()
-
-
-def design_scene() -> tuple[dict, list[list[float]]]:
-    """Designs the scene."""
-    # this function will build the scene by adding primitives to it.
-
-    # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-
-    # Lights
-    cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-    cfg.func("/World/Light", cfg)
-
-    # Create separate groups called "Origin1", "Origin2", "Origin3"
-    # Each group will have a mount and a robot on top of it
-    origins = define_origins(num_origins=1, spacing=2.0)
-
-    # Origin 1 with Franka Panda
-    prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
-    prim_utils.create_prim("/World/Origin1/Tables", "Xform")
-
-    # -- Table
-    cfg = sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"
-    )
-    cfg.func("/World/Origin1/Tables/Table", cfg, translation=(0.55, 0.0, 1.05))
-    cfg.func("/World/Origin1/Tables/Table_1", cfg, translation=(0.55, 3.0, 1.05))
-
-    # -- Robot
-    franka_arm_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot")
-    franka_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
-    franka_panda = Articulation(cfg=franka_arm_cfg)
-
-    # -- cube
-    cfg_cube = sim_utils.CuboidCfg(
-        size=(0.1, 0.1, 0.1),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 1.0)),
-    )
-    cfg_cube.func("/World/Origin1/Cube1", cfg_cube, translation=(0.2, 0.0, 3.0))
-
-    # return the scene information
-    scene_entities = {
-        "franka_panda": franka_panda,
-    }
-    return scene_entities, origins
-
-
-def run_simulator(
-    sim: sim_utils.SimulationContext,
-    entities: dict[str, Articulation],
-    origins: torch.Tensor,
-):
-    """Runs the simulation loop."""
-    # Define simulation stepping
-    sim_dt = sim.get_physics_dt()
-    sim_time = 0.0
-    count = 0
-    # Simulate physics
-    while simulation_app.is_running():
-        # reset
-        if count % 200 == 0:
-            # reset counters
-            sim_time = 0.0
-            count = 0
-            # reset the scene entities
-            for index, robot in enumerate(entities.values()):
-                # root state
-                root_state = robot.data.default_root_state.clone()
-                root_state[:, :3] += origins[index]
-                robot.write_root_state_to_sim(root_state)
-                # set joint positions
-                joint_pos, joint_vel = (
-                    robot.data.default_joint_pos.clone(),
-                    robot.data.default_joint_vel.clone(),
-                )
-                robot.write_joint_state_to_sim(joint_pos, joint_vel)
-                # clear internal buffers
-                robot.reset()
-            print("[INFO]: Resetting robots state...")
-        # apply random actions to the robots
-        for robot in entities.values():
-            # generate random joint positions
-            joint_pos_target = (
-                robot.data.default_joint_pos
-                + torch.randn_like(robot.data.joint_pos) * 0.1
-            )
-            joint_pos_target = joint_pos_target.clamp_(
-                robot.data.soft_joint_pos_limits[..., 0],
-                robot.data.soft_joint_pos_limits[..., 1],
-            )
-            # apply action to the robot
-            robot.set_joint_position_target(joint_pos_target)
-            # write data to sim
-            robot.write_data_to_sim()
-        # perform step
-        sim.step()
-        # update sim-time
-        sim_time += sim_dt
-        count += 1
-        # update buffers
-        for robot in entities.values():
-            robot.update(sim_dt)
+import omni.usd
+from pxr import Usd, UsdGeom, Gf
 
 
 class IsaacSimPublisher(SimPublisher):
@@ -335,11 +142,25 @@ class IsaacSimPublisher(SimPublisher):
         indent=0,
         parent_path=None,
     ) -> SimObject | None:
-        if root.GetTypeName() not in {"Xform", "Mesh", "Scope"}:  # Cube
+        # # handle cube and return
+        # # if the cube has children, they will be ignored...
+        # if root.GetTypeName() == "Cube":
+        #     prim_mesh_path = "/World/Origin1/Cube2/geometry/mesh"
+        #     prim = stage.GetPrimAtPath(prim_mesh_path)
+        #     # prim = usdrt.UsdGeom.Cube(prim)
+        #     print(prim)
+        #     # print(prim.GetSizeAttr().Get())
+
+        #     # only handle scale...
+        #     # translation: xformOp:translate
+        #     # rotation: xformOp:orient
+        #     print(prim.GetAttribute("xformOp:scale").Get())
+        #     return
+
+        if root.GetTypeName() not in {"Xform", "Mesh", "Scope", ""}:  # Cube
             # not good...
             # perhaps traverse twice and preserve only prims with meshes as children
-            if root.GetName() != "World":
-                return
+            return
 
         purpose_attr = root.GetAttribute("purpose")
         if purpose_attr and purpose_attr.Get() in {"proxy", "guide"}:
@@ -668,195 +489,3 @@ class IsaacSimPublisher(SimPublisher):
             ]
 
         return state
-
-
-def parse_stage(stage: Usd.Stage):
-    publisher = IsaacSimPublisher(host="192.168.0.134", stage=stage)
-    # publisher = IsaacSimPublisher(host="127.0.0.1", stage=stage)
-
-
-def run_custom_scene():
-    """Main function."""
-    # sim_utils.SimulationContext is a singleton class
-    # if SimulationContext.instance() is None:
-    #     self.sim: SimulationContext = SimulationContext(self.cfg.sim)
-    # or: print(env.sim)
-
-    # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg()
-
-    # # use cpu simulation
-    # sim_cfg.use_fabric = False
-    # sim_cfg.device = "cpu"
-    # sim_cfg.use_gpu_pipeline = False
-    # sim_cfg.physx.use_gpu = False
-    sim = sim_utils.SimulationContext(sim_cfg)
-
-    # Set main camera
-    sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
-
-    # design scene
-    scene_entities, scene_origins = design_scene()
-    scene_origins = torch.tensor(scene_origins, device=sim.device)
-
-    # Play the simulator
-    sim.reset()
-
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    parse_stage(sim.stage)
-
-    # Run the simulator
-    run_simulator(sim, scene_entities, scene_origins)
-
-
-def pre_process_actions(
-    task: str, delta_pose: torch.Tensor, gripper_command: bool
-) -> torch.Tensor:
-    """Pre-process actions for the environment."""
-    # compute actions based on environment
-    if "Reach" in task:
-        # note: reach is the only one that uses a different action space
-        # compute actions
-        return delta_pose
-    else:
-        # resolve gripper command
-        gripper_vel = torch.zeros(delta_pose.shape[0], 1, device=delta_pose.device)
-        gripper_vel[:] = -1.0 if gripper_command else 1.0
-        # compute actions
-        return torch.concat([delta_pose, gripper_vel], dim=1)
-
-
-def run_sample_env_1():
-    """Running keyboard teleoperation with Isaac Lab manipulation environment."""
-    task = "Isaac-Lift-Cube-Franka-IK-Rel-v0"
-
-    # parse configuration
-    env_cfg = parse_env_cfg(
-        task_name=task,
-        use_gpu=True,
-        num_envs=1,
-        use_fabric=True,
-    )
-    # modify configuration
-    env_cfg.terminations.time_out = None
-
-    # create environment
-    env = gym.make(task, cfg=env_cfg)
-    # print(env.sim)
-
-    # check environment name (for reach , we don't allow the gripper)
-    if "Reach" in task:
-        carb.log_warn(
-            f"The environment '{task}' does not support gripper control. The device command will be ignored."
-        )
-
-    # create controller
-    sensitivity = 10
-    teleop_interface = Se3Keyboard(
-        pos_sensitivity=0.005 * sensitivity,
-        rot_sensitivity=0.005 * sensitivity,
-    )
-
-    # add teleoperation key for env reset
-    teleop_interface.add_callback("L", env.reset)
-    # print helper for keyboard
-    print(teleop_interface)
-
-    # reset environment
-    env.reset()
-    teleop_interface.reset()
-
-    print("simulation context:", env.sim)
-    print("stage:", env.sim.stage)
-    if env.sim is not None and env.sim.stage is not None:
-        print("parsing usd stage...")
-        parse_stage(env.sim.stage)
-
-    # simulate environment
-    while simulation_app.is_running():
-        # run everything in inference mode
-        with torch.inference_mode():
-            # get keyboard command
-            delta_pose, gripper_command = teleop_interface.advance()
-            delta_pose = delta_pose.astype("float32")
-            # convert to torch
-            delta_pose = torch.tensor(delta_pose, device=env.unwrapped.device).repeat(
-                env.unwrapped.num_envs, 1
-            )
-            # pre-process actions
-            actions = pre_process_actions(task, delta_pose, gripper_command)
-            # apply actions
-            env.step(actions)
-
-    # close the simulator
-    env.close()
-
-
-if __name__ == "__main__":
-    # run simulation on sample scenes
-
-    run_custom_scene()
-    # run_sample_env_1()
-
-    # close sim app
-    simulation_app.close()
-
-
-# stage: Usd.Stage = omni.usd.get_context().get_stage()
-# print(f"stage: {stage}\n")
-
-
-# # def iterate_prim_children(root: Usd.Prim):
-# #     print(f"{root.GetName()}")
-# #     obj: Usd.Prim
-# #     for obj in root.GetChildren():
-# #         print("")
-# #         print("=" * 50)
-# #         print(f"obj: {obj}")
-# #         print(f"type: {obj.GetTypeName()}")
-# #         print(f"is instance: {obj.IsInstance()}")
-# #         print(f"is instance proxy: {obj.IsInstanceProxy()}")
-# #         print(f"is instancable: {obj.IsInstanceable()}")
-# #         if obj.IsInstance():
-# #             print(obj.GetPrototype().IsInPrototype())
-# #             print(obj.GetPrototype().GetChildrenNames())
-# #             print(obj.GetPrototype().GetTypeName())
-# #             for child in obj.GetPrototype().GetChildren():
-# #                 print(f"{child.GetName()} {child.GetTypeName()}")
-# #         else:
-# #             print(obj.GetChildrenNames())
-# #             for i, name in enumerate(obj.GetPropertyNames()):
-# #                 print(name)
-
-# #         if obj.IsInstance():
-# #             iterate_prim_children(obj.GetPrototype())
-# #         else:
-# #             iterate_prim_children(obj)
-
-
-# # iterate_prim_children(stage.GetPrimAtPath("/World/Origin1"))
-
-# # timeline = omni.timeline.get_timeline_interface()
-# # timecode = timeline.get_current_time() * timeline.get_time_codes_per_seconds()
-
-# # prim = stage.GetPrimAtPath("/World/Origin1/Table/Visuals")
-
-# # print(omni.usd.get_world_transform_matrix(prim, timecode))
-# # print(prim)
-# # print(prim.IsInstance())
-# # print(prim.GetTypeName())
-# # print(prim.GetPrototype())
-# # proto = prim.GetPrototype()
-# # print(proto.GetChildrenNames())
-# # geom = proto.GetChild("TableGeom")
-# # print(geom)
-# # print(geom.GetTypeName())
-# # print(geom.GetChildrenNames())
-# # print(geom.GetChild("subset").GetChildrenNames())
-# # mesh = UsdGeom.Mesh(geom)
-# # print(mesh)
-# # points = np.asarray(mesh.GetPointsAttr().Get())
-# # indices = np.asarray(mesh.GetFaceVertexIndicesAttr().Get())
-# # print(f"{points} {points.dtype} {points.shape}")
-# # print(f"{indices} {indices.dtype} {indices.shape}")
