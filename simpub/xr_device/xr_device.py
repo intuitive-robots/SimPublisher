@@ -3,7 +3,7 @@ import zmq
 from typing import Dict, Callable
 import time
 
-from ..core.subscriber import logger
+from ..core.log import logger
 from ..core.net_manager import NetManager, Topic, ClientPort
 
 
@@ -51,7 +51,6 @@ class XRDevice:
 
     def register_topic_callback(self, topic: str, callback: Callable):
         self.sub_topic_callback[topic] = callback
-        self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
 
     def request(self, service: str, req: str) -> str:
         if self.client_info is None:
@@ -64,10 +63,16 @@ class XRDevice:
         return self.req_socket.recv_string()
 
     def subscribe_loop(self):
-        while self.connected:
-            message = self.sub_socket.recv_string()
-            topic, msg = message.split(":", 1)
-            self.sub_topic_callback[topic](msg)
+        try:
+            while self.connected:
+                message = self.sub_socket.recv_string()
+                topic, msg = message.split(":", 1)
+                if topic in self.sub_topic_callback:
+                    self.sub_topic_callback[topic](msg)
+        except Exception as e:
+            logger.error(
+                f"Catch one exception {e} from subscribe loop in device {self.device}"
+            )
 
     def print_log(self, log: str):
         logger.remotelog(f"{self.type} Log: {log}")
