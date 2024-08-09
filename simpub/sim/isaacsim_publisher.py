@@ -74,7 +74,7 @@ class IsaacSimPublisher(SimPublisher):
         parent_path=None,
     ) -> SimObject | None:
         """parse the tree starting from a prim"""
-        if root.GetTypeName() not in {"", "Xform", "Mesh", "Scope", "Cube"}:
+        if root.GetTypeName() not in {"", "Xform", "Mesh", "Scope", "Cube", "Capsule"}:
             #! todo: perhaps traverse twice and preserve only prims with meshes as children
             return
 
@@ -186,7 +186,46 @@ class IsaacSimPublisher(SimPublisher):
             mesh_prim = UsdGeom.Mesh(prim)
             assert mesh_prim is not None
 
-            sim_mesh = self.parse_mesh(mesh_prim, indent)
+            vertices = np.asarray(mesh_prim.GetPointsAttr().Get(), dtype=np.float32)
+            normals = np.asarray(mesh_prim.GetNormalsAttr().Get(), dtype=np.float32)
+            indices = np.asarray(
+                mesh_prim.GetFaceVertexIndicesAttr().Get(), dtype=np.int32
+            )
+            face_vertex_counts = np.asarray(
+                mesh_prim.GetFaceVertexCountsAttr().Get(), dtype=np.int32
+            )
+
+            # assuming there are either only triangular faces or only quad faces...
+            assert len(set(face_vertex_counts)) == 1
+            num_vert_per_face = face_vertex_counts[0]
+
+            mesh_obj = trimesh.Trimesh(
+                vertices=vertices, faces=indices.reshape(-1, num_vert_per_face)
+            )
+
+            # validate mesh data... (not really necessary)
+            vertices = vertices.flatten()
+            normals = normals.flatten()
+            indices = indices.flatten()
+            print(
+                "\t" * indent
+                + f"vertices size: {vertices.shape[0] // 3} {vertices.shape[0] % 3}"
+            )
+            print(
+                "\t" * indent
+                + f"normals size: {normals.shape[0] // 3} {normals.shape[0] % 3}"
+            )
+            print(
+                "\t" * indent
+                + f"triangles: {indices.shape[0] // 3} {indices.shape[0] % 3}"
+            )
+            assert normals.shape[0] // 3 == indices.shape[0]
+            print(
+                "\t" * indent
+                + f"normal per index: {normals.shape[0] // 3} {indices.shape[0]}"
+            )
+
+            sim_mesh = self.build_mesh_buffer(mesh_obj)
             sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cube":
@@ -215,7 +254,28 @@ class IsaacSimPublisher(SimPublisher):
             sim_obj.trans.scale = [1.0] * 3
 
         elif prim_type == "Capsule":
-            pass
+            rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
+            cap_prim = RtGeom.Capsule(rt_prim)
+
+            axis = cap_prim.GetAxisAttr().Get()
+            height = cap_prim.GetHeightAttr().Get()
+            radius = cap_prim.GetRadiusAttr().Get()
+
+            capsule_mesh = trimesh.creation.capsule(height=height, radius=radius)
+            if axis == "Y":
+                capsule_mesh.apply_transform(
+                    trimesh.transformations.rotation_matrix(math.pi / 2, [1, 0, 0])
+                )
+            elif axis == "X":
+                capsule_mesh.apply_transform(
+                    trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0])
+                )
+
+            # scale/translation/rotation not handled,
+            # since it seems that isaac lab won't modify them...
+
+            sim_mesh = self.build_mesh_buffer(capsule_mesh)
+            sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cone":
             pass
@@ -226,22 +286,8 @@ class IsaacSimPublisher(SimPublisher):
         elif prim_type == "Sphere":
             pass
 
-    def parse_mesh(self, mesh_prim: UsdGeom.Mesh, indent):
-        vertices = np.asarray(mesh_prim.GetPointsAttr().Get(), dtype=np.float32)
-        normals = np.asarray(mesh_prim.GetNormalsAttr().Get(), dtype=np.float32)
-        indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get(), dtype=np.int32)
-        face_vertex_counts = np.asarray(
-            mesh_prim.GetFaceVertexCountsAttr().Get(), dtype=np.int32
-        )
-
-        # assuming there are either only triangular faces or only quad faces...
-        assert len(set(face_vertex_counts)) == 1
-        num_vert_per_face = face_vertex_counts[0]
-
-        mesh_obj = trimesh.Trimesh(
-            vertices=vertices, faces=indices.reshape(-1, num_vert_per_face)
-        )
-        mesh_obj = mesh_obj.apply_transform(
+    def build_mesh_buffer(self, mesh_obj: trimesh.Trimesh):
+        mesh_obj.apply_transform(
             trimesh.transformations.euler_matrix(-math.pi / 2.0, math.pi / 2.0, 0)
         )
 
@@ -249,27 +295,6 @@ class IsaacSimPublisher(SimPublisher):
         # in isaac sim the same vertex on different faces can have different normals,
         # but this is not supported by simpub, so here per-vertex normals are calculated.
         mesh_obj.fix_normals()
-
-        # validate mesh data... (not really necessary)
-        vertices = vertices.flatten()
-        normals = normals.flatten()
-        indices = indices.flatten()
-        print(
-            "\t" * indent
-            + f"vertices size: {vertices.shape[0] // 3} {vertices.shape[0] % 3}"
-        )
-        print(
-            "\t" * indent
-            + f"normals size: {normals.shape[0] // 3} {normals.shape[0] % 3}"
-        )
-        print(
-            "\t" * indent + f"triangles: {indices.shape[0] // 3} {indices.shape[0] % 3}"
-        )
-        assert normals.shape[0] // 3 == indices.shape[0]
-        print(
-            "\t" * indent
-            + f"normal per index: {normals.shape[0] // 3} {indices.shape[0]}"
-        )
 
         # fill some buffers
         bin_buffer = io.BytesIO()

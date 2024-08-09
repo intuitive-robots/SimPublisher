@@ -15,7 +15,6 @@ from .utils import get_rot_from_xml, scale2unity, TypeMap
 
 
 class MJCFScene(SimScene):
-
     def __init__(self) -> None:
         super().__init__()
         self.xml_string: str = None
@@ -70,7 +69,7 @@ class MJCFParser:
 
     def get_root_from_xml_file(self, xml_path: str) -> XMLNode:
         xml_path = os.path.abspath(xml_path)
-        assert os.path.exists(xml_path), (f"File '{xml_path}' does not exist.")
+        assert os.path.exists(xml_path), f"File '{xml_path}' does not exist."
         tree_xml = ET.parse(xml_path)
         return tree_xml.getroot()
 
@@ -112,9 +111,7 @@ class MJCFParser:
             else:
                 self._meshdir = self._assetdir
             if "texturedir" in compiler.attrib:
-                self._texturedir = pjoin(
-                    self._path, compiler.get("texturedir", "")
-                )
+                self._texturedir = pjoin(self._path, compiler.get("texturedir", ""))
             else:
                 self._texturedir = self._assetdir
         print(f"assetdir: {self._assetdir}")
@@ -150,17 +147,13 @@ class MJCFParser:
         if xml.tag == "default":
             return
         default_name = (
-            xml.attrib["class"]
-            if "class" in xml.attrib.keys()
-            else parent_name
+            xml.attrib["class"] if "class" in xml.attrib.keys() else parent_name
         )
         default = default_dict[default_name]
         default.update_xml(xml)
 
         parent_name = (
-            xml.attrib["childclass"]
-            if "childclass" in xml.attrib
-            else parent_name
+            xml.attrib["childclass"] if "childclass" in xml.attrib else parent_name
         )
         for child in xml:
             self._import_default(child, default_dict, parent_name)
@@ -180,9 +173,7 @@ class MJCFParser:
                     mj_scene.raw_data[mesh.dataHash] = bin_data
 
                 elif asset.tag == "material":
-                    color = str2list(
-                        asset.get("rgba", "1 1 1 1")
-                    )
+                    color = str2list(asset.get("rgba", "1 1 1 1"))
                     emission = float(asset.get("emission", "0.0"))
                     emissionColor = [emission * c for c in color]
                     material = SimMaterial(
@@ -191,12 +182,10 @@ class MJCFParser:
                         emissionColor=emissionColor,
                         specular=float(asset.get("specular", "0.5")),
                         shininess=float(asset.get("shininess", "0.5")),
-                        reflectance=float(asset.get("reflectance", "0.0"))
+                        reflectance=float(asset.get("reflectance", "0.0")),
                     )
                     material.texture = asset.get("texture", None)
-                    material.texsize = str2list(
-                        asset.get("texrepeat", "1 1")
-                    )
+                    material.texsize = str2list(asset.get("texrepeat", "1 1"))
                     mj_scene.materials.append(material)
                 elif asset.tag == "texture":
                     name = asset.get("name") or asset.get("type")
@@ -207,9 +196,7 @@ class MJCFParser:
                             name, builtin, tint
                         )
                     else:
-                        asset_file = pjoin(
-                            self._texturedir, asset.attrib["file"]
-                        )
+                        asset_file = pjoin(self._texturedir, asset.attrib["file"])
                         byte_data = Path(asset_file).read_bytes()
                         texture, bin_data = TextureLoader.from_bytes(
                             name, byte_data, asset.get("type", "cube"), tint
@@ -255,10 +242,8 @@ class MJCFParser:
             return
 
         trans = SimTransform(
-            pos=ros2unity(
-                str2list(body.get("pos", "0 0 0"))
-            ),
-            rot=get_rot_from_xml(body)
+            pos=ros2unity(str2list(body.get("pos", "0 0 0"))),
+            rot=get_rot_from_xml(body),
         )
 
         visuals: List[SimVisual] = list()
