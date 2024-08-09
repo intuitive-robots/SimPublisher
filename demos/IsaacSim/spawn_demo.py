@@ -125,7 +125,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
         collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 1.0)),
     )
-    cfg_cube.func("/World/Origin1/Cube2", cfg_cube, translation=(0.2, 1.0, 3.0))
+    cfg_cube.func("/World/Origin1/Cube2", cfg_cube, translation=(0.2, 0.0, 5.0))
 
     # return the scene information
     scene_entities = {
