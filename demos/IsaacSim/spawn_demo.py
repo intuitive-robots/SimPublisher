@@ -127,6 +127,45 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     )
     cfg_cube.func("/World/Origin1/Cube2", cfg_cube, translation=(0.2, 0.0, 5.0))
 
+    cfg_capsule = sim_utils.CapsuleCfg(
+        radius=0.1,
+        height=0.3,
+        axis="Z",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.1, 0.1)),
+    )
+    cfg_capsule.func(
+        "/World/Origin1/CapsuleZ", cfg_capsule, translation=(0.2, 0.0, 7.0)
+    )
+
+    cfg_capsule = sim_utils.CapsuleCfg(
+        radius=0.1,
+        height=0.3,
+        axis="X",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 1.0, 0.1)),
+    )
+    cfg_capsule.func(
+        "/World/Origin1/CapsuleX", cfg_capsule, translation=(0.2, 0.0, 9.0)
+    )
+
+    cfg_capsule = sim_utils.CapsuleCfg(
+        radius=0.1,
+        height=0.3,
+        axis="Y",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 1.0)),
+    )
+    cfg_capsule.func(
+        "/World/Origin1/CapsuleY", cfg_capsule, translation=(0.2, 0.0, 11.0)
+    )
+
     # return the scene information
     scene_entities = {
         "franka_panda": franka_panda,

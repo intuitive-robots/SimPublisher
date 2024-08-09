@@ -83,36 +83,14 @@ class IsaacSimPublisher(SimPublisher):
         if purpose_attr and purpose_attr.Get() in {"proxy", "guide"}:
             return
 
-        # not really necessary...
-        timeline = omni.timeline.get_timeline_interface()
-        timecode = timeline.get_current_time() * timeline.get_time_codes_per_seconds()
-
-        # extract local transformation
-        trans_mat = omni.usd.get_local_transform_matrix(root, timecode)
-
-        x_scale = Gf.Vec3d(
-            trans_mat[0][0], trans_mat[0][1], trans_mat[0][2]
-        ).GetLength()
-        y_scale = Gf.Vec3d(
-            trans_mat[1][0], trans_mat[1][1], trans_mat[1][2]
-        ).GetLength()
-        z_scale = Gf.Vec3d(
-            trans_mat[2][0], trans_mat[2][1], trans_mat[2][2]
-        ).GetLength()
-        scale = [x_scale, z_scale, y_scale]
-
-        translate = trans_mat.ExtractTranslation()
-        translate = [-translate[1], translate[2], translate[0]]
-
-        rot = trans_mat.ExtractRotationQuat()
-        imag = rot.GetImaginary()
-        rot = [imag[1], -imag[2], -imag[0], rot.GetReal()]
-
         # compute usd path of current prim
         if parent_path is None:
             prim_path = str(root.GetPrimPath())
         else:
             prim_path = f"{parent_path}/{root.GetName()}"
+
+        # compute local transforms
+        translate, rot, scale = self.compute_local_trans(root)
 
         # create a node for current prim
         sim_object = SimObject(
@@ -125,38 +103,13 @@ class IsaacSimPublisher(SimPublisher):
             + f"{prim_path}: {root.GetTypeName()} {root.GetAttribute('purpose').Get()} {sim_object.trans.scale}"
         )
 
-        if root.GetTypeName() == "Mesh":
-            # for soft body, maybe use usdrt.UsdGeom.xxx (in get_update() function, not here)
-            mesh_prim = UsdGeom.Mesh(root)
-            assert mesh_prim is not None
-
-            sim_mesh = self.parse_mesh(mesh_prim, indent)
-            sim_object.visuals.append(sim_mesh)
-
-        elif root.GetTypeName() == "Cube":
-            prim = self.rt_stage.GetPrimAtPath(prim_path)
-            # only handle scale...
-            # translation: xformOp:translate
-            # rotation: xformOp:orient
-            cube_scale = prim.GetAttribute("xformOp:scale").Get()
-
-            cube_prim = RtGeom.Cube(prim)
-            cube_size = cube_prim.GetSizeAttr().Get()
-
-            sim_cube = SimVisual(
-                type=VisualType.CUBE,
-                trans=SimTransform(
-                    scale=[
-                        cube_size * cube_scale[1],
-                        cube_size * cube_scale[2],
-                        cube_size * cube_scale[0],
-                    ]
-                ),
-                color=[1.0, 1.0, 1.0, 1.0],
-            )
-
-            sim_object.visuals.append(sim_cube)
-            sim_object.trans.scale = [1.0] * 3
+        # parse meshes and other primitive shapes
+        self.parse_prim_geometries(
+            prim=root,
+            prim_path=prim_path,
+            sim_obj=sim_object,
+            indent=indent,
+        )
 
         # track prims with rigid objects attached
         if (attr := root.GetAttribute("physics:rigidBodyEnabled")) and attr.Get():
@@ -187,6 +140,91 @@ class IsaacSimPublisher(SimPublisher):
                     sim_object.children.append(obj)
 
         return sim_object
+
+    def compute_local_trans(self, prim: Usd.Prim):
+        # not really necessary...
+        timeline = omni.timeline.get_timeline_interface()
+        timecode = timeline.get_current_time() * timeline.get_time_codes_per_seconds()
+
+        # extract local transformation
+        trans_mat = omni.usd.get_local_transform_matrix(prim, timecode)
+
+        # get scale
+        x_scale = Gf.Vec3d(
+            trans_mat[0][0], trans_mat[0][1], trans_mat[0][2]
+        ).GetLength()
+        y_scale = Gf.Vec3d(
+            trans_mat[1][0], trans_mat[1][1], trans_mat[1][2]
+        ).GetLength()
+        z_scale = Gf.Vec3d(
+            trans_mat[2][0], trans_mat[2][1], trans_mat[2][2]
+        ).GetLength()
+        scale = [x_scale, z_scale, y_scale]
+
+        # get translation
+        translate = trans_mat.ExtractTranslation()
+        translate = [-translate[1], translate[2], translate[0]]
+
+        # get rotation
+        rot = trans_mat.ExtractRotationQuat()
+        imag = rot.GetImaginary()
+        rot = [imag[1], -imag[2], -imag[0], rot.GetReal()]
+
+        return translate, rot, scale
+
+    def parse_prim_geometries(
+        self,
+        prim: Usd.Prim,
+        prim_path: str,
+        sim_obj: SimObject,
+        indent: int,
+    ):
+        prim_type = prim.GetTypeName()
+
+        if prim_type == "Mesh":
+            # for soft body, maybe use usdrt.UsdGeom.xxx (in get_update() function, not here)
+            mesh_prim = UsdGeom.Mesh(prim)
+            assert mesh_prim is not None
+
+            sim_mesh = self.parse_mesh(mesh_prim, indent)
+            sim_obj.visuals.append(sim_mesh)
+
+        elif prim_type == "Cube":
+            rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
+            # only handle scale...
+            # translation: xformOp:translate
+            # rotation: xformOp:orient
+            cube_scale = rt_prim.GetAttribute("xformOp:scale").Get()
+
+            cube_prim = RtGeom.Cube(rt_prim)
+            cube_size = cube_prim.GetSizeAttr().Get()
+
+            sim_cube = SimVisual(
+                type=VisualType.CUBE,
+                trans=SimTransform(
+                    scale=[
+                        cube_size * cube_scale[1],
+                        cube_size * cube_scale[2],
+                        cube_size * cube_scale[0],
+                    ]
+                ),
+                color=[1.0, 1.0, 1.0, 1.0],
+            )
+
+            sim_obj.visuals.append(sim_cube)
+            sim_obj.trans.scale = [1.0] * 3
+
+        elif prim_type == "Capsule":
+            pass
+
+        elif prim_type == "Cone":
+            pass
+
+        elif prim_type == "Cylinder":
+            pass
+
+        elif prim_type == "Sphere":
+            pass
 
     def parse_mesh(self, mesh_prim: UsdGeom.Mesh, indent):
         vertices = np.asarray(mesh_prim.GetPointsAttr().Get(), dtype=np.float32)
