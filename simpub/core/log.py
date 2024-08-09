@@ -1,8 +1,17 @@
 import logging
 from colorama import init, Fore
 
-# Initialize colorama
 init(autoreset=True)
+
+# Define a new log level
+REMOTELOG_LEVEL_NUM = 25
+logging.addLevelName(REMOTELOG_LEVEL_NUM, "REMOTELOG")
+
+
+class CustomLogger(logging.Logger):
+    def remotelog(self, message, *args, **kws):
+        if self.isEnabledFor(REMOTELOG_LEVEL_NUM):
+            self._log(REMOTELOG_LEVEL_NUM, message, args, **kws)
 
 
 class CustomFormatter(logging.Formatter):
@@ -13,17 +22,22 @@ class CustomFormatter(logging.Formatter):
         logging.DEBUG: Fore.YELLOW + FORMAT + Fore.RESET,
         logging.INFO: Fore.BLUE + FORMAT + Fore.RESET,
         logging.WARNING: Fore.RED + FORMAT + Fore.RESET,
+        logging.ERROR: Fore.MAGENTA + FORMAT + Fore.RESET,
+        logging.CRITICAL: Fore.CYAN + FORMAT + Fore.RESET,
+        # Add custom level format
+        REMOTELOG_LEVEL_NUM: Fore.GREEN + FORMAT + Fore.RESET,
     }
 
     def format(self, record):
-        log_fmt = self.FORMATS.get(record.levelno)
+        log_fmt = self.FORMATS.get(record.levelno, self.FORMAT)
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
 
 def get_logger():
     """Create and return a custom logger"""
-    logger = logging.getLogger()
+    # logger = logging.getLogger("SimPublisher")
+    logger = CustomLogger("SimPublisher")
     logger.setLevel(logging.DEBUG)
 
     # Create console handler and set level
@@ -41,4 +55,5 @@ def get_logger():
     return logger
 
 
+# Get the logger
 logger = get_logger()

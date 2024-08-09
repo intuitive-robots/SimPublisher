@@ -58,7 +58,7 @@ class XRDevice:
             logger.error(f"Device {self.device} is not connected")
             return ""
         if service not in self.client_info["services"]:
-            logger.error(f"Service {service} is not available")
+            logger.error(f"\"{service}\" Service is not available")
             return ""
         self.req_socket.send_string(f"{service}:{req}")
         return self.req_socket.recv_string()
@@ -70,7 +70,7 @@ class XRDevice:
             self.sub_topic_callback[topic](msg)
 
     def print_log(self, log: str):
-        logger.info(f"{self.type} Log: {log}")
+        logger.remotelog(f"{self.type} Log: {log}")
 
     def get_input_data(self) -> InputData:
         pass
