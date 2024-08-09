@@ -12,7 +12,7 @@ class Publisher(ConnectionAbstract):
         self.topic = topic
         self.socket = self.manager.pub_socket
         self.manager.register_local_topic(self.topic)
-        logger.info(f"Publisher for topic {self.topic} is ready")
+        logger.info(f"Publisher for topic \"{self.topic}\" is ready")
 
     def publish(self, data: Dict):
         msg = f"{self.topic}:{dumps(data)}"
@@ -48,6 +48,6 @@ class Streamer(Publisher):
             last = time.monotonic()
             msg = {
                 "updateData": self.update_func(),
-                "time": time.monotonic()
+                "time": last,
             }
             self.socket.send_string(f"{self.topic}:{dumps(msg)}")
