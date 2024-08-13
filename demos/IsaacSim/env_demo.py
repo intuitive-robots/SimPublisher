@@ -105,7 +105,8 @@ def main():
     print("stage:", env.sim.stage)
     if env.sim is not None and env.sim.stage is not None:
         print("parsing usd stage...")
-        publisher = IsaacSimPublisher(host="192.168.0.134", stage=env.sim.stage)
+        # publisher = IsaacSimPublisher(host="192.168.0.134", stage=env.sim.stage)
+        publisher = IsaacSimPublisher(host="127.0.0.1", stage=env.sim.stage)
 
     # simulate environment
     while simulation_app.is_running():

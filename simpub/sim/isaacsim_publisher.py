@@ -74,7 +74,19 @@ class IsaacSimPublisher(SimPublisher):
         parent_path=None,
     ) -> SimObject | None:
         """parse the tree starting from a prim"""
-        if root.GetTypeName() not in {"", "Xform", "Mesh", "Scope", "Cube", "Capsule"}:
+
+        # define prim types that are not ignored
+        if root.GetTypeName() not in {
+            "",
+            "Xform",
+            "Mesh",
+            "Scope",
+            "Cube",
+            "Capsule",
+            "Cone",
+            "Cylinder",
+            "Sphere",
+        }:
             #! todo: perhaps traverse twice and preserve only prims with meshes as children
             return
 
@@ -264,7 +276,7 @@ class IsaacSimPublisher(SimPublisher):
             capsule_mesh = trimesh.creation.capsule(height=height, radius=radius)
             if axis == "Y":
                 capsule_mesh.apply_transform(
-                    trimesh.transformations.rotation_matrix(math.pi / 2, [1, 0, 0])
+                    trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0])
                 )
             elif axis == "X":
                 capsule_mesh.apply_transform(
@@ -278,13 +290,69 @@ class IsaacSimPublisher(SimPublisher):
             sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cone":
-            pass
+            rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
+            cap_prim = RtGeom.Cone(rt_prim)
+
+            axis = cap_prim.GetAxisAttr().Get()
+            height = cap_prim.GetHeightAttr().Get()
+            radius = cap_prim.GetRadiusAttr().Get()
+
+            cone_mesh = trimesh.creation.cone(height=height, radius=radius)
+            cone_mesh.apply_transform(
+                trimesh.transformations.translation_matrix([0, 0, -height * 0.5])
+            )
+            if axis == "Y":
+                cone_mesh.apply_transform(
+                    trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0])
+                )
+            elif axis == "X":
+                cone_mesh.apply_transform(
+                    trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0])
+                )
+
+            # scale/translation/rotation not handled,
+            # since it seems that isaac lab won't modify them...
+
+            sim_mesh = self.build_mesh_buffer(cone_mesh)
+            sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cylinder":
-            pass
+            rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
+            cap_prim = RtGeom.Cylinder(rt_prim)
+
+            axis = cap_prim.GetAxisAttr().Get()
+            height = cap_prim.GetHeightAttr().Get()
+            radius = cap_prim.GetRadiusAttr().Get()
+
+            cylinder_mesh = trimesh.creation.cylinder(height=height, radius=radius)
+            if axis == "Y":
+                cylinder_mesh.apply_transform(
+                    trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0])
+                )
+            elif axis == "X":
+                cylinder_mesh.apply_transform(
+                    trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0])
+                )
+
+            # scale/translation/rotation not handled,
+            # since it seems that isaac lab won't modify them...
+
+            sim_mesh = self.build_mesh_buffer(cylinder_mesh)
+            sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Sphere":
-            pass
+            rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
+            cap_prim = RtGeom.Sphere(rt_prim)
+
+            radius = cap_prim.GetRadiusAttr().Get()
+
+            sphere_mesh = trimesh.creation.uv_sphere(radius=radius)
+
+            # scale/translation/rotation not handled,
+            # since it seems that isaac lab won't modify them...
+
+            sim_mesh = self.build_mesh_buffer(sphere_mesh)
+            sim_obj.visuals.append(sim_mesh)
 
     def build_mesh_buffer(self, mesh_obj: trimesh.Trimesh):
         mesh_obj.apply_transform(
