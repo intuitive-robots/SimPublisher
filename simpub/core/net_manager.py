@@ -6,6 +6,7 @@ import zmq
 import socket
 from socket import AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST
 import struct
+import time
 from time import sleep
 import json
 import uuid
@@ -84,12 +85,13 @@ class NetManager:
         self.clients_info: Dict[str, HostInfo] = {}
         # setting up thread pool
         self.running: bool = True
-        self.executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=5)
+        self.executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=10)
         self.futures: List[Future] = []
         self.submit_task(self.broadcast_loop)
         self.submit_task(self.service_loop)
 
     def submit_task(self, task: Callable, *args):
+        # NOTE: It wouldn't stop even if any thread throws an exception
         future = self.executor.submit(task, *args)
         self.futures.append(future)
 
@@ -99,18 +101,27 @@ class NetManager:
         self.executor.shutdown()
 
     def service_loop(self):
-        logger.info("The service is running...")
-        self.manager.register_local_service(
-            "Register", self.register_client_callback
-        )
-        while self.running:
-            message = self.service_socket.recv_string()
-            service, request = message.split(":", 1)
-            if service in self.service_callback.keys():
-                # the zmq service socket is blocked and only run one at a time
-                self.service_callback[service](request, self.service_socket)
-            else:
-                self.service_socket.send_string("Invild Service")
+        try:
+            logger.info("The service is running...")
+            # default service for client registration
+            self.register_local_service(
+                "Register", self.register_client_callback
+            )
+            self.register_local_service(
+                "GetServerTimestamp", self.get_server_timestamp_callback
+            )
+            while self.running:
+                message = self.service_socket.recv_string()
+                service, request = message.split(":", 1)
+                if service in self.service_callback.keys():
+                    # the zmq service socket is blocked and only run one at a time
+                    self.service_callback[service](request, self.service_socket)
+                else:
+                    self.service_socket.send_string("Invild Service")
+        except Exception as e:
+            logger.error(f"Service Loop from Net Manager throw an exception of {e}")
+        finally:
+            logger.info("Service has been stopped")
 
     def broadcast_loop(self):
         logger.info("The server is broadcasting...")
@@ -138,7 +149,10 @@ class NetManager:
         # NOTE: the client info may be updated so the reference cannot be used
         # NOTE: TypeDict is somehow block if the key is not in the dict
         self.clients_info[client_name] = client_info
-        logger.info(f"Host {client_name} has been registered")
+        logger.info(f"Host \"{client_name}\" has been registered")
+
+    def get_server_timestamp_callback(self, msg: str, socket: zmq.Socket):
+        socket.send_string(str(time.monotonic()))
 
     def register_local_topic(self, topic: Topic):
         if topic in self.local_info["topics"]:

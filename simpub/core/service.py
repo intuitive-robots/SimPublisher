@@ -17,7 +17,7 @@ class Service(ConnectionAbstract):
         self.manager.register_local_service(
             service_name, callback
         )
-        logger.info(f"Service {self.service_name} is ready")
+        logger.info(f"\"{self.service_name}\" Service is ready")
 
     def on_shutdown(self):
         return super().on_shutdown()

@@ -13,7 +13,7 @@ from alr_sim.utils.sim_path import sim_framework_path
 from simpub.parser.mjcf import MJCFParser, MJCFScene
 from ..core.simpub_server import SimPublisher
 from .mj_publisher import MujocoPublisher
-
+from ..core.log import logger
 
 class SFParser(MJCFParser):
     def __init__(self, mj_sim: MjScene):
@@ -75,9 +75,9 @@ class SFParser(MJCFParser):
                 )
             else:
                 self._texturedir = self._assetdir
-        print(f"assetdir: {self._assetdir}")
-        print(f"meshdir: {self._meshdir}")
-        print(f"texturedir: {self._texturedir}")
+        logger.info(f"assetdir: {self._assetdir}")
+        logger.info(f"meshdir: {self._meshdir}")
+        logger.info(f"texturedir: {self._texturedir}")
 
 
 class SFPublisher(MujocoPublisher):
