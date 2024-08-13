@@ -4,6 +4,8 @@ import numpy as np
 from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.universal_sim.PrimitiveObjects import Box
 from alr_sim.controllers.IKControllers import CartPosQuatImpedenceController
+from alr_sim.sims.mj_beta import MjRobot
+
 from simpub.sim.sf_publisher import SFPublisher
 from simpub.xr_device.meta_quest3 import MetaQuest3
 from scipy.spatial.transform import Rotation as R
@@ -15,7 +17,7 @@ class MetaQuest3Controller(CartPosQuatImpedenceController):
         super().__init__()
         self.device: MetaQuest3 = device
 
-    def getControl(self, robot):
+    def getControl(self, robot: MjRobot):
         input_data = self.device.get_input_data()
         if input_data is not None:
             hand = input_data["right"]
