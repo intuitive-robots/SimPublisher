@@ -113,10 +113,10 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg_wall_2.func("/World/Wall4", cfg_wall_2, translation=(5, 0, 0))
 
     # # -- Table
-    # cfg = sim_utils.UsdFileCfg(
-    #     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"
-    # )
-    # cfg.func("/World/Origin1/Tables/Table", cfg, translation=(0.55, 0.0, 1.05))
+    cfg = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"
+    )
+    cfg.func("/World/Origin1/Tables/Table", cfg, translation=(0.55, 0.0, 1.05))
     # cfg.func("/World/Origin1/Tables/Table_1", cfg, translation=(0.55, 3.0, 1.05))
 
     # -- Robot
@@ -360,8 +360,8 @@ def main():
 
     # start publisher
     # make sure you have a correct host address
-    # publisher = IsaacSimPublisher(host="192.168.0.134", stage=sim.stage)
-    publisher = IsaacSimPublisher(host="127.0.0.1", stage=sim.stage)
+    publisher = IsaacSimPublisher(host="192.168.0.134", stage=sim.stage)
+    # publisher = IsaacSimPublisher(host="127.0.0.1", stage=sim.stage)
 
     # Run the simulator
     run_simulator(sim, scene_entities, scene_origins)
