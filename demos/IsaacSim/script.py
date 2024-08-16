@@ -1,4 +1,5 @@
-# these code should only be run with the isaac sim vscode extension
+# here you can find some code that may be helpful for retrieving materials from usd primitives
+# these code should only be run with the isaac sim vscode extension (maybe not...)
 
 import omni
 import omni.usd

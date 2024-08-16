@@ -194,6 +194,9 @@ class IsaacSimPublisher(SimPublisher):
         prim_type = prim.GetTypeName()
 
         if prim_type == "Mesh":
+            # currently each instance of a prototype will create a different mesh object
+            # detecting this and use the same mesh object would reduce memory usage
+
             # for soft body, maybe use usdrt.UsdGeom.xxx (in get_update() function, not here)
             mesh_prim = UsdGeom.Mesh(prim)
             assert mesh_prim is not None
