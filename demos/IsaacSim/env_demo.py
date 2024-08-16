@@ -37,10 +37,10 @@ from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from omni.isaac.lab.sim.spawners.shapes.shapes_cfg import CapsuleCfg
 from omni.isaac.lab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from omni.isaac.lab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from omni.isaac.lab.envs.mdp.actions.actions_cfg import (
-    DifferentialInverseKinematicsActionCfg,
-)
+# from omni.isaac.lab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+# from omni.isaac.lab.envs.mdp.actions.actions_cfg import (
+#     DifferentialInverseKinematicsActionCfg,
+# )
 
 from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
 
@@ -48,7 +48,7 @@ import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils import parse_env_cfg
 
 from simpub.sim.isaacsim_publisher import IsaacSimPublisher
-from simpub.xr_device.meta_quest3 import MetaQuest3
+# from simpub.xr_device.meta_quest3 import MetaQuest3
 
 print(ISAACLAB_NUCLEUS_DIR)
 
@@ -118,20 +118,20 @@ def main():
         ),
     )
 
-    # you should probably set use_relative_mode to False when using meta quest 3 input
-    # but currently it does not work (seems to be a problem of coordiante system alignment)
-    env_cfg.actions.arm_action = DifferentialInverseKinematicsActionCfg(
-        asset_name="robot",
-        joint_names=["panda_joint.*"],
-        body_name="panda_hand",
-        controller=DifferentialIKControllerCfg(
-            command_type="pose", use_relative_mode=False, ik_method="dls"
-        ),
-        scale=1.0,
-        body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(
-            pos=[0.0, 0.0, 0.107]
-        ),
-    )
+    # # you should probably set use_relative_mode to False when using meta quest 3 input
+    # # but currently it does not work (seems to be a problem of coordiante system alignment)
+    # env_cfg.actions.arm_action = DifferentialInverseKinematicsActionCfg(
+    #     asset_name="robot",
+    #     joint_names=["panda_joint.*"],
+    #     body_name="panda_hand",
+    #     controller=DifferentialIKControllerCfg(
+    #         command_type="pose", use_relative_mode=False, ik_method="dls"
+    #     ),
+    #     scale=1.0,
+    #     body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(
+    #         pos=[0.0, 0.0, 0.107]
+    #     ),
+    # )
 
     # modify configuration
     env_cfg.terminations.time_out = None
@@ -170,22 +170,22 @@ def main():
         publisher = IsaacSimPublisher(host="192.168.0.134", stage=env.sim.stage)
         # publisher = IsaacSimPublisher(host="127.0.0.1", stage=env.sim.stage)
 
-    meta_quest3 = MetaQuest3("ALRMetaQuest3")
+    # meta_quest3 = MetaQuest3("ALRMetaQuest3")
 
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
-            # get meta quest 3 input (does not work...)
-            input_data = meta_quest3.get_input_data()
-            if input_data is None:
-                continue
+            # # get meta quest 3 input (does not work...)
+            # input_data = meta_quest3.get_input_data()
+            # if input_data is None:
+            #     continue
 
-            input_pos = input_data["right"]["pos"]
-            input_pos[2] -= 0.1
-            input_rot = input_data["right"]["rot"]
-            input_rot = Rotation.from_quat(input_rot).as_quat()
-            input_gripper = input_data["right"]["index_trigger"]
+            # input_pos = input_data["right"]["pos"]
+            # input_pos[2] -= 0.1
+            # input_rot = input_data["right"]["rot"]
+            # input_rot = Rotation.from_quat(input_rot).as_quat()
+            # input_gripper = input_data["right"]["index_trigger"]
 
             # input_pos = [0.4, 0.0, 0.2]
             # input_rot = Rotation.from_euler("XYZ", [0, 180, 0], degrees=True).as_quat()
@@ -193,20 +193,20 @@ def main():
             # get keyboard command
             delta_pose, gripper_command = teleop_interface.advance()
 
-            # get command from meta quest 3
-            delta_pose = np.array(
-                [
-                    input_pos[0],
-                    input_pos[1],
-                    input_pos[2],
-                    input_rot[3],
-                    input_rot[0],
-                    input_rot[1],
-                    input_rot[2],
-                ]
-            )
-            print(delta_pose)
-            gripper_command = input_gripper
+            # # get command from meta quest 3
+            # delta_pose = np.array(
+            #     [
+            #         input_pos[0],
+            #         input_pos[1],
+            #         input_pos[2],
+            #         input_rot[3],
+            #         input_rot[0],
+            #         input_rot[1],
+            #         input_rot[2],
+            #     ]
+            # )
+            # print(delta_pose)
+            # gripper_command = input_gripper
 
             delta_pose = delta_pose.astype("float32")
             # convert to torch
