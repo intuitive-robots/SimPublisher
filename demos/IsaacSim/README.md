@@ -13,7 +13,7 @@ python demos/IsaacSim/spawn_demo.py
 
 - [spawn_demo.py](./spawn_demo.py) is an example of spawing primitives manually.
 - [env_demo.py](./env_demo.py) is an example of using environments.
-- [✗] [meta_quest_3_ik_demo.py](./meta_quest_3_ik_demo.py) is an interactive scene where you can control an robot arm with joysticks with meta quest 3.
+- [meta_quest_3_ik_demo.py](./meta_quest_3_ik_demo.py) is an interactive scene where you can control an robot arm with joysticks with meta quest 3. (It might not work properly...)
 
 To use simpub with Isaac Sim in your code, simply add this after the scene has finished initialization (please check the demos):
 ```
