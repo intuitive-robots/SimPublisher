@@ -6,7 +6,7 @@ Please follow the [readme](../../README.md) in the root folder for installing si
 
 You can install Isaac Sim and Isaac Lab following [this page](https://isaac-sim.github.io/IsaacLab/source/setup/installation/binaries_installation.html). You could also install isaac sim with pip, but I didn't test on it.
 
-Now activate your Isaac Lab conda environment, and run some demos. For example, run this in the root folder:
+Now you can activate your Isaac Lab conda environment, and run some demos. For example, run this in the root folder:
 ```
 python demos/IsaacSim/spawn_demo.py
 ```
@@ -14,6 +14,15 @@ python demos/IsaacSim/spawn_demo.py
 - [spawn_demo.py](./spawn_demo.py) is an example of spawing primitives manually.
 - [env_demo.py](./env_demo.py) is an example of using environments.
 - [✗] [meta_quest_3_ik_demo.py](./meta_quest_3_ik_demo.py) is an interactive scene where you can control an robot arm with joysticks with meta quest 3.
+
+To use simpub with Isaac Sim in your code, simply add this after the scene has finished initialization (please check the demos):
+```
+from simpub.sim.isaacsim_publisher import IsaacSimPublisher
+
+# use only one of these
+publisher = IsaacSimPublisher(host="192.168.0.134", stage=sim.stage) # for InteractiveScene
+publisher = IsaacSimPublisher(host="192.168.0.134", stage=env.sim.stage) # for environments
+```
 
 ## Tips
 

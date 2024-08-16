@@ -3,34 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This script demonstrates how to use the differential inverse kinematics controller with the simulator.
-
-The differential IK controller can be configured in different modes. It uses the Jacobians computed by
-PhysX. This helps perform parallelized computation of the inverse kinematics.
-
-.. code-block:: bash
-
-    # Usage
-    ./isaaclab.sh -p source/standalone/tutorials/05_controllers/ik_control.py
-
-"""
-
-"""Launch Isaac Sim Simulator first."""
-
 import argparse
+import numpy as np
+import torch
+import carb
+from scipy.spatial.transform import Rotation
+import math
 
 from omni.isaac.lab.app import AppLauncher
+import gymnasium as gym
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
-    description="Tutorial on using the differential IK controller."
-)
-parser.add_argument(
-    "--robot", type=str, default="franka_panda", help="Name of the robot."
-)
-parser.add_argument(
-    "--num_envs", type=int, default=1, help="Number of environments to spawn."
+    description="This script demonstrates different single-arm manipulators."
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -41,249 +26,243 @@ args_cli = parser.parse_args()
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-"""Rest everything follows."""
+# isaac sim modules are only available after launching it (?)
 
-import torch
-from scipy.spatial.transform import Rotation
-import math
+from pxr import Usd
+
+import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import AssetBaseCfg
-from omni.isaac.lab.controllers import (
-    DifferentialIKController,
-    DifferentialIKControllerCfg,
+from omni.isaac.lab.assets import Articulation, RigidObjectCfg
+from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from omni.isaac.lab.sim.spawners.shapes.shapes_cfg import CapsuleCfg
+from omni.isaac.lab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from omni.isaac.lab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+from omni.isaac.lab.envs.mdp.actions.actions_cfg import (
+    DifferentialInverseKinematicsActionCfg,
 )
-from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.markers.config import FRAME_MARKER_CFG
-from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
-from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.lab.utils.math import subtract_frame_transforms, quat_from_euler_xyz
+from omni.isaac.lab.utils.math import quat_from_euler_xyz, euler_xyz_from_quat, quat_mul
 
-##
-# Pre-defined configs
-##
-from omni.isaac.lab_assets import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG  # isort:skip
+from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
+
+import omni.isaac.lab_tasks  # noqa: F401
+from omni.isaac.lab_tasks.utils import parse_env_cfg
 
 from simpub.sim.isaacsim_publisher import IsaacSimPublisher
 from simpub.xr_device.meta_quest3 import MetaQuest3
 
+print(ISAACLAB_NUCLEUS_DIR)
 
-@configclass
-class TableTopSceneCfg(InteractiveSceneCfg):
-    """Configuration for a cart-pole scene."""
 
-    # ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/defaultGroundPlane",
-        spawn=sim_utils.GroundPlaneCfg(),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
-    )
-
-    # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light",
-        spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 1.05)),
-    )
-
-    # mount
-    table = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd",
-            scale=(2.0, 2.0, 2.0),
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 1.05)),
-    )
-
-    # articulation
-    if args_cli.robot == "franka_panda":
-        robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        robot.init_state.pos = (0.0, 0.0, 1.05)
-    elif args_cli.robot == "ur10":
-        robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        robot.init_state.pos = (0.0, 0.0, 1.05)
+def pre_process_actions(
+    task: str, delta_pose: torch.Tensor, gripper_command: bool
+) -> torch.Tensor:
+    """Pre-process actions for the environment."""
+    # compute actions based on environment
+    if "Reach" in task:
+        # note: reach is the only one that uses a different action space
+        # compute actions
+        return delta_pose
     else:
-        raise ValueError(
-            f"Robot {args_cli.robot} is not supported. Valid: franka_panda, ur10"
-        )
-
-
-def run_simulator(
-    sim: sim_utils.SimulationContext,
-    scene: InteractiveScene,
-    meta_quest3: MetaQuest3,
-):
-    """Runs the simulation loop."""
-    # Extract scene entities
-    # note: we only do this here for readability.
-    robot = scene["robot"]
-
-    # Create controller
-    diff_ik_cfg = DifferentialIKControllerCfg(
-        command_type="pose", use_relative_mode=False, ik_method="dls"
-    )
-    diff_ik_controller = DifferentialIKController(
-        diff_ik_cfg, num_envs=scene.num_envs, device=sim.device
-    )
-
-    # Markers
-    frame_marker_cfg = FRAME_MARKER_CFG.copy()
-    frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-    ee_marker = VisualizationMarkers(
-        frame_marker_cfg.replace(prim_path="/Visuals/ee_current")
-    )
-    goal_marker = VisualizationMarkers(
-        frame_marker_cfg.replace(prim_path="/Visuals/ee_goal")
-    )
-
-    # Define goals for the arm
-    # quaternion: gripper facing downward
-    quat = quat_from_euler_xyz(
-        torch.tensor([-math.pi]), torch.tensor([0]), torch.tensor([0])
-    )[0].numpy()
-    ee_goals = [
-        [0.2, 0.2, 0.5, quat[0], quat[1], quat[2], quat[3]],
-    ]
-    # print(ee_goals)
-    ee_goals = torch.tensor(ee_goals, device=sim.device)
-    # Track the given command
-    current_goal_idx = 0
-    # Create buffers to store actions
-    ik_commands = torch.zeros(
-        scene.num_envs, diff_ik_controller.action_dim, device=robot.device
-    )
-    ik_commands[:] = ee_goals[current_goal_idx]
-
-    # Specify robot-specific parameters
-    if args_cli.robot == "franka_panda":
-        robot_entity_cfg = SceneEntityCfg(
-            "robot", joint_names=["panda_joint.*"], body_names=["panda_hand"]
-        )
-    elif args_cli.robot == "ur10":
-        robot_entity_cfg = SceneEntityCfg(
-            "robot", joint_names=[".*"], body_names=["ee_link"]
-        )
-    else:
-        raise ValueError(
-            f"Robot {args_cli.robot} is not supported. Valid: franka_panda, ur10"
-        )
-    # Resolving the scene entities
-    robot_entity_cfg.resolve(scene)
-    # Obtain the frame index of the end-effector
-    # For a fixed base robot, the frame index is one less than the body index. This is because
-    # the root body is not included in the returned Jacobians.
-    if robot.is_fixed_base:
-        ee_jacobi_idx = robot_entity_cfg.body_ids[0] - 1
-    else:
-        ee_jacobi_idx = robot_entity_cfg.body_ids[0]
-
-    # Define simulation stepping
-    sim_dt = sim.get_physics_dt()
-    count = 0
-    # reset joint state
-    joint_pos = robot.data.default_joint_pos.clone()
-    joint_vel = robot.data.default_joint_vel.clone()
-    robot.write_joint_state_to_sim(joint_pos, joint_vel)
-    robot.reset()
-    # reset actions
-    ik_commands[:] = ee_goals[current_goal_idx]
-    joint_pos_des = joint_pos[:, robot_entity_cfg.joint_ids].clone()
-    # reset controller
-    diff_ik_controller.reset()
-    diff_ik_controller.set_command(ik_commands)
-    # change goal
-    current_goal_idx = (current_goal_idx + 1) % len(ee_goals)
-
-    # Simulation loop
-    while simulation_app.is_running():
-        input_data = meta_quest3.get_input_data()
-        if input_data is not None:
-            if input_data["right"]["hand_trigger"]:
-                joint_pos = robot.data.default_joint_pos.clone()
-                joint_vel = robot.data.default_joint_vel.clone()
-                robot.write_joint_state_to_sim(joint_pos, joint_vel)
-                robot.reset()
-                # reset actions
-                ik_commands[:] = ee_goals[0]
-                joint_pos_des = joint_pos[:, robot_entity_cfg.joint_ids].clone()
-                # reset controller
-                diff_ik_controller.reset()
-                diff_ik_controller.set_command(ik_commands)
-            else:
-                ee_goals[0][:3] = torch.tensor(input_data["right"]["pos"])
-                # actually you should convert this into the local coordiante frame of the robot...
-                ee_goals[0][2] -= 1.05
-                ik_commands[:] = ee_goals[0]
-                # robot.reset()
-                diff_ik_controller.reset()  # doesn't really matter
-                diff_ik_controller.set_command(ik_commands)
-
-        # obtain quantities from simulation
-        jacobian = robot.root_physx_view.get_jacobians()[
-            :, ee_jacobi_idx, :, robot_entity_cfg.joint_ids
-        ]
-        ee_pose_w = robot.data.body_state_w[:, robot_entity_cfg.body_ids[0], 0:7]
-        root_pose_w = robot.data.root_state_w[:, 0:7]
-        joint_pos = robot.data.joint_pos[:, robot_entity_cfg.joint_ids]
-        # compute frame in root frame
-        ee_pos_b, ee_quat_b = subtract_frame_transforms(
-            root_pose_w[:, 0:3],
-            root_pose_w[:, 3:7],
-            ee_pose_w[:, 0:3],
-            ee_pose_w[:, 3:7],
-        )
-        # compute the joint commands
-        joint_pos_des = diff_ik_controller.compute(
-            ee_pos_b, ee_quat_b, jacobian, joint_pos
-        )
-
-        # apply actions
-        robot.set_joint_position_target(
-            joint_pos_des, joint_ids=robot_entity_cfg.joint_ids
-        )
-        scene.write_data_to_sim()
-        # perform step
-        sim.step()
-        # update sim-time
-        count += 1
-        # update buffers
-        scene.update(sim_dt)
-
-        # obtain quantities from simulation
-        ee_pose_w = robot.data.body_state_w[:, robot_entity_cfg.body_ids[0], 0:7]
-        # update marker positions
-        ee_marker.visualize(ee_pose_w[:, 0:3], ee_pose_w[:, 3:7])
-        goal_marker.visualize(
-            ik_commands[:, 0:3] + scene.env_origins, ik_commands[:, 3:7]
-        )
+        # resolve gripper command
+        gripper_vel = torch.zeros(delta_pose.shape[0], 1, device=delta_pose.device)
+        gripper_vel[:] = -1.0 if gripper_command else 1.0
+        # compute actions
+        return torch.concat([delta_pose, gripper_vel], dim=1)
 
 
 def main():
-    """Main function."""
-    # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view([2.5, 2.5, 2.5 + 1.05], [0.0, 0.0, 0.0])
-    # Design scene
-    scene_cfg = TableTopSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
-    scene = InteractiveScene(scene_cfg)
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # initialize publisher
-    publisher = IsaacSimPublisher(host="192.168.0.134", stage=sim.stage)
+    """Running keyboard teleoperation with Isaac Lab manipulation environment."""
+    task = "Isaac-Lift-Cube-Franka-IK-Rel-v0"
+
+    # parse configuration
+    # why using undefined parameter (use_gpu) doesn't raise error?
+    env_cfg = parse_env_cfg(
+        task_name=task,
+        num_envs=1,
+        use_fabric=True,
+    )
+
+    # add some primitives to the env
+    env_cfg.scene.cube2 = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube2",
+        init_state=RigidObjectCfg.InitialStateCfg(
+            pos=[0.7, 0, 0.155], rot=[1, 0, 0, 0]
+        ),
+        spawn=UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            scale=(0.8, 0.8, 0.8),
+            rigid_props=RigidBodyPropertiesCfg(
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=1,
+                max_angular_velocity=1000.0,
+                max_linear_velocity=1000.0,
+                max_depenetration_velocity=5.0,
+                disable_gravity=False,
+            ),
+        ),
+    )
+
+    env_cfg.scene.cube3 = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Capsule1",
+        init_state=RigidObjectCfg.InitialStateCfg(
+            pos=[0.6, 0, 0.055], rot=[1, 0, 0, 0]
+        ),
+        spawn=CapsuleCfg(
+            radius=0.03,
+            height=0.1,
+            axis="Y",
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 1.0)),
+        ),
+    )
+
+    # you should probably set use_relative_mode to False when using meta quest 3 input
+    # but currently it does not work (seems to be a problem of coordiante system alignment)
+    env_cfg.actions.arm_action = DifferentialInverseKinematicsActionCfg(
+        asset_name="robot",
+        joint_names=["panda_joint.*"],
+        body_name="panda_hand",
+        controller=DifferentialIKControllerCfg(
+            command_type="pose", use_relative_mode=False, ik_method="dls"
+        ),
+        scale=1.0,
+        body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(
+            pos=[0.0, 0.0, 0.107]
+        ),
+    )
+
+    def update_z(pos: tuple[float, float, float]):
+        return (pos[0], pos[1], pos[2] + 1.05)
+
+    # move objects above ground (z=0)
+    env_cfg.scene.table.init_state.pos = update_z(env_cfg.scene.table.init_state.pos)
+    env_cfg.scene.plane.init_state.pos = update_z(env_cfg.scene.plane.init_state.pos)
+    env_cfg.scene.robot.init_state.pos = update_z(env_cfg.scene.robot.init_state.pos)
+    env_cfg.scene.light.init_state.pos = update_z(env_cfg.scene.light.init_state.pos)
+    env_cfg.scene.object.init_state.pos = update_z(env_cfg.scene.object.init_state.pos)
+    env_cfg.scene.cube2.init_state.pos = update_z(env_cfg.scene.cube2.init_state.pos)
+    env_cfg.scene.cube3.init_state.pos = update_z(env_cfg.scene.cube3.init_state.pos)
+
+    # modify configuration
+    env_cfg.terminations.time_out = None
+
+    # create environment
+    env = gym.make(task, cfg=env_cfg)
+    # print(env.sim)
+
+    # check environment name (for reach , we don't allow the gripper)
+    if "Reach" in task:
+        carb.log_warn(
+            f"The environment '{task}' does not support gripper control. The device command will be ignored."
+        )
+
+    # create controller
+    sensitivity = 10
+    teleop_interface = Se3Keyboard(
+        pos_sensitivity=0.005 * sensitivity,
+        rot_sensitivity=0.005 * sensitivity,
+    )
+
+    # add teleoperation key for env reset
+    teleop_interface.add_callback("L", env.reset)
+    # print helper for keyboard
+    print(teleop_interface)
+
+    # reset environment
+    env.reset()
+    teleop_interface.reset()
+
+    print("simulation context:", env.sim)
+    print("stage:", env.sim.stage)
+
+    if env.sim is not None and env.sim.stage is not None:
+        print("parsing usd stage...")
+        publisher = IsaacSimPublisher(host="192.168.0.134", stage=env.sim.stage)
+        # publisher = IsaacSimPublisher(host="127.0.0.1", stage=env.sim.stage)
+
     meta_quest3 = MetaQuest3("ALRMetaQuest3")
-    # Run the simulator
-    run_simulator(sim, scene, meta_quest3)
+
+    # DifferentialIKController takes position relative to the robot base (what's that anyway..?)
+    input_pos = [0.3, 0.3, 0.7]
+    input_rot = quat_from_euler_xyz(
+        torch.tensor([-math.pi]), torch.tensor([0]), torch.tensor([0])
+    )[0].numpy()
+    print("downward rot:", input_rot)
+    input_gripper = False
+
+    # simulate environment
+    while simulation_app.is_running():
+        # run everything in inference mode
+        with torch.inference_mode():
+            # get meta quest 3 input (does not work...)
+            input_data = meta_quest3.get_input_data()
+            if input_data is not None:
+                if input_data["right"]["hand_trigger"]:
+                    env.reset()
+                else:
+                    input_pos = input_data["right"]["pos"]
+                    input_rot = input_data["right"]["rot"]
+                    # print(input_rot)
+                    input_gripper = input_data["right"]["index_trigger"]
+
+                    # you should probably convert the input rotation into local frame,
+                    # instead of using this hack here...
+                    euler = euler_xyz_from_quat(torch.tensor([input_rot]))
+                    rot_z = euler[0].numpy()[0]
+                    quat_1 = quat_from_euler_xyz(
+                        torch.tensor([-math.pi]),
+                        torch.tensor([0]),
+                        torch.tensor([0]),
+                    )
+                    quat_2 = quat_from_euler_xyz(
+                        torch.tensor([0]),
+                        torch.tensor([0]),
+                        torch.tensor([rot_z]),
+                    )
+                    input_rot = quat_mul(quat_2, quat_1)[0].numpy()
+
+                    # should actually convert to local frame...
+                    input_pos[2] -= 1.05
+                    # input_rot = quat_from_euler_xyz(
+                    #     torch.tensor([-math.pi]), torch.tensor([0]), torch.tensor([0])
+                    # )[0].numpy()
+
+            # get keyboard command
+            delta_pose, gripper_command = teleop_interface.advance()
+
+            # get command from meta quest 3
+            delta_pose = np.array(
+                [
+                    input_pos[0],
+                    input_pos[1],
+                    input_pos[2],
+                    input_rot[0],
+                    input_rot[1],
+                    input_rot[2],
+                    input_rot[3],
+                ]
+            )
+            # print(delta_pose)
+            gripper_command = input_gripper
+
+            delta_pose = delta_pose.astype("float32")
+            # convert to torch
+            delta_pose = torch.tensor(delta_pose, device=env.unwrapped.device).repeat(
+                env.unwrapped.num_envs, 1
+            )
+            # pre-process actions
+            actions = pre_process_actions(task, delta_pose, gripper_command)
+            # apply actions
+            env.step(actions)
+
+    # close the simulator
+    env.close()
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
     simulation_app.close()
