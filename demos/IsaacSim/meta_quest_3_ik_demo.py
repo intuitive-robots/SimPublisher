@@ -105,9 +105,42 @@ def main():
     )
 
     env_cfg.scene.cube3 = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube3",
+        init_state=RigidObjectCfg.InitialStateCfg(
+            pos=[0.4, 0, 0.155], rot=[1, 0, 0, 0]
+        ),
+        spawn=UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            scale=(0.8, 0.8, 0.8),
+            rigid_props=RigidBodyPropertiesCfg(
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=1,
+                max_angular_velocity=1000.0,
+                max_linear_velocity=1000.0,
+                max_depenetration_velocity=5.0,
+                disable_gravity=False,
+            ),
+        ),
+    )
+
+    env_cfg.scene.cube4 = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube4",
+        init_state=RigidObjectCfg.InitialStateCfg(
+            pos=[0.4, 0, 0.155], rot=[1, 0, 0, 0]
+        ),
+        spawn=sim_utils.CuboidCfg(
+            size=(0.05, 0.1, 0.2),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 1.0)),
+        ),
+    )
+
+    env_cfg.scene.capsule1 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Capsule1",
         init_state=RigidObjectCfg.InitialStateCfg(
-            pos=[0.6, 0, 0.055], rot=[1, 0, 0, 0]
+            pos=[0.6, 0.2, 0.055], rot=[1, 0, 0, 0]
         ),
         spawn=CapsuleCfg(
             radius=0.03,
@@ -146,6 +179,10 @@ def main():
     env_cfg.scene.object.init_state.pos = update_z(env_cfg.scene.object.init_state.pos)
     env_cfg.scene.cube2.init_state.pos = update_z(env_cfg.scene.cube2.init_state.pos)
     env_cfg.scene.cube3.init_state.pos = update_z(env_cfg.scene.cube3.init_state.pos)
+    env_cfg.scene.cube4.init_state.pos = update_z(env_cfg.scene.cube4.init_state.pos)
+    env_cfg.scene.capsule1.init_state.pos = update_z(
+        env_cfg.scene.capsule1.init_state.pos
+    )
 
     # modify configuration
     env_cfg.terminations.time_out = None
