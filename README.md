@@ -2,6 +2,9 @@
 
 This repo is a versatile tool designed to seamlessly rendering objects from simulation or sensors to Mixed Reality (MR) or Augmented Reality (AR) headsets.
 
+## Isaac Sim
+Please check [this](./demos/IsaacSim/README.md) for information on how to setup simpub with isaac sim.
+
 ## Table of Contents
 - [Introduction](#Introduction)
 - [Features](#Features)
@@ -65,5 +68,3 @@ Additionally, using a wired cable to connect your PC can significantly reduce la
 
 3. Run the usage examples under the folder `/demos/`, then wear the headset, start the unity application and enjoy!
 
-## Isaac Sim
-Please check [this](./demos/IsaacSim/README.md) for information on how to setup simpub with isaac sim.
