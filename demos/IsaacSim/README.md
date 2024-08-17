@@ -33,3 +33,5 @@ Currently simpub doesn't support normal indexing. So one vertex will only have o
 Check [this](https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html) for the different between usd, usdrt and fabric api. Basically, in python, you should use usd for cpu simulation and usdrt for gpu simulation.
 
 In omniverse, there are primitive prototypes that can be instantiated. Currently, IsaacSimPublisher doesn't handle this properly. It'll create a different mesh object and store the same geometry repeatedly for all instances of a prototype. For large scenes with complex geometries, this might be a problem.
+
+Currently usdrt stage are created for both cpu and gpu simulation. This works but might result in unexpected things. Maybe add a new parameter to the publisher indicating where the simulation is running and use only usd stage for cpu simulation.
