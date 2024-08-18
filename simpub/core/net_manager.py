@@ -1,17 +1,18 @@
-import abc
 import enum
 from typing import List, Dict, NewType, Callable, TypedDict
-from concurrent.futures import ThreadPoolExecutor, Future
+import asyncio
+from asyncio import sleep as asycnc_sleep
+import threading
 import zmq
 import socket
 from socket import AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST
 import struct
 import time
-from time import sleep
 import json
 import uuid
 from .log import logger
 
+import abc
 IPAddress = NewType("IPAddress", str)
 Topic = NewType("Topic", str)
 Service = NewType("Service", str)
@@ -85,22 +86,42 @@ class NetManager:
         self.clients_info: Dict[str, HostInfo] = {}
         # setting up thread pool
         self.running: bool = True
-        self.executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=10)
-        self.futures: List[Future] = []
+        self.loop: asyncio.AbstractEventLoop = None
+        self.start_server_thread()
+
+
+    def start_server_thread(self) -> None:
+        """
+        Start a thread for service.
+
+        Args:
+            block (bool, optional): main thread stop running and 
+            wait for server thread. Defaults to False.
+        """
+        self.server_thread = threading.Thread(target=self.start_event_loop)
+        self.server_thread.daemon = True
+        self.server_thread.start()
+
+    def start_event_loop(self):
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        # default task for client registration
         self.submit_task(self.broadcast_loop)
         self.submit_task(self.service_loop)
+        self.loop.run_forever()
 
     def submit_task(self, task: Callable, *args):
-        # NOTE: It wouldn't stop even if any thread throws an exception
-        future = self.executor.submit(task, *args)
-        self.futures.append(future)
+        asyncio.run_coroutine_threadsafe(task(*args), self.loop)
+
+    def stop_server(self):
+        if self.loop.is_running():
+            asyncio.run_coroutine_threadsafe(self.loop.stop(), self.loop)
+        self.server_thread.join()
 
     def join(self):
-        for future in self.futures:
-            future.result()
-        self.executor.shutdown()
+        self.server_thread.join()
 
-    def service_loop(self):
+    async def service_loop(self):
         try:
             logger.info("The service is running...")
             # default service for client registration
@@ -118,12 +139,13 @@ class NetManager:
                     self.service_callback[service](request, self.service_socket)
                 else:
                     self.service_socket.send_string("Invild Service")
+                asycnc_sleep(0.05)
         except Exception as e:
             logger.error(f"Service Loop from Net Manager throw an exception of {e}")
         finally:
             logger.info("Service has been stopped")
 
-    def broadcast_loop(self):
+    async def broadcast_loop(self):
         logger.info("The server is broadcasting...")
         # set up udp socket
         _socket = socket.socket(AF_INET, SOCK_DGRAM)
@@ -138,7 +160,7 @@ class NetManager:
         while self.running:
             msg = f"SimPub:{_id}:{json.dumps(local_info)}"
             _socket.sendto(msg.encode(), (broadcast_ip, ServerPort.DISCOVERY))
-            sleep(0.5)
+            asycnc_sleep(0.5)
         logger.info("Broadcasting has been stopped")
 
     def register_client_callback(self, msg: str, socket: zmq.Socket):
