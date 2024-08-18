@@ -1,5 +1,6 @@
 from typing import Dict, Callable
 import time
+from asyncio import sleep as asycnc_sleep
 from json import dumps
 
 from .net_manager import ConnectionAbstract
@@ -38,13 +39,13 @@ class Streamer(Publisher):
         self.update_func = update_func
         self.manager.submit_task(self.update_loop)
 
-    def update_loop(self):
+    async def update_loop(self):
         self.running = True
         last = 0.0
         while self.running:
             diff = time.monotonic() - last
             if diff < self.dt:
-                time.sleep(self.dt - diff)
+                asycnc_sleep(self.dt - diff)
             last = time.monotonic()
             msg = {
                 "updateData": self.update_func(),
