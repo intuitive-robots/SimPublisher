@@ -1,9 +1,10 @@
 import enum
-from typing import List, Dict, NewType, Callable, TypedDict
+from typing import List, Dict, NewType, Callable, TypedDict, Awaitable, Union
 import asyncio
 from asyncio import sleep as asycnc_sleep
 import threading
 import zmq
+import zmq.asyncio
 import socket
 from socket import AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST
 import struct
@@ -11,6 +12,13 @@ import time
 import json
 import uuid
 from .log import logger
+from typing import Dict, Callable, Type
+import time
+import asyncio
+from asyncio import sleep as asycnc_sleep
+from json import dumps
+import zmq
+
 
 import abc
 IPAddress = NewType("IPAddress", str)
@@ -37,7 +45,9 @@ class HostInfo(TypedDict):
     services: List[Service]
 
 
-class ConnectionAbstract(abc.ABC):
+
+
+class Communicator(abc.ABC):
 
     def __init__(self):
         self.running: bool = False
@@ -54,6 +64,103 @@ class ConnectionAbstract(abc.ABC):
         raise NotImplementedError
 
 
+class Publisher(Communicator):
+    def __init__(self, topic: str):
+        super().__init__()
+        self.topic = topic
+        self.socket = self.manager.pub_socket
+        self.manager.register_local_topic(self.topic)
+        logger.info(f"Publisher for topic \"{self.topic}\" is ready")
+
+    def publish(self, data: Dict):
+        msg = f"{self.topic}:{dumps(data)}"
+        self.socket.send_string(msg)
+
+    def publish_string(self, string: str):
+        self.socket.send_string(f"{self.topic}:{string}")
+
+    def on_shutdown(self):
+        super().on_shutdown()
+
+
+class Streamer(Publisher):
+    def __init__(
+        self,
+        topic: str,
+        update_func: Callable[[], Dict],
+        fps: int = 45,
+    ):
+        super().__init__(topic)
+        self.running = False
+        self.dt: float = 1 / fps
+        self.update_func = update_func
+        self.manager.submit_task(self.update_loop)
+
+    async def update_loop(self):
+        self.running = True
+        last = 0.0
+        while self.running:
+            diff = time.monotonic() - last
+            if diff < self.dt:
+                asycnc_sleep(self.dt - diff)
+            last = time.monotonic()
+            msg = {
+                "updateData": self.update_func(),
+                "time": last,
+            }
+            self.socket.send_string(f"{self.topic}:{dumps(msg)}")
+
+ResponseType = Union[str, bytes, Dict]
+
+class Service(Communicator):
+
+    def __init__(
+        self,
+        service_name: str,
+        callback: Callable[[str], ResponseType],
+        respnse_type: Type,
+    ) -> None:
+        super().__init__()
+        self.service_name = service_name
+        self.callback_func = callback
+        if respnse_type is str:
+            self.sender = self.send_string
+        elif respnse_type is bytes:
+            self.sender = self.send_bytes
+        elif respnse_type is Dict:
+            self.sender = self.send_dict
+        else:
+            raise ValueError("Invalid response type")
+        self.manager.register_local_service(
+            service_name, self.callback
+        )
+        logger.info(f"\"{self.service_name}\" Service is ready")
+
+    async def callback(self, msg: str, zmq_socket: zmq.Socket):
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(self.callback_func, msg),
+                timeout=5
+            )
+            await self.sender(result, zmq_socket)
+        except asyncio.TimeoutError:
+            logger.error("Timeout: callback function took too long to execute")
+            await zmq_socket.send_string("Timeout")
+
+    async def send_string(self, string: str, socket: zmq.Socket):
+        await socket.send_string(string)
+
+    async def send_bytes(self, data: bytes, socket: zmq.Socket):
+        await socket.send(data)
+
+    async def send_dict(self, data: Dict, socket: zmq.Socket):
+        await socket.send_string(dumps(data))
+
+    def on_shutdown(self):
+        return super().on_shutdown()
+
+
+
 class NetManager:
 
     manager = None
@@ -65,17 +172,16 @@ class NetManager:
     ) -> None:
         NetManager.manager = self
         self._initialized = True
-        self.zmq_context = zmq.Context()
+        self.zmq_context = zmq.asyncio.Context()
         # subscriber
         self.sub_socket_dict: Dict[IPAddress, zmq.Socket] = {}
-        self.topic_callback: Dict[Topic, Callable] = {}
         # publisher
         self.pub_socket = self.zmq_context.socket(zmq.PUB)
         self.pub_socket.bind(f"tcp://{host_ip}:{ServerPort.TOPIC}")
         # service
         self.service_socket = self.zmq_context.socket(zmq.REP)
         self.service_socket.bind(f"tcp://{host_ip}:{ServerPort.SERVICE}")
-        self.service_callback: Dict[str, Callable] = {}
+        self.service_callback: Dict[str, Awaitable] = {}
         # message for broadcasting
         self.local_info = HostInfo()
         self.local_info["host"] = host_name
@@ -122,28 +228,25 @@ class NetManager:
         self.server_thread.join()
 
     async def service_loop(self):
-        try:
-            logger.info("The service is running...")
-            # default service for client registration
-            self.register_local_service(
-                "Register", self.register_client_callback
-            )
-            self.register_local_service(
-                "GetServerTimestamp", self.get_server_timestamp_callback
-            )
-            while self.running:
-                message = self.service_socket.recv_string()
-                service, request = message.split(":", 1)
-                if service in self.service_callback.keys():
-                    # the zmq service socket is blocked and only run one at a time
-                    self.service_callback[service](request, self.service_socket)
-                else:
-                    self.service_socket.send_string("Invild Service")
-                asycnc_sleep(0.05)
-        except Exception as e:
-            logger.error(f"Service Loop from Net Manager throw an exception of {e}")
-        finally:
-            logger.info("Service has been stopped")
+        # try:
+        logger.info("The service is running...")
+        # default service for client registration
+        self.register_service = Service(
+            "Register", self.register_client_callback, str
+        )
+        self.server_timestamp_service = Service(
+            "GetServerTimestamp", self.get_server_timestamp_callback, str
+        )
+        while self.running:
+            message = await self.service_socket.recv_string()
+            service, request = message.split(":", 1)
+            if service in self.service_callback.keys():
+                # the zmq service socket is blocked and only run one at a time
+                # self.service_callback[service](request, self.service_socket)
+                await self.service_callback[service](request, self.service_socket)
+            else:
+                await self.service_socket.send_string("Invild Service")
+            asycnc_sleep(0.01)
 
     async def broadcast_loop(self):
         logger.info("The server is broadcasting...")
@@ -163,18 +266,18 @@ class NetManager:
             asycnc_sleep(0.5)
         logger.info("Broadcasting has been stopped")
 
-    def register_client_callback(self, msg: str, socket: zmq.Socket):
+    def register_client_callback(self, msg: str, socket: zmq.Socket) -> str:
         # NOTE: something woring with sending message, but it solved somehow
-        socket.send_string("The info has been registered")
         client_info: HostInfo = json.loads(msg)
         client_name = client_info["name"]
         # NOTE: the client info may be updated so the reference cannot be used
         # NOTE: TypeDict is somehow block if the key is not in the dict
         self.clients_info[client_name] = client_info
         logger.info(f"Host \"{client_name}\" has been registered")
+        return "The info has been registered"
 
-    def get_server_timestamp_callback(self, msg: str, socket: zmq.Socket):
-        socket.send_string(str(time.monotonic()))
+    def get_server_timestamp_callback(self, msg: str) -> str:
+        return str(time.monotonic())
 
     def register_local_topic(self, topic: Topic):
         if topic in self.local_info["topics"]:
