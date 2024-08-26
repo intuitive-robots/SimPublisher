@@ -5,6 +5,7 @@ import json
 from simpub.core.net_manager import init_net_manager
 from simpub.xr_device.xr_device import XRDevice
 
+
 def generate_point_cloud_data(rgb_image, depth_image):
     positions = []
     colors = []
