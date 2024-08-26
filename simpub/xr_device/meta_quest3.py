@@ -1,7 +1,7 @@
 from typing import TypedDict
 import json
 
-from ..core.publisher import Publisher
+from simpub.core.net_manager import Publisher
 from .xr_device import XRDevice
 
 
@@ -19,6 +19,7 @@ class MetaQuest3InputData(TypedDict):
     B: bool
     X: bool
     Y: bool
+
 
 # TODO: Vibration Data Structure
 class Vibration(TypedDict):

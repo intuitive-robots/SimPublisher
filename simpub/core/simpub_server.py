@@ -1,11 +1,10 @@
 from __future__ import annotations
 import abc
 from typing import Dict, List
-import zmq
 
 from simpub.simdata import SimScene
 from .net_manager import init_net_manager
-from .communicator import Streamer, Service
+from .net_manager import Streamer, Service
 from .log import logger
 
 
@@ -43,8 +42,8 @@ class SimPublisher(ServerBase):
             self.no_tracked_objects = no_tracked_objects
         super().__init__(host)
         self.scene_update_streamer = Streamer("SceneUpdate", self.get_update)
-        self.scene_service = Service("Scene", self._on_scene_request)
-        self.asset_service = Service("Asset", self._on_asset_request)
+        self.scene_service = Service("Scene", self._on_scene_request, str)
+        self.asset_service = Service("Asset", self._on_asset_request, bytes)
 
     def _on_scene_request(self, req: str) -> str:
         return self.sim_scene.to_string()
