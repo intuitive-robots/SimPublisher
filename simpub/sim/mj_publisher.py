@@ -25,9 +25,9 @@ class MujocoPublisher(SimPublisher):
         self.tracked_obj_trans: Dict[str, np.ndarray] = dict()
         super().__init__(
             sim_scene,
+            host,
             no_rendered_objects,
             no_tracked_objects,
-            host,
         )
         for child in self.sim_scene.root.children:
             self.set_update_objects(child)
