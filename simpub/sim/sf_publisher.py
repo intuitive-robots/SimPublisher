@@ -15,6 +15,7 @@ from ..core.simpub_server import SimPublisher
 from .mj_publisher import MujocoPublisher
 from ..core.log import logger
 
+
 class SFParser(MJCFParser):
     def __init__(self, mj_sim: MjScene):
         self.sf_mj_scene_parser: MjSceneParser = mj_sim.mj_scene_parser
