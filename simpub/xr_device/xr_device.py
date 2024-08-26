@@ -1,11 +1,10 @@
 import json
 import zmq
 from typing import Dict, Callable
-import time
 from asyncio import sleep as asycnc_sleep
 
 from ..core.log import logger
-from ..core.net_manager import NetManager, Topic, ClientPort
+from ..core.net_manager import NetManager, TopicName, ClientPort
 
 
 class InputData:
@@ -27,7 +26,7 @@ class XRDevice:
         self.client_info = None
         # subscriber
         self.sub_socket = self.manager.zmq_context.socket(zmq.SUB)
-        self.sub_topic_callback: Dict[Topic, Callable] = {}
+        self.sub_topic_callback: Dict[TopicName, Callable] = {}
         self.register_topic_callback(f"{device_name}/Log", self.print_log)
         # request client
         self.req_socket = self.manager.zmq_context.socket(zmq.REQ)
@@ -42,7 +41,7 @@ class XRDevice:
                 self.client_info = client_info
                 logger.info(f"Connected to {self.device}")
                 break
-            asycnc_sleep(0.05)
+            await asycnc_sleep(0.01)
         self.req_socket.connect(
             f"tcp://{self.client_info['ip']}:{ClientPort.SERVICE}")
         self.sub_socket.connect(
@@ -66,14 +65,14 @@ class XRDevice:
     async def subscribe_loop(self):
         try:
             while self.connected:
-                message = self.sub_socket.recv_string()
+                message = await self.sub_socket.recv_string()
                 topic, msg = message.split(":", 1)
                 if topic in self.sub_topic_callback:
                     self.sub_topic_callback[topic](msg)
-                asycnc_sleep(0.01)
+                await asycnc_sleep(0.01)
         except Exception as e:
             logger.error(
-                f"Catch one exception {e} from subscribe loop in device {self.device}"
+                f"{e} from subscribe loop in device {self.device}"
             )
 
     def print_log(self, log: str):
