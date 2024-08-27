@@ -43,9 +43,9 @@ class XRDevice:
                 break
             await asycnc_sleep(0.01)
         self.req_socket.connect(
-            f"tcp://{self.client_info['ip']}:{ClientPort.SERVICE}")
+            f"tcp://{self.client_info['ip']}:{ClientPort.SERVICE.value}")
         self.sub_socket.connect(
-            f"tcp://{self.client_info['ip']}:{ClientPort.TOPIC}")
+            f"tcp://{self.client_info['ip']}:{ClientPort.TOPIC.value}")
         self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
         self.manager.submit_task(self.subscribe_loop)
 
@@ -53,14 +53,25 @@ class XRDevice:
         self.sub_topic_callback[topic] = callback
 
     def request(self, service: str, req: str) -> str:
+        future = self.manager.submit_task(
+            self.request_async, service, req
+        )
+        try:
+            result = future.result()
+            return result
+        except Exception as e:
+            logger.error(f"Find a new when waiting for a response: {e}")
+            return ""
+
+    async def request_async(self, service: str, req: str) -> str:
         if self.client_info is None:
             logger.error(f"Device {self.device} is not connected")
             return ""
         if service not in self.client_info["services"]:
             logger.error(f"\"{service}\" Service is not available")
             return ""
-        self.req_socket.send_string(f"{service}:{req}")
-        return self.req_socket.recv_string()
+        await self.req_socket.send_string(f"{service}:{req}")
+        return await self.req_socket.recv_string()
 
     async def subscribe_loop(self):
         try:
