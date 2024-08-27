@@ -23,6 +23,8 @@ ServiceName = NewType("ServiceName", str)
 
 
 class ServerPort(int, enum.Enum):
+    # ServerPort and ClientPort need using .value to get the port number
+    # which is not supposed to be used in this way
     DISCOVERY = 7720
     SERVICE = 7721
     TOPIC = 7722
@@ -169,10 +171,10 @@ class NetManager:
         self.sub_socket_dict: Dict[IPAddress, zmq.Socket] = {}
         # publisher
         self.pub_socket = self.zmq_context.socket(zmq.PUB)
-        self.pub_socket.bind(f"tcp://{host_ip}:{ServerPort.TOPIC}")
+        self.pub_socket.bind(f"tcp://{host_ip}:{ServerPort.TOPIC.value}")
         # service
         self.service_socket = self.zmq_context.socket(zmq.REP)
-        self.service_socket.bind(f"tcp://{host_ip}:{ServerPort.SERVICE}")
+        self.service_socket.bind(f"tcp://{host_ip}:{ServerPort.SERVICE.value}")
         self.service_list: Dict[str, Service] = {}
         # message for broadcasting
         self.local_info = HostInfo()
@@ -192,7 +194,7 @@ class NetManager:
         Start a thread for service.
 
         Args:
-            block (bool, optional): main thread stop running and 
+            block (bool, optional): main thread stop running and
             wait for server thread. Defaults to False.
         """
         self.server_thread = threading.Thread(target=self.start_event_loop)
@@ -209,8 +211,8 @@ class NetManager:
         self.submit_task(self.service_loop)
         self.loop.run_forever()
 
-    def submit_task(self, task: Callable, *args):
-        asyncio.run_coroutine_threadsafe(task(*args), self.loop)
+    def submit_task(self, task: Callable, *args) -> asyncio.Future:
+        return asyncio.run_coroutine_threadsafe(task(*args), self.loop)
 
     def stop_server(self):
         if self.loop.is_running():
@@ -260,7 +262,9 @@ class NetManager:
         broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
         while self.running:
             msg = f"SimPub:{_id}:{json.dumps(local_info)}"
-            _socket.sendto(msg.encode(), (broadcast_ip, ServerPort.DISCOVERY))
+            _socket.sendto(
+                msg.encode(), (broadcast_ip, ServerPort.DISCOVERY.value)
+            )
             await asycnc_sleep(0.1)
         logger.info("Broadcasting has been stopped")
 

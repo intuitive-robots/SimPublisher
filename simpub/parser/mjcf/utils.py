@@ -132,15 +132,24 @@ def sphere2unity_scale(scale: List[float]) -> List[float]:
 
 
 def cylinder2unity_scale(scale: List[float]) -> List[float]:
+    # if len(scale) == 3:
+    #     return list(map(abs, [scale[0], scale[1], scale[0]]))
+    # else:
+    #     return list(map(abs, [scale[0] * 2, scale[1], scale[0] * 2]))
     if len(scale) == 3:
         return list(map(abs, [scale[0], scale[1], scale[0]]))
-    else:
-        return list(map(abs, [scale[0] * 2, scale[1], scale[0] * 2]))
-
+    if len(scale) == 2:
+        return list(map(abs, [scale[0], scale[1], scale[0]]))
+    elif len(scale) == 1:
+        return list(map(abs, [scale[0] * 2, scale[0] * 2, scale[0] * 2]))
 
 def capsule2unity_scale(scale: List[float]) -> List[float]:
-    assert len(scale) == 3, "Only support scale with three components."
-    return list(map(abs, [scale[0], scale[1], scale[0]]))
+    # assert len(scale) == 3, "Only support scale with three components."
+    # return list(map(abs, [scale[0], scale[1], scale[0]]))
+    if len(scale) == 2:
+        return list(map(abs, [scale[0], scale[1], scale[0]]))
+    elif len(scale) == 1:
+        return list(map(abs, [scale[0] * 2, scale[0] * 2, scale[0] * 2]))
 
 
 ScaleMap: Dict[str, Callable] = {
