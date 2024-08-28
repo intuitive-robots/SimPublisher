@@ -80,7 +80,7 @@ class XRDevice:
                 topic, msg = message.split(":", 1)
                 if topic in self.sub_topic_callback:
                     self.sub_topic_callback[topic](msg)
-                await asycnc_sleep(0.01)
+                # await asycnc_sleep(0.01)
         except Exception as e:
             logger.error(
                 f"{e} from subscribe loop in device {self.device}"
