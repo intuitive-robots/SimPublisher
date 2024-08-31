@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import TypedDict, Callable, Dict
 import json
 
 from simpub.core.net_manager import Publisher
@@ -33,14 +33,26 @@ class MetaQuest3(XRDevice):
         device_name: str,
     ) -> None:
         super().__init__(device_name)
+        self.last_input_data: MetaQuest3InputData = None
         self.input_data: MetaQuest3InputData = None
         self.input_subscriber = self.register_topic_callback(
             f"{device_name}/InputData", self.update
         )
         self.viborate_publisher = Publisher(f"{device_name}/Vibration")
+        self.button_trigger_event: Dict[str, Callable] = {}
 
     def update(self, data: str):
+        self.last_input_data = self.input_data
         self.input_data = json.loads(data)
+        if self.last_input_data is None:
+            return
+        for button, callback in self.button_trigger_event.items():
+            if self.input_data[button] and not self.last_input_data[button]:
+                callback()
+
+    def register_button_trigger_event(self, button: str, callback: Callable):
+        # button should be one of A, B, X, Y
+        self.button_trigger_event[button] = callback
 
     def get_input_data(self) -> MetaQuest3InputData:
         return self.input_data
