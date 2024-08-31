@@ -8,7 +8,6 @@ from alr_sim.sims.mj_beta import MjRobot
 
 from simpub.sim.sf_publisher import SFPublisher
 from simpub.xr_device.meta_quest3 import MetaQuest3
-from scipy.spatial.transform import Rotation as R
 
 
 class MetaQuest3Controller(CartPosQuatImpedenceController):
@@ -29,7 +28,9 @@ class MetaQuest3Controller(CartPosQuatImpedenceController):
                 robot.close_fingers(duration=0.0)
             else:
                 robot.open_fingers()
-            self.setSetPoint(np.hstack((desired_pos_local, desired_quat_local)))
+            self.setSetPoint(
+                np.hstack((desired_pos_local, desired_quat_local))
+            )
         return super().getControl(robot)
 
 
