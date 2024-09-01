@@ -234,6 +234,10 @@ class NetManager:
         )
         while self.running:
             message = await self.service_socket.recv_string()
+            if ":" not in message:
+                logger.error(f"Invalid message with no spliter \":\"")
+                await self.service_socket.send_string("Invalid message")
+                continue        
             service, request = message.split(":", 1)
             # the zmq service socket is blocked and only run one at a time
             if service in self.service_list.keys():
