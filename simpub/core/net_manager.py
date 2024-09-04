@@ -70,13 +70,16 @@ class Publisher(Communicator):
 
     def publish(self, data: Dict):
         msg = f"{self.topic}:{dumps(data)}"
-        self.socket.send_string(msg)
+        self.manager.submit_task(self.send_msg_async, msg)
 
     def publish_string(self, string: str):
-        self.socket.send_string(f"{self.topic}:{string}")
+        self.manager.submit_task(self.send_msg_async, f"{self.topic}:{string}")
 
     def on_shutdown(self):
         super().on_shutdown()
+
+    async def send_msg_async(self, msg: str):
+        await self.socket.send_string(msg)
 
 
 class Streamer(Publisher):
@@ -104,7 +107,7 @@ class Streamer(Publisher):
                 "updateData": self.update_func(),
                 "time": last,
             }
-            self.socket.send_string(f"{self.topic}:{dumps(msg)}")
+            await self.socket.send_string(f"{self.topic}:{dumps(msg)}")
 
 
 ResponseType = Union[str, bytes, Dict]
@@ -235,9 +238,9 @@ class NetManager:
         while self.running:
             message = await self.service_socket.recv_string()
             if ":" not in message:
-                logger.error(f"Invalid message with no spliter \":\"")
+                logger.error("Invalid message with no spliter \":\"")
                 await self.service_socket.send_string("Invalid message")
-                continue        
+                continue
             service, request = message.split(":", 1)
             # the zmq service socket is blocked and only run one at a time
             if service in self.service_list.keys():
