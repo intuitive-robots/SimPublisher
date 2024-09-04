@@ -75,8 +75,14 @@ class MetaQuest3(XRDevice):
 
     async def start_vibration_async(self, hand: str = "right", duration=0.5):
         self.start_vib_pub.publish_string(hand)
-        await async_sleep(duration)
-        self.stop_vib_pub.publish_string(hand)
+        if duration > 1.5:
+            while duration < 0:
+                await async_sleep(1.5)
+                self.start_vib_pub.publish_string(hand)
+                duration -= 1.5
+        else:
+            await async_sleep(duration)
+        self.stop_vibration(hand)
 
     def stop_vibration(self, hand: str = "right"):
         if self.on_vibration[hand]:
