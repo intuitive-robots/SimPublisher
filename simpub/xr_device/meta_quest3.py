@@ -1,5 +1,6 @@
 from typing import TypedDict, Callable, Dict, List
 import json
+from asyncio import sleep as async_sleep
 
 from simpub.core.net_manager import Publisher
 from .xr_device import XRDevice
@@ -38,14 +39,15 @@ class MetaQuest3(XRDevice):
         self.input_subscriber = self.register_topic_callback(
             f"{device_name}/InputData", self.update
         )
-        self.viborate_publisher = Publisher(f"{device_name}/Vibration")
+        self.start_vib_pub = Publisher(f"{device_name}/StartVibration")
+        self.stop_vib_pub = Publisher(f"{device_name}/StopVibration")
         self.button_trigger_event: Dict[str, List[Callable]] = {
             "A": [],
             "B": [],
             "X": [],
             "Y": [],
         }
-        self.on_vibration = {"left": False, "right": False}
+        self.on_vibration = {"left": False, "right": False,}
 
     def update(self, data: str):
         self.last_input_data = self.input_data
@@ -64,11 +66,19 @@ class MetaQuest3(XRDevice):
         return self.input_data
 
     # TODO: Vibration Data Structure
-    def start_vibrate(self, hand: str = "right"):
+    def start_vibration(self, hand: str = "right", duration=0.5):
         if not self.on_vibration[hand]:
-            self.viborate_publisher.publish_string(hand)
             self.on_vibration[hand] = True
+            self.manager.submit_task(
+                self.start_vibration_async, hand, duration,
+            )
 
-    def stop_vibrate(self, hand: str = "right"):
+    async def start_vibration_async(self, hand: str = "right", duration=0.5):
+        self.start_vib_pub.publish_string(hand)
+        await async_sleep(duration)
+        self.stop_vib_pub.publish_string(hand)
+
+    def stop_vibration(self, hand: str = "right"):
         if self.on_vibration[hand]:
             self.on_vibration[hand] = False
+        self.stop_vib_pub.publish_string(hand)
