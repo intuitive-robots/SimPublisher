@@ -7,7 +7,7 @@ from alr_sim.controllers.IKControllers import CartPosQuatImpedenceController
 from alr_sim.sims.mj_beta import MjRobot
 
 from simpub.sim.sf_publisher import SFPublisher
-from simpub.xr_device.meta_quest3 import MetaQuest3
+from simpub.xr_device import MetaQuest3
 
 
 class MetaQuest3Controller(CartPosQuatImpedenceController):
