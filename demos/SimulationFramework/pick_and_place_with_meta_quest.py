@@ -98,7 +98,7 @@ if __name__ == "__main__":
     publisher = SFPublisher(
         scene, args.host, no_tracked_objects=["table_plane", "table0"]
     )
-    meta_quest3 = MetaQuest3("ALRMetaQuest3")
+    meta_quest3 = MetaQuest3("UnityClient")
     robot_controller = MetaQuest3Controller(meta_quest3)
     robot_controller.executeController(robot, maxDuration=1000, block=False)
 
