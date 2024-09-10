@@ -41,26 +41,82 @@ class MetaQuest3(XRDevice):
         )
         self.start_vib_pub = Publisher(f"{device_name}/StartVibration")
         self.stop_vib_pub = Publisher(f"{device_name}/StopVibration")
-        self.button_trigger_event: Dict[str, List[Callable]] = {
+        self.button_press_event: Dict[str, List[Callable]] = {
             "A": [],
             "B": [],
             "X": [],
             "Y": [],
         }
-        self.on_vibration = {"left": False, "right": False,}
+        self.left_trigger_press_event: Dict[str, List[Callable]] = {
+            "hand": [],
+            "trigger": [],
+        }
+        self.left_trigger_release_event: Dict[str, List[Callable]] = {
+            "hand": [],
+            "trigger": [],
+        }
+        self.right_trigger_press_event: Dict[str, List[Callable]] = {
+            "hand": [],
+            "trigger": [],
+        }
+        self.right_trigger_release_event: Dict[str, List[Callable]] = {
+            "hand": [],
+            "trigger": [],
+        }
+        self.on_vibration = {"left": False, "right": False}
 
     def update(self, data: str):
         self.last_input_data = self.input_data
         self.input_data = json.loads(data)
         if self.last_input_data is None:
             return
-        for button, callbacks in self.button_trigger_event.items():
+        for button, callbacks in self.button_press_event.items():
             if self.input_data[button] and not self.last_input_data[button]:
                 [callback() for callback in callbacks]
+        left_hand = self.input_data["left"]
+        last_left_hand = self.last_input_data["left"]
+        for trigger, callbacks in self.left_trigger_press_event.items():
+            if left_hand[trigger] and not last_left_hand["left"][trigger]:
+                [callback() for callback in callbacks]
+        for trigger, callbacks in self.left_trigger_release_event.items():
+            if not left_hand[trigger] and last_left_hand["left"][trigger]:
+                [callback() for callback in callbacks]
+        right_hand = self.input_data["right"]
+        last_right_hand = self.last_input_data["right"]
+        for trigger, callbacks in self.right_trigger_press_event.items():
+            if right_hand[trigger] and not last_right_hand["right"][trigger]:
+                [callback() for callback in callbacks]
+        for trigger, callbacks in self.right_trigger_release_event.items():
+            if not right_hand[trigger] and last_right_hand["right"][trigger]:
+                [callback() for callback in callbacks]
 
-    def register_button_trigger_event(self, button: str, callback: Callable):
+    def register_button_press_event(self, button: str, callback: Callable):
         # button should be one of A, B, X, Y
-        self.button_trigger_event[button].append(callback)
+        self.button_press_event[button].append(callback)
+
+    def register_trigger_press_event(
+        self, trigger: str, hand: str, callback: Callable
+    ):
+        # hand should be one of left or right
+        # trigger should be one of hand or trigger
+        if hand == "left":
+            self.left_trigger_press_event[trigger].append(callback)
+        elif hand == "right":
+            self.right_trigger_press_event[trigger].append(callback)
+        else:
+            raise ValueError("Invalid hand")
+
+    def register_trigger_release_event(
+        self, trigger: str, hand: str, callback: Callable
+    ):
+        # hand should be one of
+        # left_hand, left_trigger, right_hand, right_trigger
+        if hand == "left":
+            self.left_trigger_release_event[trigger].append(callback)
+        elif hand == "right":
+            self.right_trigger_release_event[trigger].append(callback)
+        else:
+            raise ValueError("Invalid hand")
 
     def get_input_data(self) -> MetaQuest3InputData:
         return self.input_data

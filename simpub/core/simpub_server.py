@@ -13,13 +13,21 @@ class ServerBase(abc.ABC):
     def __init__(self, host: str = "127.0.0.1"):
         self.host: str = host
         self.net_manager = init_net_manager(host)
+        self.initialize()
+        self.net_manager.start()
 
     def join(self):
         self.net_manager.join()
 
+    @abc.abstractmethod
+    def initialize(self):
+        raise NotImplementedError
+
 
 class MsgServer(ServerBase):
-    pass
+
+    def initialize(self):
+        pass
 
 
 class SimPublisher(ServerBase):
@@ -41,6 +49,8 @@ class SimPublisher(ServerBase):
         else:
             self.no_tracked_objects = no_tracked_objects
         super().__init__(host)
+
+    def initialize(self):
         self.scene_update_streamer = Streamer("SceneUpdate", self.get_update)
         self.scene_service = Service("Scene", self._on_scene_request, str)
         self.asset_service = Service("Asset", self._on_asset_request, bytes)
