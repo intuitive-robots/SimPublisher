@@ -18,7 +18,7 @@ class XRDevice:
 
     def __init__(
         self,
-        device_name: str = "UnityEditor",
+        device_name: str = "UnityClient",
     ) -> None:
         self.connected = False
         self.manager: NetManager = NetManager.manager
@@ -91,3 +91,13 @@ class XRDevice:
 
     def get_input_data(self) -> InputData:
         pass
+
+    def change_host_name(self, name: str):
+        if self.connected:
+            self.request("ChangeHostName", name)
+            self.manager.clients_info[name] = self.manager.clients_info.pop(
+                self.device
+            )
+            self.manager.clients_info[name]["name"] = name
+            self.client_info = self.manager.clients_info[name]
+            self.device = name
