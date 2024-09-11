@@ -48,20 +48,20 @@ class MetaQuest3(XRDevice):
             "Y": [],
         }
         self.left_trigger_press_event: Dict[str, List[Callable]] = {
-            "hand": [],
-            "trigger": [],
+            "hand_trigger": [],
+            "index_trigger": [],
         }
         self.left_trigger_release_event: Dict[str, List[Callable]] = {
-            "hand": [],
-            "trigger": [],
+            "hand_trigger": [],
+            "index_trigger": [],
         }
         self.right_trigger_press_event: Dict[str, List[Callable]] = {
-            "hand": [],
-            "trigger": [],
+            "hand_trigger": [],
+            "index_trigger": [],
         }
         self.right_trigger_release_event: Dict[str, List[Callable]] = {
-            "hand": [],
-            "trigger": [],
+            "hand_trigger": [],
+            "index_trigger": [],
         }
         self.on_vibration = {"left": False, "right": False}
 
@@ -76,18 +76,18 @@ class MetaQuest3(XRDevice):
         left_hand = self.input_data["left"]
         last_left_hand = self.last_input_data["left"]
         for trigger, callbacks in self.left_trigger_press_event.items():
-            if left_hand[trigger] and not last_left_hand["left"][trigger]:
+            if left_hand[trigger] and not last_left_hand[trigger]:
                 [callback() for callback in callbacks]
         for trigger, callbacks in self.left_trigger_release_event.items():
-            if not left_hand[trigger] and last_left_hand["left"][trigger]:
+            if not left_hand[trigger] and last_left_hand[trigger]:
                 [callback() for callback in callbacks]
         right_hand = self.input_data["right"]
         last_right_hand = self.last_input_data["right"]
         for trigger, callbacks in self.right_trigger_press_event.items():
-            if right_hand[trigger] and not last_right_hand["right"][trigger]:
+            if right_hand[trigger] and not last_right_hand[trigger]:
                 [callback() for callback in callbacks]
         for trigger, callbacks in self.right_trigger_release_event.items():
-            if not right_hand[trigger] and last_right_hand["right"][trigger]:
+            if not right_hand[trigger] and last_right_hand[trigger]:
                 [callback() for callback in callbacks]
 
     def register_button_press_event(self, button: str, callback: Callable):
@@ -98,7 +98,7 @@ class MetaQuest3(XRDevice):
         self, trigger: str, hand: str, callback: Callable
     ):
         # hand should be one of left or right
-        # trigger should be one of hand or trigger
+        # trigger should be one of hand_trigger or index_trigger
         if hand == "left":
             self.left_trigger_press_event[trigger].append(callback)
         elif hand == "right":
