@@ -1,3 +1,4 @@
+import concurrent.futures
 import enum
 from typing import List, Dict
 from typing import NewType, Callable, TypedDict, Union
@@ -11,11 +12,11 @@ from socket import AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST
 import struct
 import time
 import json
+from json import dumps
 import uuid
 from .log import logger
-from json import dumps
-import zmq
 import abc
+import concurrent
 
 IPAddress = NewType("IPAddress", str)
 TopicName = NewType("TopicName", str)
@@ -140,7 +141,9 @@ class Service(Communicator):
 
     async def callback(self, msg: str):
         result = await asyncio.wait_for(
-            asyncio.to_thread(self.callback_func, msg),
+            self.manager.loop.run_in_executor(
+                self.manager.executor, self.callback_func, msg
+            ),
             timeout=5
         )
         await self.sender(result)
@@ -190,19 +193,9 @@ class NetManager:
         # setting up thread pool
         self.running: bool = True
         self.loop: asyncio.AbstractEventLoop = None
-        self.start_server_thread()
-
-    def start_server_thread(self) -> None:
-        """
-        Start a thread for service.
-
-        Args:
-            block (bool, optional): main thread stop running and
-            wait for server thread. Defaults to False.
-        """
-        self.server_thread = threading.Thread(target=self.start_event_loop)
-        self.server_thread.daemon = True
-        self.server_thread.start()
+        # start the server in a thread pool
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
+        self.server_future = self.executor.submit(self.start_event_loop)
         while self.loop is None:
             time.sleep(0.01)
 
@@ -233,10 +226,10 @@ class NetManager:
     def stop_server(self):
         if self.loop.is_running():
             asyncio.run_coroutine_threadsafe(self.loop.stop(), self.loop)
-        self.server_thread.join()
+        self.executor.shutdown(wait=True)
 
     def join(self):
-        self.server_thread.join()
+        self.executor.shutdown(wait=True)
 
     async def service_loop(self):
         # try:

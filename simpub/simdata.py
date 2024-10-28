@@ -94,6 +94,10 @@ class SimVisual(SimData):
     material: str = None
     color: List[float] = None
 
+    def setup_transparency(self):
+        if self.material is not None:
+            self.material = self
+
 
 @dataclass
 class SimObject(SimData):
