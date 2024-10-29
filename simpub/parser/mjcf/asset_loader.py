@@ -139,7 +139,7 @@ class MeshLoader:
         # Indices
         indices = mesh.faces.astype(np.int32)
         indices = indices[:, [2, 1, 0]]
-        indices = indices.flatten() 
+        indices = indices.flatten()
         indices_layout = bin_buffer.tell(), indices.shape[0]
         bin_buffer.write(indices)
         # Texture coords

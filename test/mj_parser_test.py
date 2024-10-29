@@ -71,12 +71,9 @@ if __name__ == "__main__":
     scene.start()
 
     # assert host is not None, "Please specify the host"
-    # publisher = SFPublisher(
-    #     scene, host, no_tracked_objects=["table_plane", "table0"]
-    # )
-
-    parser = mj_parser.MjModelParser(scene.model)
-    sim_scene = parser.parse()
+    publisher = SFPublisher(
+        scene, host, no_tracked_objects=["table_plane", "table0"]
+    )
 
     duration = 2
 
