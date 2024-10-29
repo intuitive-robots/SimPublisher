@@ -4,7 +4,6 @@ from typing import List, Dict
 from typing import NewType, Callable, TypedDict, Union
 import asyncio
 from asyncio import sleep as asycnc_sleep
-import threading
 import zmq
 import zmq.asyncio
 import socket
@@ -144,7 +143,7 @@ class Service(Communicator):
             self.manager.loop.run_in_executor(
                 self.manager.executor, self.callback_func, msg
             ),
-            timeout=5
+            timeout=5.0,
         )
         await self.sender(result)
 
