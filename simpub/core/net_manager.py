@@ -250,7 +250,10 @@ class NetManager:
                     )
                     await self.service_socket.send_string("Timeout")
                 except Exception as e:
-                    logger.error(f"Error: {e}")
+                    logger.error(
+                        f"One error ocurred when processing the Service "
+                        f"\"{service}\": {e}"
+                    )
             await asycnc_sleep(0.01)
 
     async def broadcast_loop(self):
