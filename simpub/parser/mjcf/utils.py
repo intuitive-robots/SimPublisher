@@ -143,6 +143,7 @@ def cylinder2unity_scale(scale: List[float]) -> List[float]:
     elif len(scale) == 1:
         return list(map(abs, [scale[0] * 2, scale[0] * 2, scale[0] * 2]))
 
+
 def capsule2unity_scale(scale: List[float]) -> List[float]:
     # assert len(scale) == 3, "Only support scale with three components."
     # return list(map(abs, [scale[0], scale[1], scale[0]]))
@@ -150,13 +151,16 @@ def capsule2unity_scale(scale: List[float]) -> List[float]:
         return list(map(abs, [scale[0], scale[1], scale[0]]))
     elif len(scale) == 1:
         return list(map(abs, [scale[0] * 2, scale[0] * 2, scale[0] * 2]))
+    elif len(scale) == 3:
+        return list(map(abs, [scale[0], scale[1], scale[0]]))
+    raise ValueError("Only support scale with one, two or three components.")
 
 
 ScaleMap: Dict[str, Callable] = {
-    "plane": lambda x: plane2unity_scale(x),
-    "box": lambda x: box2unity_scale(x),
-    "sphere": lambda x: sphere2unity_scale(x),
-    "cylinder": lambda x: cylinder2unity_scale(x),
-    "capsule": lambda x: capsule2unity_scale(x),
-    "ellipsoid": lambda x: capsule2unity_scale(x),
+    VisualType.PLANE: lambda x: plane2unity_scale(x),
+    VisualType.CUBE: lambda x: box2unity_scale(x),
+    VisualType.SPHERE: lambda x: sphere2unity_scale(x),
+    VisualType.CYLINDER: lambda x: cylinder2unity_scale(x),
+    VisualType.CAPSULE: lambda x: capsule2unity_scale(x),
+    VisualType.NONE: lambda x: capsule2unity_scale(x),
 }
