@@ -151,8 +151,12 @@ class MjModelParser:
             vertices_layout = bin_buffer.tell(), vertices.shape[0]
             bin_buffer.write(vertices)
             # normal
-            start_norm = mj_model.mesh_normaladr[mesh_id]
-            num_norm = mj_model.mesh_normalnum[mesh_id]
+            if hasattr(mj_model, "mesh_normaladr"): 
+                start_norm = mj_model.mesh_normaladr[mesh_id]
+                num_norm = mj_model.mesh_normalnum[mesh_id]
+            else:
+                start_norm = start_vert
+                num_norm = num_verts
             norms = mj_model.mesh_normal[start_norm:start_norm + num_norm]
             norms = norms.astype(np.float32)
             norms = norms[:, [1, 2, 0]]
@@ -219,7 +223,7 @@ class MjModelParser:
             mat_specular = float(mj_model.mat_specular[mat_id])
             mat_shininess = float(mj_model.mat_shininess[mat_id])
             mat_reflectance = float(mj_model.mat_reflectance[mat_id])
-            tex_id = mj_model.mat_texid[mat_id]
+            tex_id = int(mj_model.mat_texid[mat_id])
             tex_name = None
             tex_size = (-1, -1)
             # support the 2.x version of mujoco
@@ -260,16 +264,25 @@ class MjModelParser:
             # tex_type = mj_model.tex_type[tex_id]
             tex_width = mj_model.tex_width[tex_id]
             tex_height = mj_model.tex_height[tex_id]
-            tex_data = mj_model.tex_data[tex_id]
             # get the texture data
-            start_tex = mj_model.tex_adr[tex_id]
             tex_height = mj_model.tex_height[tex_id]
             tex_width = mj_model.tex_width[tex_id]
             # only we only supported texture channel number is 3
-            tex_nchannel = mj_model.tex_nchannel[tex_id]
+            if hasattr(mj_model, "tex_nchannel"):
+                tex_nchannel = mj_model.tex_nchannel[tex_id]
+            else:
+                tex_nchannel = 3
             assert tex_nchannel == 3, "Only support texture with 3 channels."
+            start_tex = mj_model.tex_adr[tex_id]
             num_tex_data = tex_height * tex_width * tex_nchannel
-            tex_data = mj_model.tex_data[start_tex:start_tex + num_tex_data]
+            if hasattr(mj_model, "tex_data"):
+                tex_data = mj_model.tex_data[
+                    start_tex:start_tex + num_tex_data
+                ]
+            else:
+                tex_data = mj_model.tex_rgb[
+                    start_tex:start_tex + num_tex_data
+                ]
             tex_data = np.reshape(
                 tex_data, (tex_height, tex_width, tex_nchannel)
             )
