@@ -33,7 +33,7 @@ class SimData:
 
 @dataclass
 class SimAsset(SimData):
-    id: str
+    name: str
 
 
 @dataclass
@@ -53,7 +53,7 @@ class SimMaterial(SimAsset):
     emissionColor: List[float]
     specular: float = 0.5
     shininess: float = 0.5
-    reflectance: float = 0
+    reflectance: float = 0.0
     texture: Optional[str] = None
     textureSize: Tuple[int, int] = field(default_factory=lambda: (1, 1))
     type: AssetType = AssetType.MATERIAL
