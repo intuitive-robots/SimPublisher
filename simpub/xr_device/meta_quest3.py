@@ -7,8 +7,8 @@ from .xr_device import XRDevice
 
 
 class MetaQuest3Hand(TypedDict):
-    pos: list[float]
-    rot: list[float]
+    pos: List[float]
+    rot: List[float]
     index_trigger: bool
     hand_trigger: bool
 

@@ -3,7 +3,8 @@ from typing import List, Dict
 import numpy as np
 
 from ..core.simpub_server import SimPublisher
-from simpub.parser.mjcf import MJCFParser
+# from simpub.parser.mjcf import MJCFParser
+from ..parser.mj import MjModelParser
 from simpub.simdata import SimObject
 
 
@@ -13,14 +14,13 @@ class MujocoPublisher(SimPublisher):
         self,
         mj_model,
         mj_data,
-        mjcf_path: str,
         host: str = "127.0.0.1",
         no_rendered_objects: List[str] = None,
         no_tracked_objects: List[str] = None,
     ) -> None:
         self.mj_model = mj_model
         self.mj_data = mj_data
-        self.parser = MJCFParser(mjcf_path)
+        self.parser = MjModelParser(mj_model)
         sim_scene = self.parser.parse()
         self.tracked_obj_trans: Dict[str, np.ndarray] = dict()
         super().__init__(
