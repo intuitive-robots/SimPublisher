@@ -3,7 +3,7 @@ import time
 
 from simpub.sim.fancy_gym import FancyGymPublisher
 
-env_name = "TableTennis2D-v0"
+env_name = "BeerPong-v0"
 
 env = fancy_gym.make(env_name, seed=1)
 obs = env.reset()
