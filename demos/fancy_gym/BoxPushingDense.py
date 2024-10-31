@@ -10,7 +10,7 @@ obs = env.reset()
 
 publisher = FancyGymPublisher(env, "127.0.0.1")
 
-for i in range(1000):
+while True:
     action = env.action_space.sample()
     obs, reward, done, info = env.step(action)
     env.render()

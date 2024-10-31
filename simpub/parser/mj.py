@@ -46,7 +46,6 @@ class MjModelParser:
                 mj_model, mujoco.mjtObj.mjOBJ_BODY, body_id
             )
             parent_id = mj_model.body_parentid[body_id]
-            print(f"Body name: {body_name}, id: {body_id}, parent_id: {parent_id}")
             sim_object = SimObject(name=body_name)
             if parent_id == body_id:
                 sim_scene.root = sim_object
@@ -201,14 +200,6 @@ class MjModelParser:
             )
             self.sim_scene.meshes.append(mesh)
             self.sim_scene.raw_data[mesh.dataHash] = bin_data
-            # # get the UV coordinates if available
-            # if mj_model.mesh_texcoord is not None:
-            #     start_uv = start_vert * 2
-            #     uvs = mj_model.mesh_texcoord[start_uv:start_uv + num_verts]
-            #     uvs = np.reshape(uvs, (num_verts, 2))
-            #     print("  UVs:", uvs)
-            # else:
-            #     print("  No UV coordinates available for this mesh.")
 
     def process_materials(self, mj_model):
         # build material information
@@ -223,7 +214,7 @@ class MjModelParser:
             mat_specular = float(mj_model.mat_specular[mat_id])
             mat_shininess = float(mj_model.mat_shininess[mat_id])
             mat_reflectance = float(mj_model.mat_reflectance[mat_id])
-            tex_id = int(mj_model.mat_texid[mat_id])
+            tex_id = mj_model.mat_texid[mat_id]
             tex_name = None
             tex_size = (-1, -1)
             # support the 2.x version of mujoco
@@ -232,6 +223,7 @@ class MjModelParser:
                     tex_name = mujoco.mj_id2name(
                         mj_model, mujoco.mjtObj.mjOBJ_TEXTURE, int(tex_id)
                     )
+                    tex_id = int(tex_id)
             # only for mjTEXROLE_RGB which support 3.x version of mujoco
             elif isinstance(tex_id, np.ndarray):
                 if tex_id[1] != -1:
