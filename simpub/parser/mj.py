@@ -218,7 +218,7 @@ class MjModelParser:
             tex_name = None
             tex_size = (-1, -1)
             # support the 2.x version of mujoco
-            if isinstance(tex_id, int):
+            if isinstance(tex_id, np.int32):
                 if tex_id != -1:
                     tex_name = mujoco.mj_id2name(
                         mj_model, mujoco.mjtObj.mjOBJ_TEXTURE, int(tex_id)
