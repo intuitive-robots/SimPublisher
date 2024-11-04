@@ -3,7 +3,6 @@ import numpy as np
 import io
 from hashlib import md5
 from typing import List
-from PIL import Image
 
 from ..simdata import SimObject, SimScene, SimTransform, SimVisual, SimMesh
 from ..simdata import SimMaterial, SimTexture
@@ -30,7 +29,8 @@ def mj2unity_quat(quat: List[float]) -> List[float]:
 
 
 class MjModelParser:
-    def __init__(self, mj_model):
+    def __init__(self, mj_model, visible_geoms_groups):
+        self.visible_geoms_groups = visible_geoms_groups
         self.parse_model(mj_model)
 
     def parse(self):
@@ -75,13 +75,15 @@ class MjModelParser:
                 trans.pos = mj2unity_pos(mj_model.body_pos[body_id].tolist())
                 trans.rot = mj2unity_quat(mj_model.body_quat[body_id].tolist())
         # build the geom information
+        used_meshes_id = set()
         for geom_id in range(mj_model.ngeom):
             geom_name = mujoco.mj_id2name(
                 mj_model, mujoco.mjtObj.mjOBJ_GEOM, geom_id
             )
             # remove the geom if it does not participate in rendering
             # TODO: check if the internal visualization setting is geom_group
-            if mj_model.geom_group[geom_id] == 0:
+            geom_group = int(mj_model.geom_group[geom_id])
+            if geom_group not in self.visible_geoms_groups:
                 logger.info(
                     (
                         f"Geom '{geom_name}'(id {geom_id}) does not"
@@ -111,6 +113,7 @@ class MjModelParser:
                 mesh_name = mujoco.mj_id2name(
                     mj_model, mujoco.mjtObj.mjOBJ_MESH, mesh_id
                 )
+                used_meshes_id.add(mesh_id)
                 sim_visual.mesh = mesh_name
             # attach material id if geom has an associated material
             mat_id = mj_model.geom_matid[geom_id]
@@ -128,14 +131,16 @@ class MjModelParser:
                 body_info = body_hierarchy[body_name]
                 sim_object: SimObject = body_info["sim_object"]
                 sim_object.visuals.append(sim_visual)
-        self.process_meshes(mj_model)
+        self.process_meshes(mj_model, list(used_meshes_id))
         self.process_materials(mj_model)
         self.process_textures(mj_model)
         return sim_scene
 
-    def process_meshes(self, mj_model):
+    def process_meshes(self, mj_model, mesh_ids=None):
         # build mesh information
-        for mesh_id in range(mj_model.nmesh):
+        if mesh_ids is None:
+            mesh_ids = range(mj_model.nmesh)
+        for mesh_id in mesh_ids:
             mesh_name = mujoco.mj_id2name(
                 mj_model, mujoco.mjtObj.mjOBJ_MESH, mesh_id
             )
@@ -184,7 +189,7 @@ class MjModelParser:
                 uvs = np.copy(mj_model.mesh_texcoord[
                     start_uv:start_uv + num_texcoord
                 ])
-                uvs[:, 1] = 1 - uvs[:, 1]
+                uvs = 1 - uvs
                 uvs = uvs.flatten()
                 uv_layout = bin_buffer.tell(), uvs.shape[0]
                 bin_buffer.write(uvs)
@@ -209,8 +214,9 @@ class MjModelParser:
                 mj_model, mujoco.mjtObj.mjOBJ_MATERIAL, mat_id
             )
             # mat_id = mat_name,
-            mat_color = mj_model.mat_rgba[mat_id].tolist()
-            mat_emissionColor = mj_model.mat_emission[mat_id] * np.ones(4)
+            mat_color = mj_model.mat_rgba[mat_id]
+            mat_emissionColor = mj_model.mat_emission[mat_id] * mat_color
+            mat_color = mat_color.tolist()
             mat_emissionColor = mat_emissionColor.tolist()
             mat_specular = float(mj_model.mat_specular[mat_id])
             mat_shininess = float(mj_model.mat_shininess[mat_id])
@@ -254,6 +260,7 @@ class MjModelParser:
             if tex_name is None:
                 continue
             # assert tex_name is not None, "Texture name is None."
+            # TODO: Texture type?
             # tex_type = mj_model.tex_type[tex_id]
             tex_width = mj_model.tex_width[tex_id]
             tex_height = mj_model.tex_height[tex_id]
@@ -276,10 +283,7 @@ class MjModelParser:
                 tex_data = mj_model.tex_rgb[
                     start_tex:start_tex + num_tex_data
                 ]
-            tex_data = np.reshape(
-                tex_data, (tex_height, tex_width, tex_nchannel)
-            )
-            bin_data = Image.fromarray(tex_data, 'RGB').tobytes()
+            bin_data = tex_data.tobytes()
             texture_hash = md5(bin_data).hexdigest()
             texture = SimTexture(
                 name=tex_name,
