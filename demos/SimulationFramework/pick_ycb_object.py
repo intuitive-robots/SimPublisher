@@ -16,9 +16,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     ycb_base_folder = os.path.join(args.ycb_base_folder, "SF-ObjectDataset/YCB")
-    ycb_object = YCBMujocoObject(
+    clamp = YCBMujocoObject(
         ycb_base_folder=ycb_base_folder,
-        object_id=args.object_id,
+        object_id="051_large_clamp",
         object_name="clamp",
         pos=[0.4, 0, 0.1],
         quat=[0, 0, 0, 1],
@@ -27,7 +27,40 @@ if __name__ == "__main__":
         visual_only=False,
     )
 
-    object_list = [ycb_object]
+    lemon = YCBMujocoObject(
+        ycb_base_folder=ycb_base_folder,
+        object_id="014_lemon",
+        object_name="lemon",
+        pos=[0.4, 0.2, 0.1],
+        quat=[0, 0, 0, 1],
+        static=False,
+        alpha=1.0,
+        visual_only=False,
+    )
+
+    mug = YCBMujocoObject(
+        ycb_base_folder=ycb_base_folder,
+        object_id="025_mug",
+        object_name="mug",
+        pos=[0.2, 0.1, 0.1],
+        quat=[0, 0, 0, 1],
+        static=False,
+        alpha=1.0,
+        visual_only=False,
+    )
+
+    hammer = YCBMujocoObject(
+        ycb_base_folder=ycb_base_folder,
+        object_id="048_hammer",
+        object_name="hammer",
+        pos=[0.3, -0.2, 0.1],
+        quat=[0, 0, 0, 1],
+        static=False,
+        alpha=1.0,
+        visual_only=False,
+    )
+
+    object_list = [clamp, lemon, mug, hammer]
 
     # Setup the scene
     sim_factory = SimRepository.get_factory("mj_beta")

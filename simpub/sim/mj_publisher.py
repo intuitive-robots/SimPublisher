@@ -17,10 +17,14 @@ class MujocoPublisher(SimPublisher):
         host: str = "127.0.0.1",
         no_rendered_objects: List[str] = None,
         no_tracked_objects: List[str] = None,
+        visible_geoms_groups: List[int] = None,
     ) -> None:
         self.mj_model = mj_model
         self.mj_data = mj_data
-        self.parser = MjModelParser(mj_model)
+        # default seeting for visible geoms groups
+        if visible_geoms_groups is None:
+            visible_geoms_groups = list(range(5))
+        self.parser = MjModelParser(mj_model, visible_geoms_groups)
         sim_scene = self.parser.parse()
         self.tracked_obj_trans: Dict[str, np.ndarray] = dict()
         super().__init__(
