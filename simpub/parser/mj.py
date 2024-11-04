@@ -74,6 +74,8 @@ class MjModelParser:
                 trans = sim_object.trans
                 trans.pos = mj2unity_pos(mj_model.body_pos[body_id].tolist())
                 trans.rot = mj2unity_quat(mj_model.body_quat[body_id].tolist())
+        
+        used_meshes = set()
         # build the geom information
         for geom_id in range(mj_model.ngeom):
             geom_name = mujoco.mj_id2name(
@@ -89,6 +91,7 @@ class MjModelParser:
                     )
                 )
                 continue
+
             geom_type = mj_model.geom_type[geom_id]
             visual_type = TypeMap[MJModelGeomTypeMap[geom_type]]
             geom_pos = mj2unity_pos(mj_model.geom_pos[geom_id].tolist())
@@ -99,6 +102,7 @@ class MjModelParser:
             trans = SimTransform(
                 pos=geom_pos, rot=geom_quat, scale=geom_scale
             )
+            geom_color = mj_model.geom_rgba[geom_id].tolist()
             geom_color = mj_model.geom_rgba[geom_id].tolist()
             sim_visual = SimVisual(
                 type=visual_type,
@@ -111,6 +115,7 @@ class MjModelParser:
                 mesh_name = mujoco.mj_id2name(
                     mj_model, mujoco.mjtObj.mjOBJ_MESH, mesh_id
                 )
+                used_meshes.add(mesh_id)
                 sim_visual.mesh = mesh_name
             # attach material id if geom has an associated material
             mat_id = mj_model.geom_matid[geom_id]
@@ -128,14 +133,16 @@ class MjModelParser:
                 body_info = body_hierarchy[body_name]
                 sim_object: SimObject = body_info["sim_object"]
                 sim_object.visuals.append(sim_visual)
-        self.process_meshes(mj_model)
+
+        self.process_meshes(mj_model, used_meshes)
         self.process_materials(mj_model)
         self.process_textures(mj_model)
         return sim_scene
 
-    def process_meshes(self, mj_model):
+    def process_meshes(self, mj_model, used_meshes):
         # build mesh information
         for mesh_id in range(mj_model.nmesh):
+            if mesh_id not in used_meshes: continue
             mesh_name = mujoco.mj_id2name(
                 mj_model, mujoco.mjtObj.mjOBJ_MESH, mesh_id
             )
@@ -143,51 +150,50 @@ class MjModelParser:
             # vertices
             start_vert = mj_model.mesh_vertadr[mesh_id]
             num_verts = mj_model.mesh_vertnum[mesh_id]
-            vertices = mj_model.mesh_vert[start_vert:start_vert + num_verts]
-            vertices = vertices.astype(np.float32)
+            
+            vertices = np.copy(mj_model.mesh_vert[start_vert:start_vert + num_verts]).astype(np.float32)
+            vertices[:, 1] = -vertices[:, 1]
             vertices = vertices[:, [1, 2, 0]]
-            vertices[:, 0] = - vertices[:, 0]
+
             vertices = vertices.flatten()
             vertices_layout = bin_buffer.tell(), vertices.shape[0]
             bin_buffer.write(vertices)
+            
             # normal
-            if hasattr(mj_model, "mesh_normaladr"): 
-                start_norm = mj_model.mesh_normaladr[mesh_id]
-                num_norm = mj_model.mesh_normalnum[mesh_id]
-            else:
-                start_norm = start_vert
-                num_norm = num_verts
-            norms = mj_model.mesh_normal[start_norm:start_norm + num_norm]
-            norms = norms.astype(np.float32)
+            norms = np.copy(mj_model.mesh_normal[start_vert:start_vert + num_verts]).astype(np.float32)
+            norms[:, 1] = -norms[:, 1]
             norms = norms[:, [1, 2, 0]]
-            norms[:, 0] = - norms[:, 0]
+
             norms = norms.flatten()
             normal_layout = bin_buffer.tell(), norms.shape[0]
             bin_buffer.write(norms)
+
+
             # faces
             start_face = mj_model.mesh_faceadr[mesh_id]
             num_faces = mj_model.mesh_facenum[mesh_id]
-            faces = mj_model.mesh_face[start_face:start_face + num_faces]
-            indices = faces.astype(np.int32)
-            indices = indices[:, [2, 1, 0]]
-            indices = indices.flatten()
+
+            indices = np.copy(mj_model.mesh_face[start_face:start_face + num_faces]).astype(np.int32)
+            indices = np.flip(indices, 1).flatten()
+
             indices_layout = bin_buffer.tell(), indices.shape[0]
             bin_buffer.write(indices)
+
             # Texture coords
             uv_layout = (0, 0)
             start_uv = mj_model.mesh_texcoordadr[mesh_id]
             if start_uv != -1:
+
                 num_texcoord = mj_model.mesh_texcoordnum[mesh_id]
-                if num_texcoord > num_verts:
-                    num_texcoord = num_verts
-                # TODO: fill in the missing texture coordinates
-                uvs = np.copy(mj_model.mesh_texcoord[
-                    start_uv:start_uv + num_texcoord
-                ])
-                uvs[:, 1] = 1 - uvs[:, 1]
+                assert num_texcoord == num_verts
+
+                uvs = np.copy(mj_model.mesh_texcoord[start_uv:start_uv + num_texcoord])
+                uvs = 1 - uvs
                 uvs = uvs.flatten()
                 uv_layout = bin_buffer.tell(), uvs.shape[0]
                 bin_buffer.write(uvs)
+
+
             # create a SiMmesh object and other data
             bin_data = bin_buffer.getvalue()
             hash = md5(bin_data).hexdigest()
@@ -209,21 +215,25 @@ class MjModelParser:
                 mj_model, mujoco.mjtObj.mjOBJ_MATERIAL, mat_id
             )
             # mat_id = mat_name,
-            mat_color = mj_model.mat_rgba[mat_id].tolist()
-            mat_emissionColor = mj_model.mat_emission[mat_id] * np.ones(4)
+            mat_color = mj_model.mat_rgba[mat_id]
+            mat_emissionColor = mj_model.mat_emission[mat_id] * mat_color
+            mat_color = mat_color.tolist()
             mat_emissionColor = mat_emissionColor.tolist()
             mat_specular = float(mj_model.mat_specular[mat_id])
             mat_shininess = float(mj_model.mat_shininess[mat_id])
             mat_reflectance = float(mj_model.mat_reflectance[mat_id])
             tex_id = mj_model.mat_texid[mat_id]
+            tex_id = mj_model.mat_texid[mat_id]
             tex_name = None
             tex_size = (-1, -1)
             # support the 2.x version of mujoco
+            if isinstance(tex_id, np.int32):
             if isinstance(tex_id, np.int32):
                 if tex_id != -1:
                     tex_name = mujoco.mj_id2name(
                         mj_model, mujoco.mjtObj.mjOBJ_TEXTURE, int(tex_id)
                     )
+                    tex_id = int(tex_id)
                     tex_id = int(tex_id)
             # only for mjTEXROLE_RGB which support 3.x version of mujoco
             elif isinstance(tex_id, np.ndarray):
@@ -253,7 +263,7 @@ class MjModelParser:
             )
             if tex_name is None:
                 continue
-            # assert tex_name is not None, "Texture name is None."
+
             # tex_type = mj_model.tex_type[tex_id]
             tex_width = mj_model.tex_width[tex_id]
             tex_height = mj_model.tex_height[tex_id]
@@ -276,10 +286,8 @@ class MjModelParser:
                 tex_data = mj_model.tex_rgb[
                     start_tex:start_tex + num_tex_data
                 ]
-            tex_data = np.reshape(
-                tex_data, (tex_height, tex_width, tex_nchannel)
-            )
-            bin_data = Image.fromarray(tex_data, 'RGB').tobytes()
+            
+            bin_data = tex_data.tobytes()
             texture_hash = md5(bin_data).hexdigest()
             texture = SimTexture(
                 name=tex_name,
