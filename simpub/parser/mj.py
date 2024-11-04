@@ -79,9 +79,9 @@ class MjModelParser:
             geom_name = mujoco.mj_id2name(
                 mj_model, mujoco.mjtObj.mjOBJ_GEOM, geom_id
             )
-            geom_color = mj_model.geom_rgba[geom_id].tolist()
             # remove the geom if it does not participate in rendering
-            if geom_color[3] == 0:
+            # TODO: check if the internal visualization setting is geom_group
+            if mj_model.geom_group[geom_id] == 0:
                 logger.info(
                     (
                         f"Geom '{geom_name}'(id {geom_id}) does not"
@@ -99,6 +99,7 @@ class MjModelParser:
             trans = SimTransform(
                 pos=geom_pos, rot=geom_quat, scale=geom_scale
             )
+            geom_color = mj_model.geom_rgba[geom_id].tolist()
             sim_visual = SimVisual(
                 type=visual_type,
                 trans=trans,
