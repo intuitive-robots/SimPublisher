@@ -28,6 +28,7 @@ class ServerPort(int, enum.Enum):
     DISCOVERY = 7720
     SERVICE = 7721
     TOPIC = 7722
+    HTTP = 7723
 
 
 class ClientPort(int, enum.Enum):
