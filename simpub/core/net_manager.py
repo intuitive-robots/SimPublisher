@@ -32,8 +32,8 @@ class ServerPort(int, enum.Enum):
 
 class ClientPort(int, enum.Enum):
     DISCOVERY = 7720
-    SERVICE = 7723
-    TOPIC = 7724
+    SERVICE = 7730
+    TOPIC = 7731
 
 
 class HostInfo(TypedDict):
@@ -41,6 +41,19 @@ class HostInfo(TypedDict):
     ip: IPAddress
     topics: List[TopicName]
     services: List[ServiceName]
+
+
+class SimPubClient:
+
+    def __init__(self, client_info: HostInfo) -> None:
+        self.manager: NetManager = NetManager.manager
+        self.info = client_info
+        self.req_socket: zmq.Socket = self.manager.zmq_context.socket(zmq.REQ)
+        self.sub_socket: zmq.Socket = self.manager.zmq_context.socket(zmq.SUB)
+        self.req_socket.connect(
+            f"tcp://{client_info['ip']}:{ClientPort.SERVICE.value}")
+        self.sub_socket.connect(
+            f"tcp://{client_info['ip']}:{ClientPort.TOPIC.value}")
 
 
 class Communicator(abc.ABC):
@@ -65,7 +78,10 @@ class Publisher(Communicator):
         super().__init__()
         self.topic = topic
         self.socket = self.manager.pub_socket
-        self.manager.register_local_topic(self.topic)
+        if topic in self.manager.local_info["topics"]:
+            logger.warning(f"Host {topic} is already registered")
+        else:
+            self.manager.local_info["topics"].append(topic)
         logger.info(f"Publisher for topic \"{self.topic}\" is ready")
 
     def publish(self, data: Dict):
@@ -110,28 +126,16 @@ class Streamer(Publisher):
             await self.socket.send_string(f"{self.topic}:{dumps(msg)}")
 
 
-ResponseType = Union[str, bytes, Dict]
-
-
 class Service(Communicator):
 
     def __init__(
         self,
         service_name: str,
-        callback: Callable[[str], ResponseType],
-        respnse_type: ResponseType,
+        callback: Callable[[str], Union[str, bytes, Dict]],
     ) -> None:
         super().__init__()
         self.service_name = service_name
         self.callback_func = callback
-        if respnse_type == str:
-            self.sender = self.send_string
-        elif respnse_type == bytes:
-            self.sender = self.send_bytes
-        elif respnse_type == Dict:
-            self.sender = self.send_dict
-        else:
-            raise ValueError("Invalid response type")
         self.socket = self.manager.service_socket
         # register service
         self.manager.local_info["services"].append(service_name)
@@ -145,19 +149,32 @@ class Service(Communicator):
             ),
             timeout=5.0,
         )
-        await self.sender(result)
+        await self.send(result)
 
-    async def send_string(self, string: str):
-        await self.socket.send_string(string)
-
-    async def send_bytes(self, data: bytes):
-        await self.socket.send(data)
-
-    async def send_dict(self, data: Dict):
-        await self.socket.send_string(dumps(data))
+    @abc.abstractmethod
+    async def send(self, string: str):
+        raise NotImplementedError
 
     def on_shutdown(self):
         return super().on_shutdown()
+
+
+class StringService(Service):
+
+    async def send(self, string: str):
+        await self.socket.send_string(string)
+
+
+class BytesService(Service):
+
+    async def send(self, data: bytes):
+        await self.socket.send(data)
+
+
+class DictService(Service):
+
+    async def send(self, data: Dict):
+        await self.socket.send_string(dumps(data))
 
 
 class NetManager:
@@ -187,8 +204,11 @@ class NetManager:
         self.local_info["ip"] = host_ip
         self.local_info["topics"] = []
         self.local_info["services"] = []
-        # host info
-        self.clients_info: Dict[str, HostInfo] = {}
+        # client info
+        self.on_client_registered: List[
+            Callable[[HostInfo], None]
+        ] = list()
+        self.clients: Dict[IPAddress, SimPubClient] = {}
         # setting up thread pool
         self.running: bool = True
         self.loop: asyncio.AbstractEventLoop = None
@@ -208,11 +228,11 @@ class NetManager:
         while not self._initialized:
             time.sleep(0.01)
         # default service for client registration
-        self.register_service = Service(
-            "Register", self.register_client_callback, str
+        self.register_service = StringService(
+            "Register", self.register_client_callback
         )
-        self.server_timestamp_service = Service(
-            "GetServerTimestamp", self.get_server_timestamp_callback, str
+        self.server_timestamp_service = StringService(
+            "GetServerTimestamp", self.get_server_timestamp_callback
         )
         # default task for client registration
         self.submit_task(self.broadcast_loop)
@@ -280,20 +300,19 @@ class NetManager:
     def register_client_callback(self, msg: str) -> str:
         # NOTE: something woring with sending message, but it solved somehow
         client_info: HostInfo = json.loads(msg)
-        client_name = client_info["name"]
         # NOTE: the client info may be updated so the reference cannot be used
         # NOTE: TypeDict is somehow block if the key is not in the dict
-        self.clients_info[client_name] = client_info
-        logger.info(f"Host \"{client_name}\" has been registered")
+        if client_info["ip"] not in self.clients:
+            self.clients[client_info['ip']] = SimPubClient(client_info)
+        for callback in self.on_client_registered:
+            callback(self.clients[client_info['ip']])
+        logger.info(
+            f"Host \"{client_info['name']}\" with"
+            f"IP \"{client_info['ip']}\" has been registered")
         return "The info has been registered"
 
     def get_server_timestamp_callback(self, msg: str) -> str:
         return str(time.monotonic())
-
-    def register_local_topic(self, topic: TopicName):
-        if topic in self.local_info["topics"]:
-            logger.warning(f"Host {topic} is already registered")
-        self.local_info["topics"].append(topic)
 
     def shutdown(self):
         logger.info("Shutting down the server")

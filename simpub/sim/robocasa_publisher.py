@@ -19,5 +19,6 @@ class RobocasaPublisher(MujocoPublisher):
             env.sim.data._data,
             host,
             no_rendered_objects,
-            no_tracked_objects
+            no_tracked_objects,
+            visible_geoms_groups=list(range(1, 5)),
         )

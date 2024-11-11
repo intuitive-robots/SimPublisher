@@ -3,7 +3,6 @@ from typing import List, Dict
 import numpy as np
 
 from ..core.simpub_server import SimPublisher
-# from simpub.parser.mjcf import MJCFParser
 from ..parser.mj import MjModelParser
 from simpub.simdata import SimObject
 
