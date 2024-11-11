@@ -273,12 +273,12 @@ class MjModelParser:
         mat_texture = None
         # support the 2.x version of mujoco
         if isinstance(tex_id, np.int32):
-            if tex_id != -1:
-                tex_id = int(tex_id)
+            tex_id = int(tex_id)
         # only for mjTEXROLE_RGB which support 3.x version of mujoco
+        # The second element of the texture array is base color (albedo)
+        # TODO： Check after which mujoco version the tex id array is supported
         elif isinstance(tex_id, np.ndarray):
-            if tex_id[1] != -1:
-                tex_id = int(tex_id[1])
+            tex_id = int(tex_id[1])
         else:
             logger.warning(
                 f"Texture id is of type {type(tex_id)},"
