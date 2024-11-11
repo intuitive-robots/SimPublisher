@@ -232,7 +232,6 @@ class MjModelParser:
             uvs = np.copy(mj_model.mesh_texcoord[
                 start_uv:start_uv + num_texcoord
             ])
-            uvs = 1 - uvs
             uvs = uvs.flatten()
             uv_layout = bin_buffer.tell(), uvs.shape[0]
             bin_buffer.write(uvs)
@@ -328,15 +327,3 @@ class MjModelParser:
         )
         self.sim_scene.raw_data[texture_hash] = bin_data
         return texture
-
-        # bin_data = tex_data.tobytes()
-        # texture_hash = md5(bin_data).hexdigest()
-        # texture = SimTexture(
-        #     width=int(tex_width),
-        #     height=int(tex_height),
-        #     # Only support 2D texture
-        #     textureType="2D",
-        #     hash=texture_hash
-        # )
-        # self.sim_scene.raw_data[texture_hash] = bin_data
-        # return texture
