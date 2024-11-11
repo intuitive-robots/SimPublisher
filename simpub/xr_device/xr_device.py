@@ -25,12 +25,11 @@ class XRDevice:
         self.manager: NetManager = NetManager.manager
         self.device_name = device_name
         self.client: SimPubClient = None
+        self.req_socket: zmq.Socket = None
+        self.sub_socket: zmq.Socket = None
         # subscriber
-        self.sub_socket = self.manager.zmq_context.socket(zmq.SUB)
         self.sub_topic_callback: Dict[TopicName, Callable] = {}
         self.register_topic_callback(f"{device_name}/Log", self.print_log)
-        # request client
-        self.req_socket = self.manager.zmq_context.socket(zmq.REQ)
         self.manager.submit_task(self.wait_for_connection)
 
     async def wait_for_connection(self):

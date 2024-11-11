@@ -3,9 +3,10 @@ import numpy as np
 import io
 from hashlib import md5
 from typing import List, Dict, Callable
+import cv2
 
-from ..simdata import SimObject, SimScene, SimTransform, SimVisual, SimMesh
-from ..simdata import SimMaterial, SimTexture
+from ..simdata import SimObject, SimScene, SimTransform, SimVisual
+from ..simdata import SimMaterial, SimTexture, SimMesh
 from ..simdata import VisualType
 from ..core.log import logger
 
@@ -130,7 +131,7 @@ class MjModelParser:
         num_geoms = mj_model.body_geomnum[body_id]
         for geom_id in range(
             mj_model.body_geomadr[body_id],
-            mj_model.body_geomadr[body_id + num_geoms]
+            mj_model.body_geomadr[body_id] + num_geoms
         ):
             geom_name = mujoco.mj_id2name(
                 mj_model, mujoco.mjtObj.mjOBJ_GEOM, geom_id
@@ -172,10 +173,7 @@ class MjModelParser:
         # attach mesh id if geom type is mesh
         if geom_type == mujoco.mjtGeom.mjGEOM_MESH:
             mesh_id = mj_model.geom_dataid[geom_id]
-            mesh_name = mujoco.mj_id2name(
-                mj_model, mujoco.mjtObj.mjOBJ_MESH, mesh_id
-            )
-            sim_visual.mesh = mesh_name
+            sim_visual.mesh = self.process_mesh(mj_model, mesh_id)
         # attach material id if geom has an associated material
         mat_id = mj_model.geom_matid[geom_id]
         if mat_id != -1:
@@ -183,15 +181,11 @@ class MjModelParser:
                 mj_model, mat_id
             )
         else:
-            sim_visual.material = SimMaterial()
-            sim_visual.material.color = geom_color
+            sim_visual.material = SimMaterial(geom_color)
         return sim_visual
 
     def process_mesh(self, mj_model, mesh_id: int):
         # build mesh information
-        mesh_name = mujoco.mj_id2name(
-            mj_model, mujoco.mjtObj.mjOBJ_MESH, mesh_id
-        )
         bin_buffer = io.BytesIO()
         # vertices
         start_vert = mj_model.mesh_vertadr[mesh_id]
@@ -246,7 +240,6 @@ class MjModelParser:
         bin_data = bin_buffer.getvalue()
         hash = md5(bin_data).hexdigest()
         mesh = SimMesh(
-            name=mesh_name,
             indicesLayout=indices_layout,
             verticesLayout=vertices_layout,
             normalsLayout=normal_layout,
@@ -258,10 +251,6 @@ class MjModelParser:
 
     def process_material(self, mj_model, mat_id: int):
         # build material information
-        mat_name = mujoco.mj_id2name(
-            mj_model, mujoco.mjtObj.mjOBJ_MATERIAL, mat_id
-        )
-        # mat_id = mat_name,
         mat_color = mj_model.mat_rgba[mat_id]
         mat_emissionColor = mj_model.mat_emission[mat_id] * mat_color
         mat_color = mat_color.tolist()
@@ -284,10 +273,9 @@ class MjModelParser:
                 f"Texture id is of type {type(tex_id)},"
                 "which is not supported."
             )
-        if tex_id == -1:
-            mat_texture = self.process_geoms(mj_model, tex_id)
+        if tex_id != -1:
+            mat_texture = self.process_texture(mj_model, tex_id)
         material = SimMaterial(
-            name=mat_name,
             color=mat_color,
             emissionColor=mat_emissionColor,
             specular=mat_specular,
@@ -299,9 +287,6 @@ class MjModelParser:
 
     def process_texture(self, mj_model, tex_id: int):
         # build texture information
-        tex_name = mujoco.mj_id2name(
-            mj_model, mujoco.mjtObj.mjOBJ_TEXTURE, tex_id
-        )
         # TODO: Texture type?
         # tex_type = mj_model.tex_type[tex_id]
         # get the texture data
@@ -323,15 +308,35 @@ class MjModelParser:
             tex_data: np.ndarray = mj_model.tex_rgb[
                 start_tex:start_tex + num_tex_data
             ]
-        bin_data = tex_data.tobytes()
+
+        # compress the texture data
+        width = int(tex_width // 4)
+        height = int(tex_height // 4)
+        tex_data = cv2.resize(
+            tex_data.reshape(tex_width, tex_height, 3),
+            (width, height),
+            interpolation=cv2.INTER_LINEAR
+        )
+        bin_data = tex_data.astype(np.uint8).tobytes()
         texture_hash = md5(bin_data).hexdigest()
         texture = SimTexture(
-            name=tex_name,
-            width=int(tex_width),
-            height=int(tex_height),
-            # Only support 2D texture
+            width=width,
+            height=height,
+            # Only support 2d texture
             textureType="2D",
             hash=texture_hash
         )
         self.sim_scene.raw_data[texture_hash] = bin_data
         return texture
+
+        # bin_data = tex_data.tobytes()
+        # texture_hash = md5(bin_data).hexdigest()
+        # texture = SimTexture(
+        #     width=int(tex_width),
+        #     height=int(tex_height),
+        #     # Only support 2D texture
+        #     textureType="2D",
+        #     hash=texture_hash
+        # )
+        # self.sim_scene.raw_data[texture_hash] = bin_data
+        # return texture

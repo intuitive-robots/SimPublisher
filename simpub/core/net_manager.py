@@ -28,13 +28,12 @@ class ServerPort(int, enum.Enum):
     DISCOVERY = 7720
     SERVICE = 7721
     TOPIC = 7722
-    HTTP = 7723
 
 
 class ClientPort(int, enum.Enum):
     DISCOVERY = 7720
-    SERVICE = 7723
-    TOPIC = 7724
+    SERVICE = 7730
+    TOPIC = 7731
 
 
 class HostInfo(TypedDict):
@@ -47,9 +46,10 @@ class HostInfo(TypedDict):
 class SimPubClient:
 
     def __init__(self, client_info: HostInfo) -> None:
+        self.manager: NetManager = NetManager.manager
         self.info = client_info
-        self.req_socket: zmq.Socket = None
-        self.sub_socket: zmq.Socket = None
+        self.req_socket: zmq.Socket = self.manager.zmq_context.socket(zmq.REQ)
+        self.sub_socket: zmq.Socket = self.manager.zmq_context.socket(zmq.SUB)
         self.req_socket.connect(
             f"tcp://{client_info['ip']}:{ClientPort.SERVICE.value}")
         self.sub_socket.connect(
@@ -149,11 +149,11 @@ class Service(Communicator):
             ),
             timeout=5.0,
         )
-        await self.sender(result)
+        await self.send(result)
 
     @abc.abstractmethod
     async def send(self, string: str):
-        await self.socket.send_string(string)
+        raise NotImplementedError
 
     def on_shutdown(self):
         return super().on_shutdown()
@@ -205,7 +205,6 @@ class NetManager:
         self.local_info["topics"] = []
         self.local_info["services"] = []
         # client info
-        # self.clients_info: Dict[str, HostInfo] = {}
         self.on_client_registered: List[
             Callable[[HostInfo], None]
         ] = list()
@@ -303,16 +302,11 @@ class NetManager:
         client_info: HostInfo = json.loads(msg)
         # NOTE: the client info may be updated so the reference cannot be used
         # NOTE: TypeDict is somehow block if the key is not in the dict
-        if client_info["name"] in self.clients:
-            logger.log(
-                f"Host \"{client_info['name']}\" with"
-                f"IP \"{client_info['ip']}\" is already registered")
-            # TODO: update the client info if it changed
-            return "The info has been updated"
-        self.clients[client_info['name']] = SimPubClient(client_info)
+        if client_info["ip"] not in self.clients:
+            self.clients[client_info['ip']] = SimPubClient(client_info)
         for callback in self.on_client_registered:
-            callback(self.clients[client_info['name']])
-        logger.log(
+            callback(self.clients[client_info['ip']])
+        logger.info(
             f"Host \"{client_info['name']}\" with"
             f"IP \"{client_info['ip']}\" has been registered")
         return "The info has been registered"
