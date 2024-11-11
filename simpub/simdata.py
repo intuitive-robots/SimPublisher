@@ -20,12 +20,6 @@ class VisualType(str, Enum):
     NONE = "NONE"
 
 
-class AssetType(str, Enum):
-    MATERIAL = "MATERIAL",
-    TEXTURE = "TEXTURE",
-    MESH = "MESH",
-
-
 @dataclass
 class SimData:
     pass
@@ -33,39 +27,36 @@ class SimData:
 
 @dataclass
 class SimAsset(SimData):
-    name: str
+    hash: str
 
 
 @dataclass
 class SimMesh(SimAsset):
-    dataHash: str
     # (offset: bytes, count: int)
     indicesLayout: Tuple[int, int]
     normalsLayout: Tuple[int, int]
     verticesLayout: Tuple[int, int]
     uvLayout: Tuple[int, int]
-    type: AssetType = AssetType.MESH
 
 
 @dataclass
-class SimMaterial(SimAsset):
-    color: List[float]  # All the color values are within the 0 - 1.0 range
-    emissionColor: List[float]
+class SimMaterial(SimData):
+    # All the color values are within the 0 - 1.0 range
+    color: List[float]
+    emissionColor: Optional[List[float]] = None
     specular: float = 0.5
     shininess: float = 0.5
     reflectance: float = 0.0
-    texture: Optional[str] = None
-    textureSize: Tuple[int, int] = field(default_factory=lambda: (1, 1))
-    type: AssetType = AssetType.MATERIAL
+    texture: Optional[SimTexture] = None
 
 
 @dataclass
 class SimTexture(SimAsset):
-    dataHash: str
     width: int = 0
     height: int = 0
-    textureType: str = "cube"
-    type: AssetType = AssetType.TEXTURE
+    # TODO: add new texture type
+    textureType: str = "2D"
+    textureSize: Tuple[int, int] = field(default_factory=lambda: (1, 1))
 
 
 @dataclass
@@ -87,16 +78,15 @@ class SimTransform(SimData):
 
 @dataclass
 class SimVisual(SimData):
-
+    name: str
     type: VisualType
     trans: SimTransform
-    mesh: str = None
-    material: str = None
-    color: List[float] = None
-
-    def setup_transparency(self):
-        if self.material is not None:
-            self.material = self
+    material: Optional[SimMaterial] = None
+    mesh: Optional[SimMesh] = None
+    # TODO： easily set up transparency
+    # def setup_transparency(self):
+    #     if self.material is not None:
+    #         self.material = self
 
 
 @dataclass
@@ -112,17 +102,11 @@ class SimScene(SimData):
     def __init__(self) -> None:
         self.root: SimObject = None
         self.id: str = str(random.randint(int(1e9), int(1e10 - 1)))
-        self.meshes: List[SimMesh] = list()
-        self.textures: List[SimMesh] = list()
-        self.materials: List[SimMesh] = list()
         self.raw_data: Dict[str, bytes] = dict()
 
     def to_string(self) -> str:
         dict_data = {
             "root": asdict(self.root),
             "id": self.id,
-            "meshes": [asdict(mesh) for mesh in self.meshes],
-            "textures": [asdict(tex) for tex in self.textures],
-            "materials": [asdict(mat) for mat in self.materials],
         }
         return json.dumps(dict_data)
