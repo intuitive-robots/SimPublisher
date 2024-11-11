@@ -5,8 +5,8 @@ from typing import Dict, List
 from simpub.simdata import SimScene
 from .net_manager import init_net_manager, asycnc_sleep
 from .net_manager import Streamer, BytesService, SimPubClient
-# from .net_manager import ServerPort
-# from .log import logger
+from .log import logger
+from .utils import send_message
 
 
 class ServerBase(abc.ABC):
@@ -49,32 +49,37 @@ class SimPublisher(ServerBase):
             self.no_tracked_objects = []
         else:
             self.no_tracked_objects = no_tracked_objects
+        super().__init__(host)
         self.net_manager.on_client_registered.append(
             self.on_xr_client_registered
         )
-        super().__init__(host)
 
     def initialize(self):
         self.scene_update_streamer = Streamer("SceneUpdate", self.get_update)
-        self.scene_service = BytesService("Scene", self._on_scene_request)
+        # self.scene_service = BytesService("Scene", self._on_scene_request)
         self.asset_service = BytesService("Asset", self._on_asset_request)
 
     def on_xr_client_registered(self, client: SimPubClient):
-        if "CreateScene" in client.info["services"]:
-            client.req_socket.send_string("CreateScene:")
-
-    def _on_scene_request(self, req: str) -> str:
-        return self.sim_scene.to_string()
+        if "LoadSimScene" in client.info["services"]:
+            scene_string = f"LoadSimScene:{self.sim_scene.to_string()}"
+            self.net_manager.submit_task(
+                send_message, scene_string, client.req_socket
+            )
+            # try:
+            #     result = future.result()
+            #     return result
+            # except Exception as e:
+            #     logger.error(
+            #         f"Find a new error when waiting for a response: {e}"
+            #     )
 
     def _on_asset_request(self, req: str) -> bytes:
         return self.sim_scene.raw_data[req]
 
     async def check_and_send_scene_update(self):
-        for obj in self.net_manager.clients_info.values():
-            if obj.needs_update:
-                await self.scene_update_streamer.send()
-                break
-            await asycnc_sleep(0.05)
+        for client in self.net_manager.clients.values():
+            await client.req_socket.send_string("LoadSimScene:")
+        await asycnc_sleep(0.05)
 
     @abc.abstractmethod
     def get_update(self) -> Dict:

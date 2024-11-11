@@ -43,7 +43,7 @@ class SimMesh(SimAsset):
 class SimMaterial(SimData):
     # All the color values are within the 0 - 1.0 range
     color: List[float]
-    emissionColor: List[float]
+    emissionColor: Optional[List[float]] = None
     specular: float = 0.5
     shininess: float = 0.5
     reflectance: float = 0.0
