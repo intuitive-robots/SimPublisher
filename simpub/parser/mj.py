@@ -313,7 +313,6 @@ class MjModelParser:
                 (new_width, new_height),
                 interpolation=cv2.INTER_LINEAR
             )
-            print((tex_width, tex_height), (new_width, new_height))
             tex_width, tex_height = new_height, new_height
         
         bin_data = tex_data.astype(np.uint8).tobytes()
