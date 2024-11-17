@@ -13,6 +13,7 @@ from robocasa.models.scenes.scene_registry import LayoutType, StyleType
 from robocasa.scripts.collect_demos import collect_human_trajectory
 
 from simpub.sim.robocasa_publisher import RobocasaPublisher
+from simpub.xr_device.meta_quest3 import MetaQuest3
 
 if __name__ == "__main__":
     # Arguments
@@ -78,7 +79,8 @@ if __name__ == "__main__":
     # return None, True
     env.render()
 
-    publisher = RobocasaPublisher(env)
+    publisher = RobocasaPublisher(env, host="192.168.0.134")
+    meta = MetaQuest3("UnityClient")
 
     while True:
         zero_action = np.zeros(env.action_dim)

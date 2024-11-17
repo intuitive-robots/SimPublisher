@@ -1,0 +1,30 @@
+<mujocoinclude>
+    <body name="table_tennis_table" pos="0 0 0">
+        <geom class="viz" name="table_base_1" pos="1 0.7 0.375" rgba="1 1 1 1" size="0.05 0.05 .375" type="box" />
+        <geom class="viz" name="table_base_2" pos="1 -0.7 0.375" rgba="1 1 1 1" size="0.05 0.05 .375" type="box" />
+        <geom class="viz" name="table_base_3" pos="-1 -0.7 0.375" rgba="1 1 1 1" size="0.05 0.05 .375" type="box" />
+        <geom class="viz" name="table_base_4" pos="-1 0.7 0.375" rgba="1 1 1 1" size="0.05 0.05 .375" type="box" />
+        <body name="table_top" pos="0 0 0.76">
+            <geom class="contact_geom" name="table_tennis_table" pos="0 0 0" rgba="0 0 0.5 1" size="1.37 .7625 .01" type="box" />
+            <site name="left_up_corner" pos="-1.37 .7625 0.01" rgba="1 1 1 1" size="0.00001" />
+            <site name="middle_up_corner" pos="0 .7625 0.01" rgba="1 1 1 1" size="0.00001" />
+            <site name="left_down_corner" pos="-1.37 -0.7625 0.01" rgba="1 1 1 1" size="0.00001" />
+            <site name="middle_down_corner" pos="0 -.7625 0.01" rgba="1 1 1 1" size="0.00001" />
+            <geom class="contact_geom" material="floor_plane" name="table_te_context_spacennis_net" pos="0 0 0.08625" rgba="0 0 1 0.5" size="0.01 0.915 0.07625" type="box" />
+            <geom class="viz" name="left_while_line" pos="0 -0.7425 0.01" rgba="1 1 1 1" size="1.37 .02 .001" type="box" />
+            <geom class="viz" name="center_while_line" pos="0 0 0.01" rgba="1 1 1 1" size="1.37 .01 .001" type="box" />
+            <geom class="viz" name="right_while_line" pos="0 0.7425 0.01" rgba="1 1 1 1" size="1.37 .02 .001" type="box" />
+            <geom class="viz" name="right_side_line" pos="1.35 0 0.01" rgba="1 1 1 1" size="0.02 .7625 .001" type="box" />
+            <geom class="viz" name="left_side_line" pos="-1.35 0 0.01" rgba="1 1 1 1" size="0.02 .7625 .001" type="box" />
+        </body>
+        <body name="achieved_pos" pos="0 0 0.5">
+            <geom class="viz" name="achieved_point_geom" pos="0 0 0" rgba="0 1 0 1" size="0.02 0.001" type="cylinder" />
+        </body>
+        <body name="right_achieved_pos" pos="0 0 0.5">
+            <geom class="viz" name="hitting_achieved_point_geom" pos="0 0 0" rgba="1 0 0 1" size="0.02 0.001" type="cylinder" />
+        </body>
+        <body name="target_point" pos="0 0 0.5">
+            <geom class="viz" name="target_point_geom" pos="0 0 0" rgba="1 1 0 1" size="0.02 0.001" type="cylinder" />
+        </body>
+    </body>
+</mujocoinclude>
