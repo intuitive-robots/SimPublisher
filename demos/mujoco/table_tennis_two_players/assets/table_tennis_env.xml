@@ -1,0 +1,28 @@
+<mujoco model="table_tennis(v0.1)">
+    <compiler angle="radian" coordinate="local" />
+    <option gravity="0 0 -9.81" timestep="0.002">
+        <flag warmstart="enable" />
+    </option>
+    <custom>
+        <numeric data="0 0 0 0 0 0 0" name="START_ANGLES" />
+    </custom>
+    <default>
+        <default class="viz">
+            <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="1 1 1 1"/>
+        </default>
+        <default class="contact_geom">
+            <geom condim="4" friction="0.1 0.1 0.1" margin="0" solimp="1 1 0" solref="0.1 0.03"/>
+        </default>
+    </default>
+    <asset>
+        <texture builtin="checker" height="512" name="texplane" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2" type="2d"
+                 width="512"/>
+        <material name="floor_plane" reflectance="0.5" texrepeat="1 1" texture="texplane" texuniform="true"/>
+    </asset>
+    <worldbody>
+        <light cutoff="60" diffuse="1 1 1" dir="-.1 -.2 -1.3" directional="true" exponent="1" pos=".1 .2 1.3" specular=".1 .1 .1" />
+        <include file="include_table.xml" />
+        <include file="include_target_ball.xml" />
+        <include file="bats.xml" />
+    </worldbody>
+</mujoco>

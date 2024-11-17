@@ -1,0 +1,11 @@
+<mujocoinclude>
+    <body name="target_ball" pos="0 0 0">
+<!--        <joint axis="1 0 0" damping="0.0" name="tar:x" pos="0 0 0" stiffness="0" type="slide" frictionloss="0"/>-->
+<!--        <joint axis="0 1 0" damping="0.0" name="tar:y" pos="0 0 0" stiffness="0" type="slide" frictionloss="0"/>-->
+<!--        <joint axis="0 0 1" damping="0.0" name="tar:z" pos="0 0 0" stiffness="0" type="slide" frictionloss="0"/>-->
+        <joint name="ball_joint" damping="0.0" pos="0 0 0" stiffness="0" frictionloss="0" type="free"/>
+        <geom size="0.025 0.025 0.025" type="sphere" condim="4" name="target_ball_contact" rgba="1 1 0 1" mass="0.1"
+              friction="0.1 0.1 0.1" solimp="0.9 0.95 0.001 0.5 2" solref="0.1 0.03" priority="1"/>
+        <site name="target_ball" pos="0 0 0" size="0.02 0.02 0.02" rgba="1 0 0 1" type="sphere"/>
+    </body>
+</mujocoinclude>
