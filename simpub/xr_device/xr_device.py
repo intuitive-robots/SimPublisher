@@ -35,12 +35,12 @@ class XRDevice:
     async def wait_for_connection(self):
         logger.info(f"Waiting for connection to {self.device_name}")
         while not self.connected:
-            client = self.manager.clients.get(self.device_name)
-            if client is not None:
-                self.connected = True
-                self.client = client
-                logger.info(f"Connected to {self.device_name}")
-                break
+            for client in self.manager.clients.values():
+                if client.info["name"] == self.device_name:
+                    self.client = client
+                    self.connected = True
+                    logger.info(f"Connected to {self.device_name}")
+                    break
             await asycnc_sleep(0.01)
         self.req_socket = self.client.req_socket
         self.sub_socket = self.client.sub_socket

@@ -25,9 +25,9 @@ def sphere2unity_scale(scale: List[float]) -> List[float]:
 
 def cylinder2unity_scale(scale: List[float]) -> List[float]:
     if len(scale) == 3:
-        return list(map(abs, [scale[0], scale[1], scale[0]]))
+        return list(map(abs, [scale[0] * 2, scale[1], scale[0] * 2]))
     if len(scale) == 2:
-        return list(map(abs, [scale[0], scale[1], scale[0]]))
+        return list(map(abs, [scale[0] * 2, scale[1], scale[0] * 2]))
     elif len(scale) == 1:
         return list(map(abs, [scale[0] * 2, scale[0] * 2, scale[0] * 2]))
 
@@ -133,19 +133,11 @@ class MjModelParser:
             mj_model.body_geomadr[body_id],
             mj_model.body_geomadr[body_id] + num_geoms
         ):
-            geom_name = mujoco.mj_id2name(
-                mj_model, mujoco.mjtObj.mjOBJ_GEOM, geom_id
-            )
             geom_group = int(mj_model.geom_group[geom_id])
             # check if the geom participates in rendering
             if geom_group not in self.visible_geoms_groups:
-                logger.info(
-                    (
-                        f"Geom '{geom_name}'(id {geom_id}) does not"
-                        f"participate in rendering and can be removed."
-                    )
-                )
                 continue
+
             sim_visual = self.process_geoms(mj_model, geom_id)
             sim_object.visuals.append(sim_visual)
         return sim_object, parent_id
@@ -193,7 +185,7 @@ class MjModelParser:
         vertices = mj_model.mesh_vert[start_vert:start_vert + num_verts]
         vertices = vertices.astype(np.float32)
         vertices = vertices[:, [1, 2, 0]]
-        vertices[:, 0] = - vertices[:, 0]
+        vertices[:, 0] = -vertices[:, 0]
         vertices = vertices.flatten()
         vertices_layout = bin_buffer.tell(), vertices.shape[0]
         bin_buffer.write(vertices)
@@ -207,7 +199,7 @@ class MjModelParser:
         norms = mj_model.mesh_normal[start_norm:start_norm + num_norm]
         norms = norms.astype(np.float32)
         norms = norms[:, [1, 2, 0]]
-        norms[:, 0] = - norms[:, 0]
+        norms[:, 0] = -norms[:, 0]
         norms = norms.flatten()
         normal_layout = bin_buffer.tell(), norms.shape[0]
         bin_buffer.write(norms)
@@ -289,8 +281,8 @@ class MjModelParser:
         # TODO: Texture type?
         # tex_type = mj_model.tex_type[tex_id]
         # get the texture data
-        tex_height = mj_model.tex_height[tex_id]
-        tex_width = mj_model.tex_width[tex_id]
+        tex_height = mj_model.tex_height[tex_id].item()
+        tex_width = mj_model.tex_width[tex_id].item()
         # only we only supported texture channel number is 3
         if hasattr(mj_model, "tex_nchannel"):
             tex_nchannel = mj_model.tex_nchannel[tex_id]
@@ -309,18 +301,25 @@ class MjModelParser:
             ]
 
         # compress the texture data
-        width = int(tex_width // 4)
-        height = int(tex_height // 4)
-        tex_data = cv2.resize(
-            tex_data.reshape(tex_width, tex_height, 3),
-            (width, height),
-            interpolation=cv2.INTER_LINEAR
-        )
+        max_texture_size = 10 ** 6 / 2 # ~ 500 kB (robocasa scene 50 images -> 25 MB)
+
+        scale = np.sqrt(len(tex_data) / max_texture_size)  
+        if scale > 1:
+            scale = int(scale) + 1
+
+            new_width, new_height = tex_width // scale, tex_height // scale
+            tex_data = cv2.resize(
+                tex_data.reshape(tex_width, tex_height, -1),
+                (new_width, new_height),
+                interpolation=cv2.INTER_LINEAR
+            )
+            tex_width, tex_height = new_height, new_height
+        
         bin_data = tex_data.astype(np.uint8).tobytes()
         texture_hash = md5(bin_data).hexdigest()
         texture = SimTexture(
-            width=width,
-            height=height,
+            width=tex_width,
+            height=tex_height,
             # Only support 2d texture
             textureType="2D",
             hash=texture_hash
