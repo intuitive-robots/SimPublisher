@@ -126,6 +126,32 @@ class Streamer(Publisher):
             await self.socket.send_string(f"{self.topic}:{dumps(msg)}")
 
 
+class ByteStreamer(Streamer):
+
+    def __init__(
+        self,
+        topic: str,
+        update_func: Callable[[], bytes],
+        fps: int = 45,
+    ):
+        super().__init__(topic, update_func, fps)
+
+    async def update_loop(self):
+        self.running = True
+        last = 0.0
+        while self.running:
+            diff = time.monotonic() - last
+            if diff < self.dt:
+                await asycnc_sleep(self.dt - diff)
+            last = time.monotonic()
+            msg = {
+                "updateData": self.update_func(),
+                "time": last,
+            }
+            await self.socket.send_string(f"{self.topic}", zmq.SNDMORE)
+            await self.socket.send(self.update_func())
+
+
 class Service(Communicator):
 
     def __init__(
