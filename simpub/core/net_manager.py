@@ -44,7 +44,6 @@ class HostInfo(TypedDict):
 
 
 class SimPubClient:
-
     def __init__(self, client_info: HostInfo) -> None:
         self.manager: NetManager = NetManager.manager
         self.info = client_info
@@ -57,7 +56,6 @@ class SimPubClient:
 
 
 class Communicator(abc.ABC):
-
     def __init__(self):
         self.running: bool = False
         self.manager: NetManager = NetManager.manager
@@ -110,24 +108,33 @@ class Streamer(Publisher):
         self.dt: float = 1 / fps
         self.update_func = update_func
         self.manager.submit_task(self.update_loop)
+        self.topic_byte = self.topic.encode("utf-8")
+
+    def generate_byte_msg(self) -> bytes:
+        return json.dumps(
+            {
+                "updateData": self.update_func(),
+                "time": time.monotonic(),
+            }
+        ).encode("utf-8")
 
     async def update_loop(self):
         self.running = True
         last = 0.0
-        while self.running:
-            diff = time.monotonic() - last
-            if diff < self.dt:
-                await asycnc_sleep(self.dt - diff)
-            last = time.monotonic()
-            msg = {
-                "updateData": self.update_func(),
-                "time": last,
-            }
-            await self.socket.send_string(f"{self.topic}:{dumps(msg)}")
+        try:
+            while self.running:
+                diff = time.monotonic() - last
+                if diff < self.dt:
+                    await asycnc_sleep(self.dt - diff)
+                last = time.monotonic()
+                await self.socket.send(
+                    b"".join([self.topic_byte, b":", self.generate_byte_msg()])
+                )
+        except Exception as e:
+            logger.error(f"Error when streaming {self.topic}: {e}")
 
 
 class ByteStreamer(Streamer):
-
     def __init__(
         self,
         topic: str,
@@ -136,24 +143,11 @@ class ByteStreamer(Streamer):
     ):
         super().__init__(topic, update_func, fps)
 
-    async def update_loop(self):
-        self.running = True
-        last = 0.0
-        while self.running:
-            diff = time.monotonic() - last
-            if diff < self.dt:
-                await asycnc_sleep(self.dt - diff)
-            last = time.monotonic()
-            msg = {
-                "updateData": self.update_func(),
-                "time": last,
-            }
-            await self.socket.send_string(f"{self.topic}", zmq.SNDMORE)
-            await self.socket.send(self.update_func())
+    def generate_byte_msg(self) -> bytes:
+        return self.update_func()
 
 
 class Service(Communicator):
-
     def __init__(
         self,
         service_name: str,
@@ -166,7 +160,7 @@ class Service(Communicator):
         # register service
         self.manager.local_info["services"].append(service_name)
         self.manager.service_list[service_name] = self
-        logger.info(f"\"{self.service_name}\" Service is ready")
+        logger.info(f'"{self.service_name}" Service is ready')
 
     async def callback(self, msg: str):
         result = await asyncio.wait_for(
@@ -186,19 +180,16 @@ class Service(Communicator):
 
 
 class StringService(Service):
-
     async def send(self, string: str):
         await self.socket.send_string(string)
 
 
 class BytesService(Service):
-
     async def send(self, data: bytes):
         await self.socket.send(data)
 
 
 class DictService(Service):
-
     async def send(self, data: Dict):
         await self.socket.send_string(dumps(data))
 
@@ -208,9 +199,7 @@ class NetManager:
     manager = None
 
     def __init__(
-        self,
-        host_ip: IPAddress = "127.0.0.1",
-        host_name: str = "SimPub"
+        self, host_ip: IPAddress = "127.0.0.1", host_name: str = "SimPub"
     ) -> None:
         NetManager.manager = self
         self._initialized = False
@@ -231,9 +220,7 @@ class NetManager:
         self.local_info["topics"] = []
         self.local_info["services"] = []
         # client info
-        self.on_client_registered: List[
-            Callable[[HostInfo], None]
-        ] = list()
+        self.on_client_registered: List[Callable[[HostInfo], None]] = list()
         self.clients: Dict[IPAddress, SimPubClient] = {}
         # setting up thread pool
         self.running: bool = True
@@ -298,7 +285,7 @@ class NetManager:
                 except Exception as e:
                     logger.error(
                         f"One error ocurred when processing the Service "
-                        f"\"{service}\": {e}"
+                        f'"{service}": {e}'
                     )
             await asycnc_sleep(0.01)
 
@@ -310,10 +297,10 @@ class NetManager:
         _id = str(uuid.uuid4())
         # calculate broadcast ip
         local_info = self.local_info
-        ip_bin = struct.unpack('!I', socket.inet_aton(local_info["ip"]))[0]
-        netmask_bin = struct.unpack('!I', socket.inet_aton("255.255.255.0"))[0]
+        ip_bin = struct.unpack("!I", socket.inet_aton(local_info["ip"]))[0]
+        netmask_bin = struct.unpack("!I", socket.inet_aton("255.255.255.0"))[0]
         broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
-        broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
+        broadcast_ip = socket.inet_ntoa(struct.pack("!I", broadcast_bin))
         while self.running:
             local_info = self.local_info  # update local info
             msg = f"SimPub:{_id}:{json.dumps(local_info)}"
@@ -329,12 +316,13 @@ class NetManager:
         # NOTE: the client info may be updated so the reference cannot be used
         # NOTE: TypeDict is somehow block if the key is not in the dict
         if client_info["ip"] not in self.clients:
-            self.clients[client_info['ip']] = SimPubClient(client_info)
+            self.clients[client_info["ip"]] = SimPubClient(client_info)
         for callback in self.on_client_registered:
-            callback(self.clients[client_info['ip']])
+            callback(self.clients[client_info["ip"]])
         logger.info(
             f"Host \"{client_info['name']}\" with"
-            f"IP \"{client_info['ip']}\" has been registered")
+            f"IP \"{client_info['ip']}\" has been registered"
+        )
         return "The info has been registered"
 
     def get_server_timestamp_callback(self, msg: str) -> str:
