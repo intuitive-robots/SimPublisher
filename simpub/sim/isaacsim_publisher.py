@@ -154,34 +154,46 @@ class IsaacSimPublisher(SimPublisher):
 
         return sim_object
 
+    def deg_euler_to_quad(self, v1, v2, v3):
+        v1 = math.radians(v1)
+        v2 = math.radians(v2)
+        v3 = math.radians(v3)
+        
+        cr = math.cos(v1 * 0.5)
+        sr = math.sin(v1 * 0.5)
+        cp = math.cos(v2 * 0.5)
+        sp = math.sin(v2 * 0.5)
+        cy = math.cos(v3 * 0.5)
+        sy = math.sin(v3 * 0.5)
+        
+        qw = cr * cp * cy + sr * sp * sy
+        qx = sr * cp * cy - cr * sp * sy
+        qy = cr * sp * cy + sr * cp * sy
+        qz = cr * cp * sy - sr * sp * cy
+        
+        return Gf.Quatd(qw, Gf.Vec3d(qx, qy, qz))
+
     def compute_local_trans(self, prim: Usd.Prim):
         # not really necessary...
         timeline = omni.timeline.get_timeline_interface()
         timecode = timeline.get_current_time() * timeline.get_time_codes_per_seconds()
 
         # extract local transformation
-        trans_mat = omni.usd.get_local_transform_matrix(prim, timecode)
+        # [BUG] omni.usd.get_local_transform_matrix returns wrong rotation, use get_local_transform_SRT instead
+        #trans_mat = omni.usd.get_local_transform_matrix(prim, timecode)     
+        sc, r, ro, t = omni.usd.get_local_transform_SRT(prim, timecode)
 
-        # get scale
-        x_scale = Gf.Vec3d(
-            trans_mat[0][0], trans_mat[0][1], trans_mat[0][2]
-        ).GetLength()
-        y_scale = Gf.Vec3d(
-            trans_mat[1][0], trans_mat[1][1], trans_mat[1][2]
-        ).GetLength()
-        z_scale = Gf.Vec3d(
-            trans_mat[2][0], trans_mat[2][1], trans_mat[2][2]
-        ).GetLength()
-        scale = [y_scale, z_scale, x_scale]
+        # reorder scale for unity coord system
+        scale = [sc[1], sc[2], sc[0]]
 
-        # get translation
-        translate = trans_mat.ExtractTranslation()
-        translate = [translate[1], translate[2], -translate[0]]
+        # reorder translation for unity coord system
+        translate = [t[1], t[2], -t[0]]
 
-        # get rotation
-        rot = trans_mat.ExtractRotationQuat()
-        imag = rot.GetImaginary()
-        rot = [-imag[1], -imag[2], imag[0], rot.GetReal()]
+        # convert rotation to quad
+        rtq = self.deg_euler_to_quad(r[ro[0]], r[ro[1]], r[ro[2]])
+        # reorder rotation for unity coord system
+        imag = rtq.GetImaginary()
+        rot = [-imag[1], -imag[2], imag[0], rtq.GetReal()]
 
         return translate, rot, scale
 
