@@ -463,59 +463,17 @@ class IsaacSimPublisher(SimPublisher):
 
         state = {}
 
-        # for name, trans in self.tracked_obj_trans.items():
-        #     pos, rot = trans
-        #     state[name] = [-pos[1], pos[2], pos[0], rot[2], -rot[3], -rot[1], rot[0]]
-
         timeline = omni.timeline.get_timeline_interface()
         timecode = timeline.get_current_time() * timeline.get_time_codes_per_seconds()
 
-        # print()
-        # print(timecode)
         for tracked_prim in self.tracked_prims:
             prim_name = tracked_prim["name"]
             prim_path = tracked_prim["prim_path"]
-            prim = tracked_prim["prim"]
-
-            # cur_trans = get_physx_interface().get_rigidbody_transformation(prim_path)
-            # print(cur_trans)
-
-            trans_mat = omni.usd.get_world_transform_matrix(prim, timecode)
-            # print(f"{prim_name}: {trans_mat}")
-
-            translate = trans_mat.ExtractTranslation()
-            translate = [-translate[1], translate[2], translate[0]]
-
-            rot = trans_mat.ExtractRotationQuat()
-            imag = rot.GetImaginary()
-            rot = [imag[1], -imag[2], -imag[0], rot.GetReal()]
-
-            state[prim_name] = [
-                translate[0],
-                translate[1],
-                translate[2],
-                rot[0],
-                rot[1],
-                rot[2],
-                rot[3],
-            ]
 
             rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
-            # print(rt_prim)
-            # print(rt_prim.GetTypeName())
-
             rt_prim = Rt.Xformable(rt_prim)
             pos = rt_prim.GetWorldPositionAttr().Get()
             rot = rt_prim.GetWorldOrientationAttr().Get()
-
-            # print(rt_prim.GetWorldPositionAttr().Get())
-            # print(rot)
-            # print(
-            #     rot.GetReal(),
-            #     rot.GetImaginary()[0],
-            #     rot.GetImaginary()[1],
-            #     rot.GetImaginary()[2],
-            # )
 
             state[prim_name] = [
                 pos[1],
