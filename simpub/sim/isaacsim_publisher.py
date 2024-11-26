@@ -14,6 +14,7 @@ from simpub.simdata import (
     VisualType,
     SimTransform,
     SimMesh,
+    SimMaterial,
 )
 
 import omni
@@ -402,25 +403,23 @@ class IsaacSimPublisher(SimPublisher):
         bin_data = bin_buffer.getvalue()
         hash = md5(bin_data).hexdigest()
 
-        #! todo: do not create new mesh when multiple primitives point to the same prototype
-        mesh_id = "@mesh-" + str(random.randint(int(1e9), int(1e10 - 1)))
-        mesh = SimMesh(
-            id=mesh_id,
+        #! todo: do not create new mesh when multiple primitives point to the same prototype        
+        mesh = SimMesh(            
             indicesLayout=indices_layout,
             verticesLayout=vertices_layout,
             normalsLayout=normal_layout,
             uvLayout=uv_layout,
-            dataHash=hash,
+            hash=hash,
         )
 
-        assert self.sim_scene is not None
-        self.sim_scene.meshes.append(mesh)
-        self.sim_scene.raw_data[mesh.dataHash] = bin_data
+        assert self.sim_scene is not None        
+        self.sim_scene.raw_data[mesh.hash] = bin_data
 
         sim_mesh = SimVisual(
+            name=mesh.hash,
             type=VisualType.MESH,
-            mesh=mesh_id,
-            color=[1.0, 1.0, 1.0, 1.0],
+            mesh=mesh,
+            material=SimMaterial(color=[1.0, 1.0, 1.0, 1.0]),
             trans=SimTransform(),
         )
         return sim_mesh

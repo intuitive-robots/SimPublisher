@@ -6,7 +6,7 @@ __pycache__/
 scenes/
 models copy/
 test.py
-*.xml
+# *.xml
 # C extensions
 *.so
 *.json
@@ -166,3 +166,6 @@ cython_debug/
 
 # Mujoco
 MUJOCO_LOG.TXT
+
+# vscode
+.vscode/

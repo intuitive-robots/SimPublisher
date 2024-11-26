@@ -1,3 +1,5 @@
+import simpub.parser.mj as mj_parser
+
 import argparse
 
 from alr_sim.sims.SimFactory import SimRepository
@@ -68,11 +70,10 @@ if __name__ == "__main__":
 
     scene.start()
 
-    assert host is not None, "Please specify the host"
+    # assert host is not None, "Please specify the host"
     publisher = SFPublisher(
         scene, host, no_tracked_objects=["table_plane", "table0"]
     )
-    device = XRDevice(args.device)
 
     duration = 2
 
@@ -132,3 +133,4 @@ if __name__ == "__main__":
 
     while True:
         scene.next_step()
+
