@@ -172,16 +172,16 @@ class IsaacSimPublisher(SimPublisher):
         z_scale = Gf.Vec3d(
             trans_mat[2][0], trans_mat[2][1], trans_mat[2][2]
         ).GetLength()
-        scale = [x_scale, z_scale, y_scale]
+        scale = [y_scale, z_scale, x_scale]
 
         # get translation
         translate = trans_mat.ExtractTranslation()
-        translate = [-translate[1], translate[2], translate[0]]
+        translate = [translate[1], translate[2], -translate[0]]
 
         # get rotation
         rot = trans_mat.ExtractRotationQuat()
         imag = rot.GetImaginary()
-        rot = [imag[1], -imag[2], -imag[0], rot.GetReal()]
+        rot = [-imag[1], -imag[2], imag[0], rot.GetReal()]
 
         return translate, rot, scale
 
@@ -359,9 +359,9 @@ class IsaacSimPublisher(SimPublisher):
             sim_obj.visuals.append(sim_mesh)
 
     def build_mesh_buffer(self, mesh_obj: trimesh.Trimesh):
-        mesh_obj.apply_transform(
-            trimesh.transformations.euler_matrix(-math.pi / 2.0, math.pi / 2.0, 0)
-        )
+        # rotate mesh to match unity coord system
+        rot_mat = np.array([[0, 1, 0, 0], [0, 0, 1, 0], [-1, 0, 0, 0], [0, 0, 0, 1]])
+        mesh_obj.apply_transform(rot_mat)
 
         # this will create smooth vertex normals.
         # in isaac sim the same vertex on different faces can have different normals,
@@ -372,22 +372,19 @@ class IsaacSimPublisher(SimPublisher):
         bin_buffer = io.BytesIO()
 
         # Vertices
-        verts = mesh_obj.vertices.astype(np.float32)
-        verts[:, 2] = -verts[:, 2]
+        verts = mesh_obj.vertices.astype(np.float32)        
         verts = verts.flatten()
         vertices_layout = bin_buffer.tell(), verts.shape[0]
         bin_buffer.write(verts)
 
         # Normals
-        norms = mesh_obj.vertex_normals.astype(np.float32)
-        norms[:, 2] = -norms[:, 2]
+        norms = mesh_obj.vertex_normals.astype(np.float32)        
         norms = norms.flatten()
         normal_layout = bin_buffer.tell(), norms.shape[0]
         bin_buffer.write(norms)
 
         # Indices
-        indices = mesh_obj.faces.astype(np.int32)
-        indices = indices[:, [2, 1, 0]]
+        indices = mesh_obj.faces.astype(np.int32)        
         indices = indices.flatten()
         indices_layout = bin_buffer.tell(), indices.shape[0]
         bin_buffer.write(indices)
@@ -509,12 +506,12 @@ class IsaacSimPublisher(SimPublisher):
             # )
 
             state[prim_name] = [
-                -pos[1],
+                pos[1],
                 pos[2],
-                pos[0],
-                rot.GetImaginary()[1],
+                -pos[0],
+                -rot.GetImaginary()[1],
                 -rot.GetImaginary()[2],
-                -rot.GetImaginary()[0],
+                rot.GetImaginary()[0],
                 rot.GetReal(),
             ]
 
