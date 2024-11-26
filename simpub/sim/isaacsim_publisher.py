@@ -7,6 +7,7 @@ import numpy as np
 import trimesh
 
 from simpub.core.simpub_server import SimPublisher
+from simpub.core.net_manager import ByteStreamer
 from simpub.simdata import (
     SimScene,
     SimObject,
@@ -32,9 +33,13 @@ class IsaacSimPublisher(SimPublisher):
         # self.sim_scene = None
         # self.rt_stage = None
         self.tracked_prims: list[dict] = []
+        self.tracked_deform_prims: list[dict] = []
 
         self.parse_scene(stage)
         super().__init__(self.sim_scene, host)
+
+        # add deformable update streamer
+        self.deform_update_streamer = ByteStreamer("DeformUpdate", self.get_deform_update)
 
     def parse_scene(self, stage: Usd.Stage) -> SimScene:
         print("parsing stage:", stage)
@@ -131,6 +136,13 @@ class IsaacSimPublisher(SimPublisher):
                 {"name": sim_object.name, "prim": root, "prim_path": prim_path}
             )
 
+        # track prims with deformable enabled
+        if ((attr := root.GetAttribute('physxDeformable:deformableEnabled')) and attr.Get()):
+            print("\t" * indent + f"tracking deform {prim_path}")
+            self.tracked_deform_prims.append(
+                {"name": sim_object.name, "prim": root, "prim_path": prim_path}
+            )
+
         child: Usd.Prim
         if root.IsInstance():
             # handle the case where root is an instance of a prototype
@@ -158,14 +170,14 @@ class IsaacSimPublisher(SimPublisher):
         v1 = math.radians(v1)
         v2 = math.radians(v2)
         v3 = math.radians(v3)
-        
+
         cr = math.cos(v1 * 0.5)
         sr = math.sin(v1 * 0.5)
         cp = math.cos(v2 * 0.5)
         sp = math.sin(v2 * 0.5)
         cy = math.cos(v3 * 0.5)
         sy = math.sin(v3 * 0.5)
-        
+
         qw = cr * cp * cy + sr * sp * sy
         qx = sr * cp * cy - cr * sp * sy
         qy = cr * sp * cy + sr * cp * sy
@@ -180,18 +192,18 @@ class IsaacSimPublisher(SimPublisher):
 
         # extract local transformation
         # [BUG] omni.usd.get_local_transform_matrix returns wrong rotation, use get_local_transform_SRT instead
-        #trans_mat = omni.usd.get_local_transform_matrix(prim, timecode)     
-        sc, r, ro, t = omni.usd.get_local_transform_SRT(prim, timecode)
+        # trans_mat = omni.usd.get_local_transform_matrix(prim, timecode)
+        sc, ro, roo, tr = omni.usd.get_local_transform_SRT(prim, timecode)
 
         # reorder scale for unity coord system
         scale = [sc[1], sc[2], sc[0]]
 
-        # reorder translation for unity coord system
-        translate = [t[1], t[2], -t[0]]
+        # reorder translate for unity coord system
+        translate = [tr[1], tr[2], -tr[0]]
 
-        # convert rotation to quad
-        rtq = self.deg_euler_to_quad(r[ro[0]], r[ro[1]], r[ro[2]])
-        # reorder rotation for unity coord system
+        # convert rot to quad
+        rtq = self.deg_euler_to_quad(ro[roo[0]], ro[roo[1]], ro[roo[2]])
+        #reorder rot for unity coord system
         imag = rtq.GetImaginary()
         rot = [-imag[1], -imag[2], imag[0], rtq.GetReal()]
 
@@ -228,7 +240,7 @@ class IsaacSimPublisher(SimPublisher):
             num_vert_per_face = face_vertex_counts[0]
 
             mesh_obj = trimesh.Trimesh(
-                vertices=vertices, faces=indices.reshape(-1, num_vert_per_face)
+                vertices=vertices, faces=indices.reshape(-1, num_vert_per_face), process=False
             )
 
             # validate mesh data... (not really necessary)
@@ -384,19 +396,19 @@ class IsaacSimPublisher(SimPublisher):
         bin_buffer = io.BytesIO()
 
         # Vertices
-        verts = mesh_obj.vertices.astype(np.float32)        
+        verts = mesh_obj.vertices.astype(np.float32)
         verts = verts.flatten()
         vertices_layout = bin_buffer.tell(), verts.shape[0]
         bin_buffer.write(verts)
 
         # Normals
-        norms = mesh_obj.vertex_normals.astype(np.float32)        
+        norms = mesh_obj.vertex_normals.astype(np.float32)
         norms = norms.flatten()
         normal_layout = bin_buffer.tell(), norms.shape[0]
         bin_buffer.write(norms)
 
         # Indices
-        indices = mesh_obj.faces.astype(np.int32)        
+        indices = mesh_obj.faces.astype(np.int32)
         indices = indices.flatten()
         indices_layout = bin_buffer.tell(), indices.shape[0]
         bin_buffer.write(indices)
@@ -412,8 +424,8 @@ class IsaacSimPublisher(SimPublisher):
         bin_data = bin_buffer.getvalue()
         hash = md5(bin_data).hexdigest()
 
-        #! todo: do not create new mesh when multiple primitives point to the same prototype        
-        mesh = SimMesh(            
+        #! todo: do not create new mesh when multiple primitives point to the same prototype
+        mesh = SimMesh(
             indicesLayout=indices_layout,
             verticesLayout=vertices_layout,
             normalsLayout=normal_layout,
@@ -421,7 +433,8 @@ class IsaacSimPublisher(SimPublisher):
             hash=hash,
         )
 
-        assert self.sim_scene is not None        
+        assert self.sim_scene is not None
+        # self.sim_scene.meshes.append(mesh)
         self.sim_scene.raw_data[mesh.hash] = bin_data
 
         sim_mesh = SimVisual(
@@ -475,6 +488,7 @@ class IsaacSimPublisher(SimPublisher):
             pos = rt_prim.GetWorldPositionAttr().Get()
             rot = rt_prim.GetWorldOrientationAttr().Get()
 
+            # convert pos and rot to unity coord system
             state[prim_name] = [
                 pos[1],
                 pos[2],
@@ -486,3 +500,45 @@ class IsaacSimPublisher(SimPublisher):
             ]
 
         return state
+
+    def get_deform_update(self) -> bytes:
+        # Write binary data to send as update
+        # Structure:
+        #
+        #   L: Length of update string containing all deform meshes [ 4 bytes ]
+        #   S: Update string, semicolon seperated list of prims contained in thisupdate [ ? bytes ]
+        #   N: Number of verticies for each mesh in update string [ num_meshes x 4 bytes]
+        #   V: Verticies for each mesh [ ? bytes for each mesh ]
+        #
+        #       | L | S ... S | N ... N | V ... V |
+        #        
+        
+        state = {}
+        mesh_vert_len = np.ndarray(len(self.tracked_deform_prims), dtype=np.uint32)     # N
+        update_list = "" # S
+        
+        for idx, tracked_prim in enumerate(self.tracked_deform_prims):
+            mesh_name = tracked_prim["name"]
+            prim_path = tracked_prim["prim_path"]
+                        
+            vertices = np.asarray(self.rt_stage.GetPrimAtPath(prim_path).GetAttribute(RtGeom.Tokens.points).Get(), dtype=np.float32)
+            vertices = vertices[:, [1, 2, 0]]
+            vertices[:, 2] = -vertices[:, 2]
+            vertices = vertices.flatten()
+            state[mesh_name] = np.ascontiguousarray(vertices)
+            
+            mesh_vert_len[idx] = vertices.size
+            update_list += f"{mesh_name};"
+        
+        update_list = str.encode(update_list)
+        bin_buffer = io.BytesIO()
+        
+        bin_buffer.write(len(update_list).to_bytes(4, "little"))    # L
+        bin_buffer.write(update_list)                               # S
+        
+        bin_buffer.write(mesh_vert_len)                             # N
+        
+        for hash in state:
+            bin_buffer.write(state[hash])                           # V      
+            
+        return bin_buffer.getvalue()
