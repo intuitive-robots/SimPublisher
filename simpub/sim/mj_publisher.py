@@ -3,7 +3,7 @@ from typing import List, Dict
 import numpy as np
 
 from ..core.simpub_server import SimPublisher
-from simpub.parser.mjcf import MJCFParser
+from ..parser.mj import MjModelParser
 from simpub.simdata import SimObject
 
 
@@ -13,21 +13,24 @@ class MujocoPublisher(SimPublisher):
         self,
         mj_model,
         mj_data,
-        mjcf_path: str,
         host: str = "127.0.0.1",
         no_rendered_objects: List[str] = None,
         no_tracked_objects: List[str] = None,
+        visible_geoms_groups: List[int] = None,
     ) -> None:
         self.mj_model = mj_model
         self.mj_data = mj_data
-        self.parser = MJCFParser(mjcf_path)
+        # default seeting for visible geoms groups
+        if visible_geoms_groups is None:
+            visible_geoms_groups = list(range(5))
+        self.parser = MjModelParser(mj_model, visible_geoms_groups)
         sim_scene = self.parser.parse()
         self.tracked_obj_trans: Dict[str, np.ndarray] = dict()
         super().__init__(
             sim_scene,
+            host,
             no_rendered_objects,
             no_tracked_objects,
-            host,
         )
         for child in self.sim_scene.root.children:
             self.set_update_objects(child)
