@@ -1,10 +1,11 @@
 from __future__ import annotations
 import abc
 from typing import Dict, List
+import json
 
 from simpub.simdata import SimScene
 from .net_manager import init_net_manager, asycnc_sleep
-from .net_manager import Streamer, BytesService, SimPubClient
+from .net_manager import Streamer, BytesService, HostInfo
 from .log import logger
 from .utils import send_message
 
@@ -50,7 +51,7 @@ class SimPublisher(ServerBase):
         else:
             self.no_tracked_objects = no_tracked_objects
         super().__init__(host)
-        self.net_manager.on_client_registered.append(
+        self.net_manager.register_service.on_trigger_events.append(
             self.on_xr_client_registered
         )
 
@@ -59,19 +60,15 @@ class SimPublisher(ServerBase):
         # self.scene_service = BytesService("Scene", self._on_scene_request)
         self.asset_service = BytesService("Asset", self._on_asset_request)
 
-    def on_xr_client_registered(self, client: SimPubClient):
-        if "LoadSimScene" in client.info["services"]:
+    def on_xr_client_registered(self, msg: str):
+        xr_info: HostInfo = json.loads(msg)
+        if "LoadSimScene" in xr_info["serviceList"]:
             scene_string = f"LoadSimScene:{self.sim_scene.to_string()}"
+            req_socket = self.net_manager.clients[xr_info["ip"]].req_socket
             self.net_manager.submit_task(
-                send_message, scene_string, client.req_socket
+                send_message, scene_string, req_socket
             )
-            # try:
-            #     result = future.result()
-            #     return result
-            # except Exception as e:
-            #     logger.error(
-            #         f"Find a new error when waiting for a response: {e}"
-            #     )
+            logger.info(f"Send scene to {xr_info['name']}")
 
     def _on_asset_request(self, req: str) -> bytes:
         return self.sim_scene.raw_data[req]
