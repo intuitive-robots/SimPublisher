@@ -65,7 +65,7 @@ class XRDevice:
         if self.client is None:
             logger.error(f"Device {self.device_name} is not connected")
             return ""
-        if service not in self.client.info["services"]:
+        if service not in self.client.info["serviceList"]:
             logger.error(f"\"{service}\" Service is not available")
             return ""
         await self.req_socket.send_string(f"{service}:{req}")

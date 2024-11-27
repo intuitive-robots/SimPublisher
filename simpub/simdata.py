@@ -16,7 +16,7 @@ class VisualType(str, Enum):
     CYLINDER = "CYLINDER"
     PLANE = "PLANE"
     QUAD = "QUAD"
-    MESH = "MESH",
+    MESH = "MESH"
     NONE = "NONE"
 
 
@@ -98,7 +98,6 @@ class SimObject(SimData):
 
 
 class SimScene(SimData):
-
     def __init__(self) -> None:
         self.root: SimObject = None
         self.id: str = str(random.randint(int(1e9), int(1e10 - 1)))
