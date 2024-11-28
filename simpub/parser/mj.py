@@ -82,6 +82,7 @@ class MjModelParser:
     def __init__(self, mj_model, visible_geoms_groups):
         self.visible_geoms_groups = visible_geoms_groups
         self.parse_model(mj_model)
+        self.sim_scene.process_sim_obj(self.sim_scene.root)
 
     def parse(self):
         return self.sim_scene
@@ -190,7 +191,7 @@ class MjModelParser:
         vertices_layout = bin_buffer.tell(), vertices.shape[0]
         bin_buffer.write(vertices)
         # normal
-        if hasattr(mj_model, "mesh_normaladr"): 
+        if hasattr(mj_model, "mesh_normaladr"):
             start_norm = mj_model.mesh_normaladr[mesh_id]
             num_norm = mj_model.mesh_normalnum[mesh_id]
         else:
@@ -266,6 +267,8 @@ class MjModelParser:
             )
         if tex_id != -1:
             mat_texture = self.process_texture(mj_model, tex_id)
+            mat_texture.textureSize = mj_model.mat_texrepeat[mat_id].tolist()
+            print(mat_texture.textureSize)
         material = SimMaterial(
             color=mat_color,
             emissionColor=mat_emissionColor,
@@ -299,30 +302,15 @@ class MjModelParser:
             tex_data: np.ndarray = mj_model.tex_rgb[
                 start_tex:start_tex + num_tex_data
             ]
-
-        # compress the texture data
-        max_texture_size = 10 ** 6 / 2 # ~ 500 kB (robocasa scene 50 images -> 25 MB)
-
-        scale = np.sqrt(len(tex_data) / max_texture_size)  
-        if scale > 1:
-            scale = int(scale) + 1
-
-            new_width, new_height = tex_width // scale, tex_height // scale
-            tex_data = cv2.resize(
-                tex_data.reshape(tex_width, tex_height, -1),
-                (new_width, new_height),
-                interpolation=cv2.INTER_LINEAR
-            )
-            tex_width, tex_height = new_height, new_height
-        
         bin_data = tex_data.astype(np.uint8).tobytes()
         texture_hash = md5(bin_data).hexdigest()
         texture = SimTexture(
+            hash=texture_hash,
             width=tex_width,
             height=tex_height,
             # Only support 2d texture
             textureType="2D",
-            hash=texture_hash
         )
         self.sim_scene.raw_data[texture_hash] = bin_data
+        texture.compress(self.sim_scene.raw_data)
         return texture
