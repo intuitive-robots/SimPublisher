@@ -1,10 +1,10 @@
 from __future__ import annotations
 import abc
-from typing import Dict, List
+from typing import Dict, List, Optional
 import json
 
 from simpub.simdata import SimScene
-from .net_manager import init_net_manager, asycnc_sleep
+from .net_manager import init_net_manager, async_sleep
 from .net_manager import Streamer, BytesService, HostInfo
 from .log import logger
 from .utils import send_message
@@ -38,8 +38,8 @@ class SimPublisher(ServerBase):
         self,
         sim_scene: SimScene,
         host: str = "127.0.0.1",
-        no_rendered_objects: List[str] = None,
-        no_tracked_objects: List[str] = None,
+        no_rendered_objects: Optional[List[str]] = None,
+        no_tracked_objects: Optional[List[str]] = None,
     ) -> None:
         self.sim_scene = sim_scene
         if no_rendered_objects is None:
@@ -76,7 +76,7 @@ class SimPublisher(ServerBase):
     async def check_and_send_scene_update(self):
         for client in self.net_manager.clients.values():
             await client.req_socket.send_string("LoadSimScene:")
-        await asycnc_sleep(0.05)
+        await async_sleep(0.05)
 
     @abc.abstractmethod
     def get_update(self) -> Dict:

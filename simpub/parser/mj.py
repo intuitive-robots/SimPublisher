@@ -30,6 +30,7 @@ def cylinder2unity_scale(scale: List[float]) -> List[float]:
         return list(map(abs, [scale[0] * 2, scale[1], scale[0] * 2]))
     elif len(scale) == 1:
         return list(map(abs, [scale[0] * 2, scale[0] * 2, scale[0] * 2]))
+    raise ValueError("Only support scale with one, two or three components.")
 
 
 def capsule2unity_scale(scale: List[float]) -> List[float]:

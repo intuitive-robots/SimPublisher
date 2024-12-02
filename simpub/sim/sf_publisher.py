@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from alr_sim.sims.mj_beta import MjScene
 
@@ -11,8 +11,8 @@ class SFPublisher(MujocoPublisher):
         self,
         sf_mj_sim: MjScene,
         host: str = "127.0.0.1",
-        no_rendered_objects: List[str] = None,
-        no_tracked_objects: List[str] = None,
+        no_rendered_objects: Optional[List[str]] = None,
+        no_tracked_objects: Optional[List[str]] = None,
     ) -> None:
         super().__init__(
             sf_mj_sim.model,

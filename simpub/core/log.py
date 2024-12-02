@@ -9,7 +9,7 @@ logging.addLevelName(REMOTELOG_LEVEL_NUM, "REMOTELOG")
 
 
 class CustomLogger(logging.Logger):
-    def remotelog(self, message, *args, **kws):
+    def remote_log(self, message, *args, **kws):
         if self.isEnabledFor(REMOTELOG_LEVEL_NUM):
             self._log(REMOTELOG_LEVEL_NUM, message, args, **kws)
 
