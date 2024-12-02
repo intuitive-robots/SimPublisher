@@ -1,8 +1,9 @@
-import zmq
 from .log import logger
 
+from .net_manager import AsyncSocket
 
-async def send_message(msg: str, socket: zmq.Socket):
+
+async def send_message(msg: str, socket: AsyncSocket):
     try:
         await socket.send_string(msg)
     except Exception as e:
