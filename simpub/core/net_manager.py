@@ -311,7 +311,9 @@ class NetManager:
             await async_sleep(0.01)
 
     async def broadcast_loop(self):
-        logger.info("The server is broadcasting...")
+        logger.info(
+            f"The Net Manager starts broadcasting at {self.local_info['ip']}"
+        )
         # set up udp socket
         _socket = socket.socket(AF_INET, SOCK_DGRAM)
         _socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
