@@ -3,7 +3,6 @@ import numpy as np
 import io
 from hashlib import md5
 from typing import List, Dict, Callable
-import cv2
 
 from ..simdata import SimObject, SimScene, SimTransform, SimVisual
 from ..simdata import SimMaterial, SimTexture, SimMesh

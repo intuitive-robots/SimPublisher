@@ -5,8 +5,8 @@ from typing import Optional, Dict, Callable
 from asyncio import sleep as async_sleep
 
 from ..core.log import logger
-from ..core.net_manager import NetManager, SimPubClient, AsyncSocket
-from ..core.net_manager import TopicName
+from ..core.net_manager import NetManager, HostInfo
+from ..core.net_manager import TopicName, AsyncSocket
 
 
 class InputData:
@@ -27,9 +27,9 @@ class XRDevice:
         self.manager: NetManager = NetManager.manager
         self.connected = False
         self.device_name = device_name
-        self.client: Optional[SimPubClient] = None
-        self.req_socket: AsyncSocket
-        self.sub_socket: AsyncSocket
+        self.client: Optional[HostInfo] = None
+        self.req_socket: AsyncSocket = self.manager.create_socket(zmq.REQ)
+        self.sub_socket: AsyncSocket = self.manager.create_socket(zmq.SUB)
         # subscriber
         self.sub_topic_callback: Dict[TopicName, Callable] = {}
         self.register_topic_callback(f"{device_name}/Log", self.print_log)
@@ -39,7 +39,7 @@ class XRDevice:
         logger.info(f"Waiting for connection to {self.device_name}")
         while not self.connected:
             for client in self.manager.clients.values():
-                if client.info["name"] == self.device_name:
+                if client["name"] == self.device_name:
                     self.client = client
                     self.connected = True
                     logger.info(f"Connected to {self.device_name}")
@@ -48,8 +48,12 @@ class XRDevice:
         if self.client is None:
             logger.error(f"Device {self.device_name} is not connected")
             return
-        self.req_socket = self.client.req_socket
-        self.sub_socket = self.client.sub_socket
+        self.req_socket.connect(
+            f"tcp://{self.client['ip']}:{self.client['servicePort']}"
+        )
+        self.sub_socket.connect(
+            f"tcp://{self.client['ip']}:{self.client['topicPort']}"
+        )
         self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
         self.manager.submit_task(self.subscribe_loop)
 
@@ -60,6 +64,9 @@ class XRDevice:
         future = self.manager.submit_task(
             self.request_async, service, req
         )
+        if future is None:
+            logger.error("Future is None")
+            return ""
         try:
             result = future.result()
             return result
@@ -71,7 +78,7 @@ class XRDevice:
         if self.client is None:
             logger.error(f"Device {self.device_name} is not connected")
             return ""
-        if service not in self.client.info["serviceList"]:
+        if service not in self.client["serviceList"]:
             logger.error(f"\"{service}\" Service is not available")
             return ""
         await self.req_socket.send_string(f"{service}:{req}")
@@ -103,7 +110,7 @@ class XRDevice:
         if self.connected:
             self.request("ChangeHostName", name)
             self.device_name = name
-            self.client.info["name"] = name
+            self.client["name"] = name
             self.manager.clients.pop(self.device_name)
             self.manager.clients[name] = self.client
         else:
