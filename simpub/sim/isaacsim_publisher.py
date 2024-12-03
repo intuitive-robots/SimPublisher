@@ -39,7 +39,9 @@ class IsaacSimPublisher(SimPublisher):
         super().__init__(self.sim_scene, host)
 
         # add deformable update streamer
-        self.deform_update_streamer = ByteStreamer("DeformUpdate", self.get_deform_update)
+        self.deform_update_streamer = ByteStreamer(
+            "DeformUpdate", self.get_deform_update
+        )
 
     def parse_scene(self, stage: Usd.Stage) -> SimScene:
         print("parsing stage:", stage)
@@ -137,7 +139,9 @@ class IsaacSimPublisher(SimPublisher):
             )
 
         # track prims with deformable enabled
-        if ((attr := root.GetAttribute('physxDeformable:deformableEnabled')) and attr.Get()):
+        if (
+            attr := root.GetAttribute("physxDeformable:deformableEnabled")
+        ) and attr.Get():
             print("\t" * indent + f"tracking deform {prim_path}")
             self.tracked_deform_prims.append(
                 {"name": sim_object.name, "prim": root, "prim_path": prim_path}
@@ -182,7 +186,7 @@ class IsaacSimPublisher(SimPublisher):
         qx = sr * cp * cy - cr * sp * sy
         qy = cr * sp * cy + sr * cp * sy
         qz = cr * cp * sy - sr * sp * cy
-        
+
         return Gf.Quatd(qw, Gf.Vec3d(qx, qy, qz))
 
     def compute_local_trans(self, prim: Usd.Prim):
@@ -203,7 +207,7 @@ class IsaacSimPublisher(SimPublisher):
 
         # convert rot to quad
         rtq = self.deg_euler_to_quad(ro[roo[0]], ro[roo[1]], ro[roo[2]])
-        #reorder rot for unity coord system
+        # reorder rot for unity coord system
         imag = rtq.GetImaginary()
         rot = [-imag[1], -imag[2], imag[0], rtq.GetReal()]
 
@@ -240,7 +244,9 @@ class IsaacSimPublisher(SimPublisher):
             num_vert_per_face = face_vertex_counts[0]
 
             mesh_obj = trimesh.Trimesh(
-                vertices=vertices, faces=indices.reshape(-1, num_vert_per_face), process=False
+                vertices=vertices,
+                faces=indices.reshape(-1, num_vert_per_face),
+                process=False,
             )
 
             # validate mesh data... (not really necessary)
@@ -512,34 +518,39 @@ class IsaacSimPublisher(SimPublisher):
         #   V: Verticies for each mesh [ ? bytes for each mesh ]
         #
         #       | L | S ... S | N ... N | V ... V |
-        #        
-        
+        #
+
         state = {}
-        mesh_vert_len = np.ndarray(len(self.tracked_deform_prims), dtype=np.uint32)     # N
-        update_list = "" # S
-        
+        mesh_vert_len = np.ndarray(len(self.tracked_deform_prims), dtype=np.uint32)  # N
+        update_list = ""  # S
+
         for idx, tracked_prim in enumerate(self.tracked_deform_prims):
             mesh_name = tracked_prim["name"]
             prim_path = tracked_prim["prim_path"]
-                        
-            vertices = np.asarray(self.rt_stage.GetPrimAtPath(prim_path).GetAttribute(RtGeom.Tokens.points).Get(), dtype=np.float32)
+
+            vertices = np.asarray(
+                self.rt_stage.GetPrimAtPath(prim_path)
+                .GetAttribute(RtGeom.Tokens.points)
+                .Get(),
+                dtype=np.float32,
+            )
             vertices = vertices[:, [1, 2, 0]]
             vertices[:, 2] = -vertices[:, 2]
             vertices = vertices.flatten()
             state[mesh_name] = np.ascontiguousarray(vertices)
-            
+
             mesh_vert_len[idx] = vertices.size
             update_list += f"{mesh_name};"
-        
+
         update_list = str.encode(update_list)
         bin_buffer = io.BytesIO()
-        
-        bin_buffer.write(len(update_list).to_bytes(4, "little"))    # L
-        bin_buffer.write(update_list)                               # S
-        
-        bin_buffer.write(mesh_vert_len)                             # N
-        
+
+        bin_buffer.write(len(update_list).to_bytes(4, "little"))  # L
+        bin_buffer.write(update_list)  # S
+
+        bin_buffer.write(mesh_vert_len)  # N
+
         for hash in state:
-            bin_buffer.write(state[hash])                           # V      
-            
+            bin_buffer.write(state[hash])  # V
+
         return bin_buffer.getvalue()
