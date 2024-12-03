@@ -5,8 +5,8 @@ import json
 import zmq
 
 from ..simdata import SimScene
-from .net_manager import init_net_manager
-from .net_manager import Streamer, BytesService, HostInfo
+from .net_manager import init_net_manager, HostInfo
+from .net_component import Streamer, BytesService
 from .log import logger
 from .utils import send_message
 
