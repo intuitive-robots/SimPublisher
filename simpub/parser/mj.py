@@ -189,8 +189,10 @@ class MjModelParser:
         vertices = vertices[:, [1, 2, 0]]
         vertices[:, 0] = -vertices[:, 0]
         vertices = vertices.flatten()
-        vertices_layout = bin_buffer.tell(), vertices.shape[0]
+        start = bin_buffer.tell()
+        # vertices_layout = bin_buffer.tell(), vertices.shape[0]
         bin_buffer.write(vertices)
+        vertices_layout = start, bin_buffer.tell() - start
         # normal
         if hasattr(mj_model, "mesh_normaladr"):
             start_norm = mj_model.mesh_normaladr[mesh_id]
@@ -203,8 +205,10 @@ class MjModelParser:
         norms = norms[:, [1, 2, 0]]
         norms[:, 0] = -norms[:, 0]
         norms = norms.flatten()
-        normal_layout = bin_buffer.tell(), norms.shape[0]
+        start = bin_buffer.tell()
+        # normal_layout = bin_buffer.tell(), norms.shape[0]
         bin_buffer.write(norms)
+        normal_layout = start, bin_buffer.tell() - start
         # faces
         start_face = mj_model.mesh_faceadr[mesh_id]
         num_faces = mj_model.mesh_facenum[mesh_id]
@@ -212,8 +216,10 @@ class MjModelParser:
         indices = faces.astype(np.int32)
         indices = indices[:, [2, 1, 0]]
         indices = indices.flatten()
-        indices_layout = bin_buffer.tell(), indices.shape[0]
+        start = bin_buffer.tell()
+        # indices_layout = bin_buffer.tell(), indices.shape[0]
         bin_buffer.write(indices)
+        indices_layout = start, bin_buffer.tell() - start
         # Texture coords
         uv_layout = (0, 0)
         start_uv = mj_model.mesh_texcoordadr[mesh_id]
@@ -227,8 +233,10 @@ class MjModelParser:
                 start_uv:start_uv + num_texcoord
             ])
             uvs = uvs.flatten()
-            uv_layout = bin_buffer.tell(), uvs.shape[0]
+            start = bin_buffer.tell()
+            # uv_layout = bin_buffer.tell(), uvs.shape[0]
             bin_buffer.write(uvs)
+            uv_layout = start, bin_buffer.tell() - start
         # create a SiMmesh object and raw data
         bin_data = bin_buffer.getvalue()
         hash = md5(bin_data).hexdigest()
@@ -268,8 +276,8 @@ class MjModelParser:
             )
         if tex_id != -1:
             mat_texture = self.process_texture(mj_model, tex_id)
-            mat_texture.textureSize = mj_model.mat_texrepeat[mat_id].tolist()
-            print(mat_texture.textureSize)
+            mat_texture.textureScale = mj_model.mat_texrepeat[mat_id].tolist()
+            # print(mat_texture.textureScale)
         material = SimMaterial(
             color=mat_color,
             emissionColor=mat_emissionColor,

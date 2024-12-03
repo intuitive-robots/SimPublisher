@@ -102,7 +102,7 @@ class SimTexture(SimAsset):
     height: int = 0
     # TODO: add new texture type
     textureType: str = "2D"
-    textureSize: Tuple[int, int] = field(default_factory=lambda: (1, 1))
+    textureScale: Tuple[int, int] = field(default_factory=lambda: (1, 1))
 
     def compress(
         self,
