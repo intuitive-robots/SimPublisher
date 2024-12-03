@@ -2,9 +2,10 @@ from __future__ import annotations
 import abc
 from typing import Dict, List, Optional
 import json
+import zmq
 
-from simpub.simdata import SimScene
-from .net_manager import init_net_manager, async_sleep
+from ..simdata import SimScene
+from .net_manager import init_net_manager
 from .net_manager import Streamer, BytesService, HostInfo
 from .log import logger
 from .utils import send_message
@@ -24,6 +25,9 @@ class ServerBase(abc.ABC):
     @abc.abstractmethod
     def initialize(self):
         raise NotImplementedError
+
+    def shutdown(self):
+        self.net_manager.shutdown()
 
 
 class MsgServer(ServerBase):
@@ -64,19 +68,18 @@ class SimPublisher(ServerBase):
         xr_info: HostInfo = json.loads(msg)
         if "LoadSimScene" in xr_info["serviceList"]:
             scene_string = f"LoadSimScene:{self.sim_scene.to_string()}"
-            req_socket = self.net_manager.clients[xr_info["ip"]].req_socket
+            req_socket = self.net_manager.create_socket(zmq.REQ)
+            req_socket.connect(
+                f"tcp://{xr_info['ip']}:{xr_info['servicePort']}"
+            )
             self.net_manager.submit_task(
                 send_message, scene_string, req_socket
             )
             logger.info(f"Send scene to {xr_info['name']}")
+            req_socket.close()
 
     def _on_asset_request(self, req: str) -> bytes:
         return self.sim_scene.raw_data[req]
-
-    async def check_and_send_scene_update(self):
-        for client in self.net_manager.clients.values():
-            await client.req_socket.send_string("LoadSimScene:")
-        await async_sleep(0.05)
 
     @abc.abstractmethod
     def get_update(self) -> Dict:

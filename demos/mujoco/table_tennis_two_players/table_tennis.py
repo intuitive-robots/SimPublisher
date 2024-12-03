@@ -1,7 +1,9 @@
 import mujoco
-from mujoco import mj_name2id, mjtObj
+from mujoco import mj_name2id, mjtObj  # type: ignore
 import numpy as np
 import time
+import os
+
 from simpub.sim.mj_publisher import MujocoPublisher
 from simpub.xr_device.meta_quest3 import MetaQuest3
 
@@ -31,23 +33,26 @@ def update_bat(mj_model, mj_data, player1: MetaQuest3, player2: MetaQuest3 = Non
 
 
 if __name__ == '__main__':
-
-    model = mujoco.MjModel.from_xml_path("assets/table_tennis_env.xml")
+    xml_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "assets/table_tennis_env.xml"
+    )
+    model = mujoco.MjModel.from_xml_path(xml_path)
     data = mujoco.MjData(model)
     last_time = time.time()
-    publisher = MujocoPublisher(model, data, host="192.168.0.134")
-    player1 = MetaQuest3("UnityClient")
-    # player2 = MetaQuest3("ALR2")
-    while not player1.connected:
-        time.sleep(0.01)
-    print("Connected to UnityClient")
+    publisher = MujocoPublisher(model, data)
+    # player1 = MetaQuest3("UnityClient")
+    # # player2 = MetaQuest3("ALR2")
+    # while not player1.connected:
+    #     time.sleep(0.01)
     count = 0
-    while True:
+    for _ in range(1000):
         mujoco.mj_step(model, data)
         if time.time() - last_time < 0.001:
             time.sleep(0.001 - (time.time() - last_time))
         last_time = time.time()
-        if count % 10 == 0:
-            update_bat(model, data, player1)
-            check_episode_and_rest(model, data)
+        # if count % 10 == 0:
+        #     update_bat(model, data, player1)
+        #     check_episode_and_rest(model, data)
         count += 1
+    publisher.shutdown()
