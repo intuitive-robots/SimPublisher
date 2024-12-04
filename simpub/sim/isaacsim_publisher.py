@@ -7,6 +7,7 @@ import uuid
 
 import numpy as np
 import omni
+import trimesh.visual
 import omni.usd
 from PIL import Image
 import pxr
@@ -94,6 +95,7 @@ class IsaacSimPublisher(SimPublisher):
         root: Usd.Prim,
         indent=0,
         parent_path=None,
+        inherited_material=None,
     ) -> SimObject | None:
         """parse the tree starting from a prim"""
 
@@ -137,12 +139,16 @@ class IsaacSimPublisher(SimPublisher):
             + f"{prim_path}: {root.GetTypeName()} {root.GetAttribute('purpose').Get()} {sim_object.trans.scale}"
         )
 
+        # parse material
+        sim_mat = self.parse_prim_material(prim=root, indent=indent)
+
         # parse meshes and other primitive shapes
         self.parse_prim_geometries(
             prim=root,
             prim_path=prim_path,
             sim_obj=sim_object,
             indent=indent,
+            sim_mat=sim_mat or inherited_material,
         )
 
         # track prims with rigid objects attached
@@ -170,7 +176,10 @@ class IsaacSimPublisher(SimPublisher):
             # parse child prims of the prototype
             for child in proto.GetChildren():
                 if obj := self.parse_prim_tree(
-                    root=child, indent=indent + 1, parent_path=prim_path
+                    root=child,
+                    indent=indent + 1,
+                    parent_path=prim_path,
+                    inherited_material=sim_mat or inherited_material,
                 ):
                     sim_object.children.append(obj)
 
@@ -178,7 +187,10 @@ class IsaacSimPublisher(SimPublisher):
             # parse child prims of the current prim (root)
             for child in root.GetChildren():
                 if obj := self.parse_prim_tree(
-                    root=child, indent=indent + 1, parent_path=prim_path
+                    root=child,
+                    indent=indent + 1,
+                    parent_path=prim_path,
+                    inherited_material=sim_mat or inherited_material,
                 ):
                     sim_object.children.append(obj)
 
@@ -269,7 +281,7 @@ class IsaacSimPublisher(SimPublisher):
         elif (c := mat_shader.GetInput("diffuseColor").Get()) is not None:
             diffuse_color = [c[0], c[1], c[2]]
 
-        sim_mat = SimMaterial(color=diffuse_color)
+        sim_mat = SimMaterial(color=diffuse_color + [1])
 
         if texture_path is not None:
             tex_id = str(uuid.uuid4())
@@ -302,13 +314,9 @@ class IsaacSimPublisher(SimPublisher):
         prim_path: str,
         sim_obj: SimObject,
         indent: int,
+        sim_mat=None,
     ):
         prim_type = prim.GetTypeName()
-
-        # parse materials
-        sim_mat = None
-        sim_mat = self.parse_prim_material(prim=prim, indent=indent)
-        sim_mat = SimMaterial(color=[1, 1, 1])
 
         if prim_type == "Mesh":
             # currently each instance of a prototype will create a different mesh object
@@ -327,6 +335,12 @@ class IsaacSimPublisher(SimPublisher):
                 mesh_prim.GetFaceVertexCountsAttr().Get(), dtype=np.int32
             )
 
+            uvs = None
+            if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
+                uvs = np.asarray(
+                    UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(), dtype=np.float32
+                )
+
             # assuming there are either only triangular faces or only quad faces...
             assert len(set(face_vertex_counts)) == 1
             num_vert_per_face = face_vertex_counts[0]
@@ -336,6 +350,9 @@ class IsaacSimPublisher(SimPublisher):
                 faces=indices.reshape(-1, num_vert_per_face),
                 process=False,
             )
+
+            # if uvs is not None:
+            #     mesh_obj.visual = trimesh.visual.TextureVisuals(uv=uvs)
 
             # validate mesh data... (not really necessary)
             vertices = vertices.flatten()
@@ -361,6 +378,7 @@ class IsaacSimPublisher(SimPublisher):
 
             sim_mesh = self.build_mesh_buffer(mesh_obj)
             if sim_mat is not None:
+                print("\t" * indent + f"material: {sim_mat}")
                 sim_mesh.material = sim_mat
             sim_obj.visuals.append(sim_mesh)
 
@@ -388,6 +406,7 @@ class IsaacSimPublisher(SimPublisher):
             )
 
             if sim_mat is not None:
+                print("\t" * indent + f"material: {sim_mat}")
                 sim_cube.material = sim_mat
             sim_obj.visuals.append(sim_cube)
             sim_obj.trans.scale = [1.0] * 3
@@ -415,6 +434,7 @@ class IsaacSimPublisher(SimPublisher):
 
             sim_mesh = self.build_mesh_buffer(capsule_mesh)
             if sim_mat is not None:
+                print("\t" * indent + f"material: {sim_mat}")
                 sim_mesh.material = sim_mat
             sim_obj.visuals.append(sim_mesh)
 
@@ -444,6 +464,7 @@ class IsaacSimPublisher(SimPublisher):
 
             sim_mesh = self.build_mesh_buffer(cone_mesh)
             if sim_mat is not None:
+                print("\t" * indent + f"material: {sim_mat}")
                 sim_mesh.material = sim_mat
             sim_obj.visuals.append(sim_mesh)
 
@@ -470,6 +491,7 @@ class IsaacSimPublisher(SimPublisher):
 
             sim_mesh = self.build_mesh_buffer(cylinder_mesh)
             if sim_mat is not None:
+                print("\t" * indent + f"material: {sim_mat}")
                 sim_mesh.material = sim_mat
             sim_obj.visuals.append(sim_mesh)
 
@@ -486,6 +508,7 @@ class IsaacSimPublisher(SimPublisher):
 
             sim_mesh = self.build_mesh_buffer(sphere_mesh)
             if sim_mat is not None:
+                print("\t" * indent + f"material: {sim_mat}")
                 sim_mesh.material = sim_mat
             sim_obj.visuals.append(sim_mesh)
 
@@ -527,6 +550,7 @@ class IsaacSimPublisher(SimPublisher):
             uvs[:, 1] = 1 - uvs[:, 1]
             uvs = uvs.flatten()
             uv_layout = bin_buffer.tell(), uvs.shape[0]
+            bin_buffer.write(uvs)
 
         bin_data = bin_buffer.getvalue()
         hash = md5(bin_data).hexdigest()
