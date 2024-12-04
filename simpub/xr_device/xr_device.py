@@ -1,10 +1,11 @@
 import json
 import zmq
-from typing import Dict, Callable
-from asyncio import sleep as asycnc_sleep
+import zmq.asyncio
+from typing import Optional, Dict, Callable
+from asyncio import sleep as async_sleep
 
 from ..core.log import logger
-from ..core.net_manager import NetManager, SimPubClient
+from ..core.net_manager import NetManager, SimPubClient, AsyncSocket
 from ..core.net_manager import TopicName
 
 
@@ -21,12 +22,14 @@ class XRDevice:
         self,
         device_name: str = "UnityClient",
     ) -> None:
-        self.connected = False
+        if NetManager.manager is None:
+            raise Exception("NetManager is not initialized")
         self.manager: NetManager = NetManager.manager
+        self.connected = False
         self.device_name = device_name
-        self.client: SimPubClient = None
-        self.req_socket: zmq.Socket = None
-        self.sub_socket: zmq.Socket = None
+        self.client: Optional[SimPubClient] = None
+        self.req_socket: AsyncSocket
+        self.sub_socket: AsyncSocket
         # subscriber
         self.sub_topic_callback: Dict[TopicName, Callable] = {}
         self.register_topic_callback(f"{device_name}/Log", self.print_log)
@@ -41,13 +44,16 @@ class XRDevice:
                     self.connected = True
                     logger.info(f"Connected to {self.device_name}")
                     break
-            await asycnc_sleep(0.01)
+            await async_sleep(0.01)
+        if self.client is None:
+            logger.error(f"Device {self.device_name} is not connected")
+            return
         self.req_socket = self.client.req_socket
         self.sub_socket = self.client.sub_socket
         self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
         self.manager.submit_task(self.subscribe_loop)
 
-    def register_topic_callback(self, topic: str, callback: Callable):
+    def register_topic_callback(self, topic: TopicName, callback: Callable):
         self.sub_topic_callback[topic] = callback
 
     def request(self, service: str, req: str) -> str:
@@ -78,19 +84,22 @@ class XRDevice:
                 topic, msg = message.split(":", 1)
                 if topic in self.sub_topic_callback:
                     self.sub_topic_callback[topic](msg)
-                # await asycnc_sleep(0.01)
+                # await async_sleep(0.01)
         except Exception as e:
             logger.error(
                 f"{e} from subscribe loop in device {self.device_name}"
             )
 
     def print_log(self, log: str):
-        logger.remotelog(f"{self.type} Log: {log}")
+        logger.remote_log(f"{self.type} Log: {log}")
 
     def get_input_data(self) -> InputData:
-        pass
+        raise NotImplementedError
 
     def change_host_name(self, name: str):
+        if self.client is None:
+            logger.error(f"Device {self.device_name} is not connected")
+            return
         if self.connected:
             self.request("ChangeHostName", name)
             self.device_name = name

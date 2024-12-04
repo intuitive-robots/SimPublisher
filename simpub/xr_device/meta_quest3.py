@@ -1,4 +1,4 @@
-from typing import TypedDict, Callable, Dict, List
+from typing import Optional, TypedDict, Callable, Dict, List
 import json
 from asyncio import sleep as async_sleep
 
@@ -34,8 +34,8 @@ class MetaQuest3(XRDevice):
         device_name: str,
     ) -> None:
         super().__init__(device_name)
-        self.last_input_data: MetaQuest3InputData = None
-        self.input_data: MetaQuest3InputData = None
+        self.last_input_data: Optional[MetaQuest3InputData] = None
+        self.input_data: Optional[MetaQuest3InputData] = None
         self.input_subscriber = self.register_topic_callback(
             f"{device_name}/InputData", self.update
         )
@@ -118,7 +118,7 @@ class MetaQuest3(XRDevice):
         else:
             raise ValueError("Invalid hand")
 
-    def get_input_data(self) -> MetaQuest3InputData:
+    def get_input_data(self) -> Optional[MetaQuest3InputData]:
         return self.input_data
 
     # TODO: Vibration Data Structure
