@@ -1,30 +1,40 @@
 import io
-from hashlib import md5
-import random
 import math
+import os
+import random
+from hashlib import md5
 
 import numpy as np
-import trimesh
-
-from simpub.core.simpub_server import SimPublisher
-from simpub.core.net_manager import ByteStreamer
-from simpub.simdata import (
-    SimScene,
-    SimObject,
-    SimVisual,
-    VisualType,
-    SimTransform,
-    SimMesh,
-    SimMaterial,
-)
-
 import omni
 import omni.usd
-from pxr import Usd, UsdGeom, Gf, UsdUtils
-
+from PIL import Image
+import pxr
+import requests
+import trimesh
+from omni.isaac.lab.utils.assets import (
+    ISAAC_NUCLEUS_DIR,
+    ISAACLAB_NUCLEUS_DIR,
+    NUCLEUS_ASSET_ROOT_DIR,
+    NVIDIA_NUCLEUS_DIR,
+)
+from pxr import Gf, Usd, UsdGeom, UsdShade, UsdUtils
+from tabulate import tabulate
+from usdrt import Rt
 from usdrt import Usd as RtUsd
 from usdrt import UsdGeom as RtGeom
-from usdrt import Rt
+
+from simpub.core.net_manager import ByteStreamer
+from simpub.core.simpub_server import SimPublisher
+from simpub.simdata import (
+    SimMaterial,
+    SimMesh,
+    SimObject,
+    SimScene,
+    SimTexture,
+    SimTransform,
+    SimVisual,
+    VisualType,
+)
 
 
 #! todo: separate the parser and the publisher...
@@ -36,6 +46,8 @@ class IsaacSimPublisher(SimPublisher):
         self.tracked_deform_prims: list[dict] = []
 
         self.parse_scene(stage)
+        self.sim_scene.process_sim_obj(self.sim_scene.root)
+
         super().__init__(self.sim_scene, host)
 
         # add deformable update streamer
@@ -73,6 +85,7 @@ class IsaacSimPublisher(SimPublisher):
         rtstage = RtUsd.Stage.Attach(stage_id)
         print("usdrt stage:", rtstage)
 
+        self.stage = stage
         self.rt_stage = rtstage
 
     def parse_prim_tree(
@@ -213,6 +226,78 @@ class IsaacSimPublisher(SimPublisher):
 
         return translate, rot, scale
 
+    def parse_prim_material(
+        self,
+        prim: Usd.Prim,
+        indent: int,
+    ) -> SimMaterial | None:
+        matapi = UsdShade.MaterialBindingAPI(prim)
+        if not matapi:
+            return
+
+        mat = matapi.GetDirectBinding().GetMaterial()
+        if not mat:
+            return
+
+        mat_prim = self.stage.GetPrimAtPath(mat.GetPath())
+        if not mat_prim:
+            return
+
+        if not mat_prim.GetAllChildren():
+            return
+
+        # we only care about the first shader
+        mat_shader_prim = mat_prim.GetAllChildren()[0]
+        mat_shader = UsdShade.Shader(mat_shader_prim)
+
+        # print("shader inputs:")
+        # input_table = []
+        # for i in mat_shader.GetInputs(onlyAuthored=False):
+        #     # print(i.GetFullName(), "=>", i.Get())
+        #     input_table.append([str(i.GetFullName()), str(i.Get()), str(type(i.Get()))])
+        # print(tabulate(input_table))
+
+        diffuse_texture = mat_shader.GetInput("diffuse_texture")
+        texture_path = None
+        if diffuse_texture.Get() is not None:
+            texture_path = str(diffuse_texture.Get().resolvedPath)
+
+        diffuse_color = [1.0, 1.0, 1.0]
+        if (c := mat_shader.GetInput("diffuse_color_constant").Get()) is not None:
+            diffuse_color = [c[0], c[1], c[2]]
+        elif (c := mat_shader.GetInput("diffuseColor").Get()) is not None:
+            diffuse_color = [c[0], c[1], c[2]]
+
+        sim_mat = SimMaterial()
+        sim_mat.color = diffuse_color
+
+        if texture_path is not None:
+            tex_id = texture_path
+
+            image = None
+            if texture_path.startswith("http://") or texture_path.startswith(
+                "https://"
+            ):
+                response = requests.get(texture_path)
+                image = Image.open(io.BytesIO(response.content))
+            elif os.path.isfile(texture_path):
+                image = Image.open(texture_path)
+
+            if image is not None:
+                image = image.convert("RGB")
+                bin_data = image.tobytes()
+                assert len(bin_data) == image.width * image.height * 3
+                tex_hash = md5(bin_data).hexdigest()
+                sim_mat.texture = SimTexture(
+                    hash=tex_hash,
+                    width=image.width,
+                    height=image.height,
+                )
+                self.sim_scene.raw_data[tex_hash] = bin_data
+                sim_mat.texture.compress(self.sim_scene.raw_data)
+
+        return sim_mat
+
     def parse_prim_geometries(
         self,
         prim: Usd.Prim,
@@ -221,6 +306,10 @@ class IsaacSimPublisher(SimPublisher):
         indent: int,
     ):
         prim_type = prim.GetTypeName()
+
+        # parse materials
+        sim_mat = None
+        # sim_mat = self.parse_prim_material(prim=prim, indent=indent)
 
         if prim_type == "Mesh":
             # currently each instance of a prototype will create a different mesh object
@@ -272,6 +361,8 @@ class IsaacSimPublisher(SimPublisher):
             )
 
             sim_mesh = self.build_mesh_buffer(mesh_obj)
+            if sim_mat is not None:
+                sim_mesh.material = sim_mat
             sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cube":
@@ -297,6 +388,8 @@ class IsaacSimPublisher(SimPublisher):
                 material=SimMaterial(color=[1.0, 1.0, 1.0, 1.0]),
             )
 
+            if sim_mat is not None:
+                sim_cube.material = sim_mat
             sim_obj.visuals.append(sim_cube)
             sim_obj.trans.scale = [1.0] * 3
 
@@ -322,6 +415,8 @@ class IsaacSimPublisher(SimPublisher):
             # since it seems that isaac lab won't modify them...
 
             sim_mesh = self.build_mesh_buffer(capsule_mesh)
+            if sim_mat is not None:
+                sim_mesh.material = sim_mat
             sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cone":
@@ -349,6 +444,8 @@ class IsaacSimPublisher(SimPublisher):
             # since it seems that isaac lab won't modify them...
 
             sim_mesh = self.build_mesh_buffer(cone_mesh)
+            if sim_mat is not None:
+                sim_mesh.material = sim_mat
             sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cylinder":
@@ -373,6 +470,8 @@ class IsaacSimPublisher(SimPublisher):
             # since it seems that isaac lab won't modify them...
 
             sim_mesh = self.build_mesh_buffer(cylinder_mesh)
+            if sim_mat is not None:
+                sim_mesh.material = sim_mat
             sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Sphere":
@@ -387,6 +486,8 @@ class IsaacSimPublisher(SimPublisher):
             # since it seems that isaac lab won't modify them...
 
             sim_mesh = self.build_mesh_buffer(sphere_mesh)
+            if sim_mat is not None:
+                sim_mesh.material = sim_mat
             sim_obj.visuals.append(sim_mesh)
 
     def build_mesh_buffer(self, mesh_obj: trimesh.Trimesh):
@@ -456,11 +557,10 @@ class IsaacSimPublisher(SimPublisher):
     def get_update(self) -> dict[str, list[float]]:
         import omni
         import omni.usd
-
         from pxr import Usd, UsdUtils
+        from usdrt import Rt
         from usdrt import Usd as RtUsd
         from usdrt import UsdGeom as RtGeom
-        from usdrt import Rt
 
         def print_state():
             prim = self.rt_stage.GetPrimAtPath("/World/Origin1/Robot/panda_hand")
