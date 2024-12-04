@@ -61,13 +61,18 @@ class Streamer(Publisher):
         topic: str,
         update_func: Callable[[], Optional[Union[str, bytes, Dict]]],
         fps: int = 45,
+        start_streaming: bool = True,
     ):
         super().__init__(topic)
         self.running = False
         self.dt: float = 1 / fps
         self.update_func = update_func
-        self.manager.submit_task(self.update_loop)
         self.topic_byte = self.topic.encode("utf-8")
+        if start_streaming:
+            self.start_streaming()
+
+    def start_streaming(self):
+        self.manager.submit_task(self.update_loop)
 
     def generate_byte_msg(self) -> bytes:
         return dumps(
