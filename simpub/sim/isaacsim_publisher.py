@@ -3,6 +3,7 @@ import math
 import os
 import random
 from hashlib import md5
+import uuid
 
 import numpy as np
 import omni
@@ -268,16 +269,13 @@ class IsaacSimPublisher(SimPublisher):
         elif (c := mat_shader.GetInput("diffuseColor").Get()) is not None:
             diffuse_color = [c[0], c[1], c[2]]
 
-        sim_mat = SimMaterial()
-        sim_mat.color = diffuse_color
+        sim_mat = SimMaterial(color=diffuse_color)
 
         if texture_path is not None:
-            tex_id = texture_path
+            tex_id = str(uuid.uuid4())
 
             image = None
-            if texture_path.startswith("http://") or texture_path.startswith(
-                "https://"
-            ):
+            if texture_path.startswith(("http://", "https://")):
                 response = requests.get(texture_path)
                 image = Image.open(io.BytesIO(response.content))
             elif os.path.isfile(texture_path):
@@ -309,7 +307,8 @@ class IsaacSimPublisher(SimPublisher):
 
         # parse materials
         sim_mat = None
-        # sim_mat = self.parse_prim_material(prim=prim, indent=indent)
+        sim_mat = self.parse_prim_material(prim=prim, indent=indent)
+        sim_mat = SimMaterial(color=[1, 1, 1])
 
         if prim_type == "Mesh":
             # currently each instance of a prototype will create a different mesh object
