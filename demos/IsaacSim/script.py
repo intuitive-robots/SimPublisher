@@ -4,10 +4,12 @@
 import omni
 import omni.usd
 
-from pxr import Usd, UsdUtils, UsdShade
+from pxr import Usd, UsdUtils, UsdShade, UsdGeom
 from usdrt import Usd as RtUsd
 from usdrt import UsdGeom as RtGeom
 from usdrt import Rt
+
+import numpy as np
 
 stage = omni.usd.get_context().get_stage()
 print(stage)
@@ -19,7 +21,7 @@ print(stage_id)
 rtstage = RtUsd.Stage.Attach(stage_id)
 print(rtstage)
 
-prim_path = "/World/defaultGroundPlane/Environment"
+prim_path = "/World/defaultGroundPlane/Environment/Geometry"
 prim = stage.GetPrimAtPath(prim_path)
 print(prim)
 print(prim.GetTypeName())
@@ -30,3 +32,9 @@ mat: UsdShade.Material = matapi.GetDirectBinding().GetMaterial()
 print(mat)
 mat_prim: Usd.Prim = stage.GetPrimAtPath(mat.GetPath())
 print(mat_prim)
+
+uvs = np.asarray(UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(), dtype=np.float32)
+print(uvs)
+
+for i in UsdGeom.PrimvarsAPI(prim).GetPrimvars():
+    print(i.GetName())

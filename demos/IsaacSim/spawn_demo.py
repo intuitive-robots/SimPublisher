@@ -100,173 +100,173 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg_wall_1 = sim_utils.CuboidCfg(
         size=(10, 0.1, 1),
         collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0)),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.7, 0.4)),
     )
     cfg_wall_1.func("/World/Wall1", cfg_wall_1, translation=(0, -5, 0))
     cfg_wall_1.func("/World/Wall2", cfg_wall_1, translation=(0, 5, 0))
 
-    # cfg_wall_2 = sim_utils.CuboidCfg(
-    #     size=(0.1, 10, 1),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0)),
-    # )
-    # cfg_wall_2.func("/World/Wall3", cfg_wall_2, translation=(-5, 0, 0))
-    # cfg_wall_2.func("/World/Wall4", cfg_wall_2, translation=(5, 0, 0))
+    cfg_wall_2 = sim_utils.CuboidCfg(
+        size=(0.1, 10, 1),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0)),
+    )
+    cfg_wall_2.func("/World/Wall3", cfg_wall_2, translation=(-5, 0, 0))
+    cfg_wall_2.func("/World/Wall4", cfg_wall_2, translation=(5, 0, 0))
 
-    # # # -- Table
-    # cfg = sim_utils.UsdFileCfg(
-    #     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"
-    # )
-    # cfg.func("/World/Origin1/Tables/Table", cfg, translation=(0.55, 0.0, 1.05))
-    # # cfg.func("/World/Origin1/Tables/Table_1", cfg, translation=(0.55, 3.0, 1.05))
+    # # -- Table
+    cfg = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"
+    )
+    cfg.func("/World/Origin1/Tables/Table", cfg, translation=(0.55, 0.0, 1.05))
+    # cfg.func("/World/Origin1/Tables/Table_1", cfg, translation=(0.55, 3.0, 1.05))
 
-    # # -- Robot
-    # franka_arm_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot")
-    # franka_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
-    # franka_panda = Articulation(cfg=franka_arm_cfg)
+    # -- Robot
+    franka_arm_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot")
+    franka_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
+    franka_panda = Articulation(cfg=franka_arm_cfg)
 
-    # # -- cube
-    # cfg_cube = sim_utils.CuboidCfg(
-    #     size=(0.1, 0.1, 0.1),
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 1.0)),
-    # )
-    # cfg_cube.func("/World/Origin1/Cube1", cfg_cube, translation=(0.2, 0.0, 3.0))
+    # -- cube
+    cfg_cube = sim_utils.CuboidCfg(
+        size=(0.1, 0.1, 0.1),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 1.0)),
+    )
+    cfg_cube.func("/World/Origin1/Cube1", cfg_cube, translation=(0.2, 0.0, 3.0))
 
-    # cfg_cube = sim_utils.CuboidCfg(
-    #     size=(0.1, 0.2, 0.3),
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 1.0)),
-    # )
-    # cfg_cube.func("/World/Origin1/Cube2", cfg_cube, translation=(0.2, 0.0, 5.0))
+    cfg_cube = sim_utils.CuboidCfg(
+        size=(0.1, 0.2, 0.3),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 1.0)),
+    )
+    cfg_cube.func("/World/Origin1/Cube2", cfg_cube, translation=(0.2, 0.0, 5.0))
 
-    # cfg_capsule = sim_utils.CapsuleCfg(
-    #     radius=0.1,
-    #     height=0.3,
-    #     axis="Z",
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.1, 0.1)),
-    # )
-    # cfg_capsule.func(
-    #     "/World/Origin1/CapsuleZ", cfg_capsule, translation=(0.2, 0.0, 7.0)
-    # )
+    cfg_capsule = sim_utils.CapsuleCfg(
+        radius=0.1,
+        height=0.3,
+        axis="Z",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.1, 0.1)),
+    )
+    cfg_capsule.func(
+        "/World/Origin1/CapsuleZ", cfg_capsule, translation=(0.2, 0.0, 7.0)
+    )
 
-    # cfg_capsule = sim_utils.CapsuleCfg(
-    #     radius=0.2,
-    #     height=0.4,
-    #     axis="X",
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 1.0, 0.1)),
-    # )
-    # cfg_capsule.func(
-    #     "/World/Origin1/CapsuleX", cfg_capsule, translation=(0.2, 0.0, 9.0)
-    # )
+    cfg_capsule = sim_utils.CapsuleCfg(
+        radius=0.2,
+        height=0.4,
+        axis="X",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 1.0, 0.1)),
+    )
+    cfg_capsule.func(
+        "/World/Origin1/CapsuleX", cfg_capsule, translation=(0.2, 0.0, 9.0)
+    )
 
-    # cfg_capsule = sim_utils.CapsuleCfg(
-    #     radius=0.3,
-    #     height=0.5,
-    #     axis="Y",
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 1.0)),
-    # )
-    # cfg_capsule.func(
-    #     "/World/Origin1/CapsuleY", cfg_capsule, translation=(0.2, 0.0, 11.0)
-    # )
+    cfg_capsule = sim_utils.CapsuleCfg(
+        radius=0.3,
+        height=0.5,
+        axis="Y",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 1.0)),
+    )
+    cfg_capsule.func(
+        "/World/Origin1/CapsuleY", cfg_capsule, translation=(0.2, 0.0, 11.0)
+    )
 
-    # cfg_cone = sim_utils.ConeCfg(
-    #     radius=0.1,
-    #     height=0.3,
-    #     axis="Z",
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.1, 0.1)),
-    # )
-    # cfg_cone.func("/World/Origin1/ConeZ", cfg_cone, translation=(0.2, 0.0, 13.0))
+    cfg_cone = sim_utils.ConeCfg(
+        radius=0.1,
+        height=0.3,
+        axis="Z",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.1, 0.1)),
+    )
+    cfg_cone.func("/World/Origin1/ConeZ", cfg_cone, translation=(0.2, 0.0, 13.0))
 
-    # cfg_cone = sim_utils.ConeCfg(
-    #     radius=0.2,
-    #     height=0.4,
-    #     axis="X",
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 1.0, 0.1)),
-    # )
-    # cfg_cone.func("/World/Origin1/ConeX", cfg_cone, translation=(0.2, 0.0, 15.0))
+    cfg_cone = sim_utils.ConeCfg(
+        radius=0.2,
+        height=0.4,
+        axis="X",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 1.0, 0.1)),
+    )
+    cfg_cone.func("/World/Origin1/ConeX", cfg_cone, translation=(0.2, 0.0, 15.0))
 
-    # cfg_cone = sim_utils.ConeCfg(
-    #     radius=0.3,
-    #     height=0.5,
-    #     axis="Y",
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 1.0)),
-    # )
-    # cfg_cone.func("/World/Origin1/ConeY", cfg_cone, translation=(0.2, 0.0, 17.0))
+    cfg_cone = sim_utils.ConeCfg(
+        radius=0.3,
+        height=0.5,
+        axis="Y",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 1.0)),
+    )
+    cfg_cone.func("/World/Origin1/ConeY", cfg_cone, translation=(0.2, 0.0, 17.0))
 
-    # cfg_cylinder = sim_utils.CylinderCfg(
-    #     radius=0.1,
-    #     height=0.3,
-    #     axis="Z",
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.1, 0.1)),
-    # )
-    # cfg_cylinder.func(
-    #     "/World/Origin1/CylinderZ", cfg_cylinder, translation=(0.2, 0.0, 19.0)
-    # )
+    cfg_cylinder = sim_utils.CylinderCfg(
+        radius=0.1,
+        height=0.3,
+        axis="Z",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.1, 0.1)),
+    )
+    cfg_cylinder.func(
+        "/World/Origin1/CylinderZ", cfg_cylinder, translation=(0.2, 0.0, 19.0)
+    )
 
-    # cfg_cylinder = sim_utils.CylinderCfg(
-    #     radius=0.2,
-    #     height=0.4,
-    #     axis="X",
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 1.0, 0.1)),
-    # )
-    # cfg_cylinder.func(
-    #     "/World/Origin1/CylinderX", cfg_cylinder, translation=(0.2, 0.0, 21.0)
-    # )
+    cfg_cylinder = sim_utils.CylinderCfg(
+        radius=0.2,
+        height=0.4,
+        axis="X",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 1.0, 0.1)),
+    )
+    cfg_cylinder.func(
+        "/World/Origin1/CylinderX", cfg_cylinder, translation=(0.2, 0.0, 21.0)
+    )
 
-    # cfg_cylinder = sim_utils.CylinderCfg(
-    #     radius=0.3,
-    #     height=0.5,
-    #     axis="Y",
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 1.0)),
-    # )
-    # cfg_cylinder.func(
-    #     "/World/Origin1/CylinderY", cfg_cylinder, translation=(0.2, 0.0, 23.0)
-    # )
+    cfg_cylinder = sim_utils.CylinderCfg(
+        radius=0.3,
+        height=0.5,
+        axis="Y",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 1.0)),
+    )
+    cfg_cylinder.func(
+        "/World/Origin1/CylinderY", cfg_cylinder, translation=(0.2, 0.0, 23.0)
+    )
 
-    # cfg_sphere = sim_utils.SphereCfg(
-    #     radius=0.3,
-    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-    #     collision_props=sim_utils.CollisionPropertiesCfg(),
-    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 1.0)),
-    # )
-    # cfg_sphere.func("/World/Origin1/Sphere1", cfg_sphere, translation=(0.2, 0.0, 25.0))
+    cfg_sphere = sim_utils.SphereCfg(
+        radius=0.3,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 1.0)),
+    )
+    cfg_sphere.func("/World/Origin1/Sphere1", cfg_sphere, translation=(0.2, 0.0, 25.0))
 
     # return the scene information
     scene_entities = {
-        # "franka_panda": franka_panda,
+        "franka_panda": franka_panda,
     }
     return scene_entities, origins
 

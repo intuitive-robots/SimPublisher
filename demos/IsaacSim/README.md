@@ -6,6 +6,10 @@ Please follow the [readme](../../README.md) in the root folder for installing si
 
 You can install Isaac Sim and Isaac Lab following [this page](https://isaac-sim.github.io/IsaacLab/source/setup/installation/binaries_installation.html). You could also install isaac sim with pip, but I didn't test on it.
 
+**IsaacSim Installation.**  Please follow [this link](https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_python.html#installation-using-pip) to install IsaacSim, especially the cached extension dependencies.
+
+**VSCode Extension.** If you encouter freezing of IsaacSim, please try to disable the VSCode extension.
+
 Now you can activate your Isaac Lab conda environment, and run some demos. For example, run this in the root folder:
 ```
 python demos/IsaacSim/spawn_demo.py
