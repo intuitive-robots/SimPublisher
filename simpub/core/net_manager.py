@@ -1,9 +1,9 @@
 import concurrent.futures
 import enum
-from typing import List, Dict, Any
-from typing import NewType, Callable, TypedDict, Union
+from typing import List, Dict, Optional
+from typing import Callable, TypedDict, Union
 import asyncio
-from asyncio import sleep as asycnc_sleep
+from asyncio import sleep as async_sleep
 import zmq
 import zmq.asyncio
 import socket
@@ -17,9 +17,9 @@ from .log import logger
 import abc
 import concurrent
 
-IPAddress = NewType("IPAddress", str)
-TopicName = NewType("TopicName", str)
-ServiceName = NewType("ServiceName", str)
+IPAddress = str
+TopicName = str
+ServiceName = str
 
 
 class ServerPort(int, enum.Enum):
@@ -41,12 +41,17 @@ class HostInfo(TypedDict):
     topicList: List[TopicName]
 
 
+AsyncSocket = zmq.asyncio.Socket
+
+
 class SimPubClient:
     def __init__(self, client_info: HostInfo) -> None:
+        if NetManager.manager is None:
+            raise ValueError("NetManager is not initialized")
         self.manager: NetManager = NetManager.manager
         self.info = client_info
-        self.req_socket: zmq.Socket = self.manager.zmq_context.socket(zmq.REQ)
-        self.sub_socket: zmq.Socket = self.manager.zmq_context.socket(zmq.SUB)
+        self.req_socket: AsyncSocket = self.manager.create_socket(zmq.REQ)
+        self.sub_socket: AsyncSocket = self.manager.create_socket(zmq.SUB)
         self.req_socket.connect(f"tcp://{self['ip']}:{self['servicePort']}")
         self.sub_socket.connect(f"tcp://{self['ip']}:{self['topicPort']}")
 
@@ -58,8 +63,10 @@ class SimPubClient:
 
 class NetComponent(abc.ABC):
     def __init__(self):
-        self.running: bool = False
+        if NetManager.manager is None:
+            raise ValueError("NetManager is not initialized")
         self.manager: NetManager = NetManager.manager
+        self.running: bool = False
         self.host_ip: str = self.manager.local_info["ip"]
 
     def shutdown(self):
@@ -90,7 +97,8 @@ class Publisher(NetComponent):
         self.manager.submit_task(self.send_msg_async, f"{self.topic}:{string}")
 
     def on_shutdown(self):
-        super().on_shutdown()
+        # TODO: add a way to remove the topic from the list
+        pass
 
     async def send_msg_async(self, msg: str):
         await self.socket.send_string(msg)
@@ -125,7 +133,7 @@ class Streamer(Publisher):
             while self.running:
                 diff = time.monotonic() - last
                 if diff < self.dt:
-                    await asycnc_sleep(self.dt - diff)
+                    await async_sleep(self.dt - diff)
                 last = time.monotonic()
                 await self.socket.send(
                     b"".join([self.topic_byte, b":", self.generate_byte_msg()])
@@ -208,7 +216,7 @@ class NetManager:
         self._initialized = False
         self.zmq_context = zmq.asyncio.Context()
         # subscriber
-        self.sub_socket_dict: Dict[IPAddress, zmq.Socket] = {}
+        self.sub_socket_dict: Dict[IPAddress, AsyncSocket] = {}
         # publisher
         self.pub_socket = self.zmq_context.socket(zmq.PUB)
         self.pub_socket.bind(f"tcp://{host_ip}:{ServerPort.TOPIC.value}")
@@ -230,7 +238,7 @@ class NetManager:
         self.clients: Dict[IPAddress, SimPubClient] = {}
         # setting up thread pool
         self.running: bool = True
-        self.loop: asyncio.AbstractEventLoop = None
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
         # start the server in a thread pool
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
         self.server_future = self.executor.submit(self.start_event_loop)
@@ -245,7 +253,12 @@ class NetManager:
         self.client_quit_service = StringService(
             "ClientQuit", self.client_quit_callback
         )
-        self.clients_info_service = DictService("GetClientInfo", self.get_clients_info)
+        self.clients_info_service = DictService(
+            "GetClientInfo", self.get_clients_info
+        )
+
+    def create_socket(self, socket_type: int):
+        return self.zmq_context.socket(socket_type)
 
     def start(self):
         self._initialized = True
@@ -274,12 +287,12 @@ class NetManager:
         self.executor.shutdown(wait=True)
 
     async def service_loop(self):
-        # try:
+        # TODO: restart service loop after an exception is raised
         logger.info("The service is running...")
         while self.running:
             message = await self.service_socket.recv_string()
             if ":" not in message:
-                logger.error('Invalid message with no spliter ":"')
+                logger.error('Invalid message with no split marker ":"')
                 await self.service_socket.send_string("Invalid message")
                 continue
             service, request = message.split(":", 1)
@@ -292,10 +305,10 @@ class NetManager:
                     await self.service_socket.send_string("Timeout")
                 except Exception as e:
                     logger.error(
-                        f"One error ocurred when processing the Service "
+                        f"One error occurred when processing the Service "
                         f'"{service}": {e}'
                     )
-            await asycnc_sleep(0.01)
+            await async_sleep(0.01)
 
     async def broadcast_loop(self):
         logger.info("The server is broadcasting...")
@@ -314,7 +327,7 @@ class NetManager:
             local_info = self.local_info  # update local info
             msg = f"SimPub:{_id}:{json.dumps(local_info)}"
             _socket.sendto(msg.encode(), address)
-            await asycnc_sleep(0.1)
+            await async_sleep(0.1)
         logger.info("Broadcasting has been stopped")
 
     def register_client_callback(self, msg: str) -> str:

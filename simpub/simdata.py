@@ -59,7 +59,7 @@ class SimMesh(SimAsset):
     verticesLayout: Tuple[int, int]
     indicesLayout: Tuple[int, int]
     uvLayout: Tuple[int, int]
-    normalsLayout: Tuple[int, int] = None
+    normalsLayout: Optional[Tuple[int, int]] = None
 
     def generate_normals(self, raw_data: Dict[str, bytes]) -> None:
         if self.normalsLayout is not None:
@@ -181,11 +181,13 @@ class SimObject(SimData):
 
 class SimScene(SimData):
     def __init__(self) -> None:
-        self.root: SimObject = None
+        self.root: Optional[SimObject] = None
         self.id: str = str(random.randint(int(1e9), int(1e10 - 1)))
         self.raw_data: Dict[str, bytes] = dict()
 
     def to_string(self) -> str:
+        if self.root is None:
+            raise ValueError("Root object is not set")
         dict_data = {
             "root": asdict(self.root),
             "id": self.id,
