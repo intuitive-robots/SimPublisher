@@ -351,8 +351,9 @@ class IsaacSimPublisher(SimPublisher):
                 process=False,
             )
 
-            # if uvs is not None:
-            #     mesh_obj.visual = trimesh.visual.TextureVisuals(uv=uvs)
+            if uvs is not None:
+                mesh_obj.visual = trimesh.visual.TextureVisuals(uv=uvs)
+                print("\t" * indent, uvs)
 
             # validate mesh data... (not really necessary)
             vertices = vertices.flatten()
