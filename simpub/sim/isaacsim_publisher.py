@@ -335,53 +335,82 @@ class IsaacSimPublisher(SimPublisher):
                 mesh_prim.GetFaceVertexCountsAttr().Get(), dtype=np.int32
             )
 
-            uvs = None
-            if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
-                uvs = np.asarray(
-                    UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(), dtype=np.float32
-                )
-
             # assuming there are either only triangular faces or only quad faces...
             assert len(set(face_vertex_counts)) == 1
             num_vert_per_face = face_vertex_counts[0]
+            indices = indices.reshape(-1, num_vert_per_face)
 
-            mesh_obj = trimesh.Trimesh(
-                vertices=vertices,
-                faces=indices.reshape(-1, num_vert_per_face),
-                process=False,
-            )
+            print("\t" * indent + f"vertices: {vertices.shape}")
+            print("\t" * indent + f"normals:  {normals.shape}")
+            print("\t" * indent + f"indices:  {indices.shape}")
 
-            if uvs is not None:
-                mesh_obj.visual = trimesh.visual.TextureVisuals(uv=uvs)
-                print("\t" * indent, uvs)
+            uvs = None
+            # # uv could not be determined in this way...
+            # if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
+            #     uvs = np.asarray(
+            #         UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(), dtype=np.float32
+            #     )
 
-            # validate mesh data... (not really necessary)
-            vertices = vertices.flatten()
-            normals = normals.flatten()
-            indices = indices.flatten()
-            print(
-                "\t" * indent
-                + f"vertices size: {vertices.shape[0] // 3} {vertices.shape[0] % 3}"
-            )
-            print(
-                "\t" * indent
-                + f"normals size: {normals.shape[0] // 3} {normals.shape[0] % 3}"
-            )
-            print(
-                "\t" * indent
-                + f"triangles: {indices.shape[0] // 3} {indices.shape[0] % 3}"
-            )
-            assert normals.shape[0] // 3 == indices.shape[0]
-            print(
-                "\t" * indent
-                + f"normal per index: {normals.shape[0] // 3} {indices.shape[0]}"
-            )
+            mesh_subsets = UsdGeom.Subset.GetAllGeomSubsets(mesh_prim)
+            mesh_obj_mat = []
 
-            sim_mesh = self.build_mesh_buffer(mesh_obj)
-            if sim_mat is not None:
-                print("\t" * indent + f"material: {sim_mat}")
-                sim_mesh.material = sim_mat
-            sim_obj.visuals.append(sim_mesh)
+            if mesh_subsets:
+                for subset in UsdGeom.Subset.GetAllGeomSubsets(mesh_prim):
+                    print("\t" * (indent + 1) + str(subset))
+                    subset_mat = self.parse_prim_material((subset), indent + 1)
+                    print("\t" * (indent + 1) + f"material: {subset_mat}")
+                    subset_indices = subset.GetIndicesAttr().Get()
+                    print("\t" * (indent + 1) + f"indices: {len(subset_indices)}")
+                    mesh_obj_mat.append(
+                        (
+                            trimesh.Trimesh(
+                                vertices=vertices,
+                                faces=indices[subset_indices],
+                                process=True,
+                            ),
+                            subset_mat,
+                        )
+                    )
+
+            else:
+                mesh_obj_mat.append(
+                    (
+                        trimesh.Trimesh(vertices=vertices, faces=indices, process=True),
+                        sim_mat,
+                    )
+                )
+
+            # if uvs is not None:
+            #     mesh_obj.visual = trimesh.visual.TextureVisuals(uv=uvs)
+
+            # # validate mesh data... (not really necessary)
+            # vertices = vertices.flatten()
+            # normals = normals.flatten()
+            # indices = indices.flatten()
+            # print(
+            #     "\t" * indent
+            #     + f"vertices size: {vertices.shape[0] // 3} {vertices.shape[0] % 3}"
+            # )
+            # print(
+            #     "\t" * indent
+            #     + f"normals size: {normals.shape[0] // 3} {normals.shape[0] % 3}"
+            # )
+            # print(
+            #     "\t" * indent
+            #     + f"triangles: {indices.shape[0] // 3} {indices.shape[0] % 3}"
+            # )
+            # assert normals.shape[0] // 3 == indices.shape[0]
+            # print(
+            #     "\t" * indent
+            #     + f"normal per index: {normals.shape[0] // 3} {indices.shape[0]}"
+            # )
+
+            for mesh_obj, mat in mesh_obj_mat:
+                sim_mesh = self.build_mesh_buffer(mesh_obj)
+                if mat is not None:
+                    print("\t" * indent + f"material: {mat}")
+                    sim_mesh.material = mat
+                sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cube":
             rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
