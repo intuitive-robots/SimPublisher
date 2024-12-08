@@ -21,7 +21,7 @@ print(stage_id)
 rtstage = RtUsd.Stage.Attach(stage_id)
 print(rtstage)
 
-prim_path = "/World/defaultGroundPlane/Environment/Geometry"
+prim_path = "/Cube"
 prim = stage.GetPrimAtPath(prim_path)
 print(prim)
 print(prim.GetTypeName())
@@ -35,6 +35,7 @@ print(mat_prim)
 
 uvs = np.asarray(UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(), dtype=np.float32)
 print(uvs)
+print(len(uvs))
 
 for i in UsdGeom.PrimvarsAPI(prim).GetPrimvars():
     print(i.GetName())

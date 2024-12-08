@@ -24,6 +24,7 @@ from tabulate import tabulate
 from usdrt import Rt
 from usdrt import Usd as RtUsd
 from usdrt import UsdGeom as RtGeom
+from dataclasses import dataclass
 
 from simpub.core.net_manager import ByteStreamer
 from simpub.core.simpub_server import SimPublisher
@@ -37,6 +38,16 @@ from simpub.simdata import (
     SimVisual,
     VisualType,
 )
+
+
+@dataclass
+class MaterialInfo:
+    sim_mat: SimMaterial
+    project_uvw: bool = False
+    use_world_coord: bool = False
+
+    def __post_init__(self):
+        assert self.sim_mat is not None
 
 
 #! todo: separate the parser and the publisher...
@@ -95,7 +106,7 @@ class IsaacSimPublisher(SimPublisher):
         root: Usd.Prim,
         indent=0,
         parent_path=None,
-        inherited_material=None,
+        inherited_material: MaterialInfo | None = None,
     ) -> SimObject | None:
         """parse the tree starting from a prim"""
 
@@ -140,7 +151,7 @@ class IsaacSimPublisher(SimPublisher):
         )
 
         # parse material
-        sim_mat = self.parse_prim_material(prim=root, indent=indent)
+        mat_info = self.parse_prim_material(prim=root, indent=indent)
 
         # parse meshes and other primitive shapes
         self.parse_prim_geometries(
@@ -148,7 +159,7 @@ class IsaacSimPublisher(SimPublisher):
             prim_path=prim_path,
             sim_obj=sim_object,
             indent=indent,
-            sim_mat=sim_mat or inherited_material,
+            mat_info=mat_info or inherited_material,
         )
 
         # track prims with rigid objects attached
@@ -179,7 +190,7 @@ class IsaacSimPublisher(SimPublisher):
                     root=child,
                     indent=indent + 1,
                     parent_path=prim_path,
-                    inherited_material=sim_mat or inherited_material,
+                    inherited_material=mat_info or inherited_material,
                 ):
                     sim_object.children.append(obj)
 
@@ -190,7 +201,7 @@ class IsaacSimPublisher(SimPublisher):
                     root=child,
                     indent=indent + 1,
                     parent_path=prim_path,
-                    inherited_material=sim_mat or inherited_material,
+                    inherited_material=mat_info or inherited_material,
                 ):
                     sim_object.children.append(obj)
 
@@ -239,11 +250,26 @@ class IsaacSimPublisher(SimPublisher):
 
         return translate, rot, scale
 
+    def compute_world_trans(self, prim: Usd.Prim):
+        # not really necessary...
+        timeline = omni.timeline.get_timeline_interface()
+        timecode = timeline.get_current_time() * timeline.get_time_codes_per_seconds()
+
+        # extract local transformation
+        # [BUG] omni.usd.get_local_transform_matrix returns wrong rotation, use get_local_transform_SRT instead
+        trans_mat = omni.usd.get_local_transform_matrix(prim, timecode)
+        # sc, ro, roo, tr = omni.usd.get_local_transform_SRT(prim, timecode)
+
+        trans_mat = np.array(trans_mat)
+        print(trans_mat)
+        raise SystemError("good!")
+        return trans_mat
+
     def parse_prim_material(
         self,
         prim: Usd.Prim,
         indent: int,
-    ) -> SimMaterial | None:
+    ) -> MaterialInfo | None:
         matapi = UsdShade.MaterialBindingAPI(prim)
         if not matapi:
             return
@@ -306,7 +332,73 @@ class IsaacSimPublisher(SimPublisher):
                 self.sim_scene.raw_data[tex_hash] = bin_data
                 sim_mat.texture.compress(self.sim_scene.raw_data)
 
-        return sim_mat
+        mi = MaterialInfo(sim_mat=sim_mat)
+
+        if (
+            use_uvw := mat_shader.GetInput("project_uvw").Get()
+        ) is not None and use_uvw is True:
+            mi.project_uvw = True
+
+            if (
+                world_coord := mat_shader.GetInput("world_or_object")
+            ) is not None and world_coord is True:
+                mi.use_world_coord = True
+
+        return mi
+
+    def compute_projected_uv(
+        self, prim: Usd.Prim, vertex_buf, index_buf, use_world_coord: bool = False
+    ):
+        assert type(vertex_buf) is np.ndarray
+        assert len(vertex_buf.shape) == 2 and vertex_buf.shape[1] in {3, 4}
+        assert type(index_buf) is np.ndarray
+        assert len(index_buf.shape) == 2 and index_buf.shape[1] in {3, 4}
+
+        uvs = []
+        axes = np.array(
+            [[0, 0, 1], [0, 0, -1], [0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0]]
+        )
+        axis_projectors = [
+            lambda v: [v[0], v[1]],
+            lambda v: [v[0], -v[1]],
+            lambda v: [v[0], v[2]],
+            lambda v: [-v[0], v[2]],
+            lambda v: [v[1], v[2]],
+            lambda v: [-v[1], v[2]],
+        ]
+
+        for tri in index_buf:
+            p0 = vertex_buf[tri[0]]
+            p1 = vertex_buf[tri[1]]
+            p2 = vertex_buf[tri[2]]
+            if len(tri) == 4:
+                p3 = vertex_buf[tri[3]]
+
+            if use_world_coord:
+                world_trans = self.compute_world_trans(prim)
+                p0 = world_trans @ p0
+                p1 = world_trans @ p1
+                p2 = world_trans @ p2
+                if len(tri) == 4:
+                    p3 = world_trans @ p3
+
+            normal = np.cross(p1 - p0, p2 - p0)
+            normal /= np.linalg.norm(normal)
+
+            axis_id = np.argmax(axes @ normal)
+            projector = axis_projectors[axis_id]
+            uvs.append(projector(p0))
+            uvs.append(projector(p1))
+            uvs.append(projector(p2))
+            print(p0)
+            print(p1)
+            print(p2)
+            if len(tri) == 4:
+                uvs.append(projector(p3))
+                print(p3)
+
+        assert len(uvs) == index_buf.shape[0] * index_buf.shape[1]
+        return np.array(uvs)
 
     def parse_prim_geometries(
         self,
@@ -314,7 +406,7 @@ class IsaacSimPublisher(SimPublisher):
         prim_path: str,
         sim_obj: SimObject,
         indent: int,
-        sim_mat=None,
+        mat_info: MaterialInfo | None = None,
     ):
         prim_type = prim.GetTypeName()
 
@@ -344,12 +436,37 @@ class IsaacSimPublisher(SimPublisher):
             print("\t" * indent + f"normals:  {normals.shape}")
             print("\t" * indent + f"indices:  {indices.shape}")
 
-            uvs = None
-            # # uv could not be determined in this way...
-            # if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
-            #     uvs = np.asarray(
-            #         UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(), dtype=np.float32
-            #     )
+            uv_visual = None
+            if mat_info is not None and mat_info.project_uvw:
+                # compute uv by cube mapping
+                uvs = self.compute_projected_uv(
+                    prim=prim,
+                    vertex_buf=vertices,
+                    index_buf=indices,
+                    use_world_coord=mat_info.use_world_coord,
+                )
+                print(uvs)
+                print(uvs.shape)
+                print(vertices)
+                print(vertices.shape)
+
+                # #####################################################################################
+                #
+                # ==> HERE <==
+                #
+                # why the uv isn't correct?
+                # the order of the uv coordinates are specified by indices buffer
+                # but the order of the uv cooridnates required by unity is specified by vertices buffer
+                #
+                # #####################################################################################
+
+                uv_visual = trimesh.visual.TextureVisuals(uv=uvs)
+            elif UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
+                # read predefined uv
+                uvs = np.asarray(
+                    UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(), dtype=np.float32
+                )
+                uv_visual = trimesh.visual.TextureVisuals(uv=uvs)
 
             mesh_subsets = UsdGeom.Subset.GetAllGeomSubsets(mesh_prim)
             mesh_obj_mat = []
@@ -357,7 +474,9 @@ class IsaacSimPublisher(SimPublisher):
             if mesh_subsets:
                 for subset in UsdGeom.Subset.GetAllGeomSubsets(mesh_prim):
                     print("\t" * (indent + 1) + str(subset))
+                    # ignore projected uv for this...
                     subset_mat = self.parse_prim_material((subset), indent + 1)
+                    subset_mat = subset_mat.sim_mat
                     print("\t" * (indent + 1) + f"material: {subset_mat}")
                     subset_indices = subset.GetIndicesAttr().Get()
                     print("\t" * (indent + 1) + f"indices: {len(subset_indices)}")
@@ -367,6 +486,7 @@ class IsaacSimPublisher(SimPublisher):
                                 vertices=vertices,
                                 faces=indices[subset_indices],
                                 process=True,
+                                visual=uv_visual,
                             ),
                             subset_mat,
                         )
@@ -375,13 +495,15 @@ class IsaacSimPublisher(SimPublisher):
             else:
                 mesh_obj_mat.append(
                     (
-                        trimesh.Trimesh(vertices=vertices, faces=indices, process=True),
-                        sim_mat,
+                        trimesh.Trimesh(
+                            vertices=vertices,
+                            faces=indices,
+                            process=True,
+                            visual=uv_visual,
+                        ),
+                        mat_info.sim_mat if mat_info else None,
                     )
                 )
-
-            # if uvs is not None:
-            #     mesh_obj.visual = trimesh.visual.TextureVisuals(uv=uvs)
 
             # # validate mesh data... (not really necessary)
             # vertices = vertices.flatten()
@@ -435,9 +557,9 @@ class IsaacSimPublisher(SimPublisher):
                 material=SimMaterial(color=[1.0, 1.0, 1.0, 1.0]),
             )
 
-            if sim_mat is not None:
-                print("\t" * indent + f"material: {sim_mat}")
-                sim_cube.material = sim_mat
+            if mat_info is not None:
+                print("\t" * indent + f"material: {mat_info}")
+                sim_cube.material = mat_info.sim_mat
             sim_obj.visuals.append(sim_cube)
             sim_obj.trans.scale = [1.0] * 3
 
@@ -463,9 +585,9 @@ class IsaacSimPublisher(SimPublisher):
             # since it seems that isaac lab won't modify them...
 
             sim_mesh = self.build_mesh_buffer(capsule_mesh)
-            if sim_mat is not None:
-                print("\t" * indent + f"material: {sim_mat}")
-                sim_mesh.material = sim_mat
+            if mat_info is not None:
+                print("\t" * indent + f"material: {mat_info}")
+                sim_mesh.material = mat_info.sim_mat
             sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cone":
@@ -493,9 +615,9 @@ class IsaacSimPublisher(SimPublisher):
             # since it seems that isaac lab won't modify them...
 
             sim_mesh = self.build_mesh_buffer(cone_mesh)
-            if sim_mat is not None:
-                print("\t" * indent + f"material: {sim_mat}")
-                sim_mesh.material = sim_mat
+            if mat_info is not None:
+                print("\t" * indent + f"material: {mat_info}")
+                sim_mesh.material = mat_info.sim_mat
             sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cylinder":
@@ -520,9 +642,9 @@ class IsaacSimPublisher(SimPublisher):
             # since it seems that isaac lab won't modify them...
 
             sim_mesh = self.build_mesh_buffer(cylinder_mesh)
-            if sim_mat is not None:
-                print("\t" * indent + f"material: {sim_mat}")
-                sim_mesh.material = sim_mat
+            if mat_info is not None:
+                print("\t" * indent + f"material: {mat_info}")
+                sim_mesh.material = mat_info.sim_mat
             sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Sphere":
@@ -537,9 +659,9 @@ class IsaacSimPublisher(SimPublisher):
             # since it seems that isaac lab won't modify them...
 
             sim_mesh = self.build_mesh_buffer(sphere_mesh)
-            if sim_mat is not None:
-                print("\t" * indent + f"material: {sim_mat}")
-                sim_mesh.material = sim_mat
+            if mat_info is not None:
+                print("\t" * indent + f"material: {mat_info}")
+                sim_mesh.material = mat_info.sim_mat
             sim_obj.visuals.append(sim_mesh)
 
     def build_mesh_buffer(self, mesh_obj: trimesh.Trimesh):
@@ -575,7 +697,7 @@ class IsaacSimPublisher(SimPublisher):
 
         # Texture coords
         uv_layout = (0, 0)
-        if hasattr(mesh_obj.visual, "uv"):
+        if hasattr(mesh_obj.visual, "uv") and mesh_obj.visual.uv is not None:
             uvs = mesh_obj.visual.uv.astype(np.float32)
             uvs[:, 1] = 1 - uvs[:, 1]
             uvs = uvs.flatten()
