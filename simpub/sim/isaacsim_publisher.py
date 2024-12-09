@@ -152,6 +152,7 @@ class IsaacSimPublisher(SimPublisher):
 
         # parse material
         mat_info = self.parse_prim_material(prim=root, indent=indent)
+        # print("\t" * indent + f"material parsed: {mat_info}")
 
         # parse meshes and other primitive shapes
         self.parse_prim_geometries(
@@ -271,18 +272,22 @@ class IsaacSimPublisher(SimPublisher):
         indent: int,
     ) -> MaterialInfo | None:
         matapi = UsdShade.MaterialBindingAPI(prim)
-        if not matapi:
+        if matapi is None:
+            # print("\t" * indent + "material binding api not found")
             return
 
         mat = matapi.GetDirectBinding().GetMaterial()
         if not mat:
+            # print("\t" * indent + "material not found")
             return
 
         mat_prim = self.stage.GetPrimAtPath(mat.GetPath())
         if not mat_prim:
+            # print("\t" * indent + "material prim not found")
             return
 
         if not mat_prim.GetAllChildren():
+            # print("\t" * indent + "material has no shaders")
             return
 
         # we only care about the first shader
@@ -461,12 +466,35 @@ class IsaacSimPublisher(SimPublisher):
                 # #####################################################################################
 
                 uv_visual = trimesh.visual.TextureVisuals(uv=uvs)
+
             elif UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
                 # read predefined uv
                 uvs = np.asarray(
                     UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(), dtype=np.float32
                 )
                 uv_visual = trimesh.visual.TextureVisuals(uv=uvs)
+                print("\t" * indent + f"uvs:  {uvs.shape}")
+
+                if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st_1"):
+                    uvs_1 = np.asarray(
+                        UsdGeom.PrimvarsAPI(prim).GetPrimvar("st_1").Get(),
+                        dtype=np.float32,
+                    )
+                    print("\t" * indent + f"uvs_1: {uvs_1.shape}")
+
+                if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st_2"):
+                    uvs_2 = np.asarray(
+                        UsdGeom.PrimvarsAPI(prim).GetPrimvar("st_2").Get(),
+                        dtype=np.float32,
+                    )
+                    print("\t" * indent + f"uvs_2: {uvs_2.shape}")
+
+                if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st_3"):
+                    uvs_3 = np.asarray(
+                        UsdGeom.PrimvarsAPI(prim).GetPrimvar("st_3").Get(),
+                        dtype=np.float32,
+                    )
+                    print("\t" * indent + f"uvs_3: {uvs_3.shape}")
 
             mesh_subsets = UsdGeom.Subset.GetAllGeomSubsets(mesh_prim)
             mesh_obj_mat = []
@@ -475,8 +503,13 @@ class IsaacSimPublisher(SimPublisher):
                 for subset in UsdGeom.Subset.GetAllGeomSubsets(mesh_prim):
                     print("\t" * (indent + 1) + str(subset))
                     # ignore projected uv for this...
-                    subset_mat = self.parse_prim_material((subset), indent + 1)
-                    subset_mat = subset_mat.sim_mat
+                    subset_mat_info = self.parse_prim_material((subset), indent + 1)
+                    if subset_mat_info is not None:
+                        subset_mat = subset_mat_info.sim_mat
+                    elif mat_info is not None:
+                        subset_mat = mat_info.sim_mat
+                    else:
+                        subset_mat = None
                     print("\t" * (indent + 1) + f"material: {subset_mat}")
                     subset_indices = subset.GetIndicesAttr().Get()
                     print("\t" * (indent + 1) + f"indices: {len(subset_indices)}")
@@ -491,6 +524,10 @@ class IsaacSimPublisher(SimPublisher):
                             subset_mat,
                         )
                     )
+                    print(
+                        "\t" * (indent + 1)
+                        + f"vertices: {len(mesh_obj_mat[-1][0].vertices)}"
+                    )
 
             else:
                 mesh_obj_mat.append(
@@ -501,7 +538,7 @@ class IsaacSimPublisher(SimPublisher):
                             process=True,
                             visual=uv_visual,
                         ),
-                        mat_info.sim_mat if mat_info else None,
+                        mat_info.sim_mat if mat_info is not None else None,
                     )
                 )
 
@@ -532,6 +569,8 @@ class IsaacSimPublisher(SimPublisher):
                 if mat is not None:
                     print("\t" * indent + f"material: {mat}")
                     sim_mesh.material = mat
+                else:
+                    print("\t" * indent + "no material")
                 sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cube":
