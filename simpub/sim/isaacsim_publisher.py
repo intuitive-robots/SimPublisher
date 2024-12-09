@@ -442,6 +442,7 @@ class IsaacSimPublisher(SimPublisher):
             num_vert_per_face = face_vertex_counts[0]
             assert num_vert_per_face in {3, 4}
             indices = indices.reshape(-1, num_vert_per_face)
+            assert indices.shape[0] * indices.shape[1] == normals.shape[0]
 
             # get uv coordinates and store mesh data
 
@@ -475,7 +476,11 @@ class IsaacSimPublisher(SimPublisher):
                     subset_mask = subset.GetIndicesAttr().Get()
                     subset_indices = indices[subset_mask]
                     subset_normals = np.array(
-                        [normals[j * 3 + i] for i in range(3) for j in subset_mask]
+                        [
+                            normals[j * num_vert_per_face + i]
+                            for i in range(num_vert_per_face)
+                            for j in subset_mask
+                        ]
                     )
 
                     # get subset material
@@ -546,11 +551,12 @@ class IsaacSimPublisher(SimPublisher):
 
                 mesh_obj = trimesh.Trimesh(
                     vertices=mesh_data.vertex_buf,
-                    vertex_normals=mesh_data.normal_buf,
+                    # vertex_normals=mesh_data.normal_buf,
                     faces=mesh_data.index_buf,
                     visual=texture_visual,
-                    # process=True,
+                    process=False,
                 )
+                # mesh_obj.fix_normals()
 
                 print("\t" * (indent + 1) + "[mesh geometry]")
                 print("\t" * (indent + 1) + f"vertex:   {mesh_obj.vertices.shape}")
