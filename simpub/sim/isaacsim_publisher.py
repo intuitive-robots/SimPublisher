@@ -39,6 +39,8 @@ from simpub.simdata import (
     VisualType,
 )
 
+from simpub.parser.mesh_utils import split_mesh_faces, Mesh as MeshData
+
 
 @dataclass
 class MaterialInfo:
@@ -381,6 +383,7 @@ class IsaacSimPublisher(SimPublisher):
 
             if use_world_coord:
                 world_trans = self.compute_world_trans(prim)
+                print(world_trans)
                 p0 = world_trans @ p0
                 p1 = world_trans @ p1
                 p2 = world_trans @ p2
@@ -395,12 +398,12 @@ class IsaacSimPublisher(SimPublisher):
             uvs.append(projector(p0))
             uvs.append(projector(p1))
             uvs.append(projector(p2))
-            print(p0)
-            print(p1)
-            print(p2)
+            # print(p0)
+            # print(p1)
+            # print(p2)
             if len(tri) == 4:
                 uvs.append(projector(p3))
-                print(p3)
+                # print(p3)
 
         assert len(uvs) == index_buf.shape[0] * index_buf.shape[1]
         return np.array(uvs)
@@ -423,6 +426,8 @@ class IsaacSimPublisher(SimPublisher):
             mesh_prim = UsdGeom.Mesh(prim)
             assert mesh_prim is not None
 
+            # read vertices, normals and indices
+
             vertices = np.asarray(mesh_prim.GetPointsAttr().Get(), dtype=np.float32)
             normals = np.asarray(mesh_prim.GetNormalsAttr().Get(), dtype=np.float32)
             indices = np.asarray(
@@ -435,131 +440,133 @@ class IsaacSimPublisher(SimPublisher):
             # assuming there are either only triangular faces or only quad faces...
             assert len(set(face_vertex_counts)) == 1
             num_vert_per_face = face_vertex_counts[0]
+            assert num_vert_per_face in {3, 4}
             indices = indices.reshape(-1, num_vert_per_face)
 
-            print("\t" * indent + f"vertices: {vertices.shape}")
-            print("\t" * indent + f"normals:  {normals.shape}")
-            print("\t" * indent + f"indices:  {indices.shape}")
-
-            uv_visual = None
-            if mat_info is not None and mat_info.project_uvw:
-                # compute uv by cube mapping
-                uvs = self.compute_projected_uv(
-                    prim=prim,
-                    vertex_buf=vertices,
-                    index_buf=indices,
-                    use_world_coord=mat_info.use_world_coord,
-                )
-                print(uvs)
-                print(uvs.shape)
-                print(vertices)
-                print(vertices.shape)
-
-                # #####################################################################################
-                #
-                # ==> HERE <==
-                #
-                # why the uv isn't correct?
-                # the order of the uv coordinates are specified by indices buffer
-                # but the order of the uv cooridnates required by unity is specified by vertices buffer
-                #
-                # #####################################################################################
-
-                uv_visual = trimesh.visual.TextureVisuals(uv=uvs)
-
-            elif UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
-                # read predefined uv
-                uvs = np.asarray(
-                    UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(), dtype=np.float32
-                )
-                uv_visual = trimesh.visual.TextureVisuals(uv=uvs)
-                print("\t" * indent + f"uvs:  {uvs.shape}")
-
-                for i in range(1, 100):
-                    if UsdGeom.PrimvarsAPI(prim).HasPrimvar(f"st_{i}"):
-                        uvs_more = np.asarray(
-                            UsdGeom.PrimvarsAPI(prim).GetPrimvar(f"st_{i}").Get(),
-                            dtype=np.float32,
-                        )
-                        print("\t" * indent + f"uvs_{i}: {uvs_more.shape}")
-                    else:
-                        break
+            # get uv coordinates and store mesh data
 
             mesh_subsets = UsdGeom.Subset.GetAllGeomSubsets(mesh_prim)
-            mesh_obj_mat = []
+            mesh_info_list = []
 
+            # if the mesh has multiple GeomSubsets
             if mesh_subsets:
+                # retrieve uv sets for GeomSubsets
+                subset_uvs = {}
+                if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
+                    uvs = np.asarray(
+                        UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(),
+                        dtype=np.float32,
+                    )
+                    subset_uvs[uvs.shape[0]] = uvs
+
+                    for i in range(1, 100):
+                        if UsdGeom.PrimvarsAPI(prim).HasPrimvar(f"st_{i}"):
+                            uvs_more = np.asarray(
+                                UsdGeom.PrimvarsAPI(prim).GetPrimvar(f"st_{i}").Get(),
+                                dtype=np.float32,
+                            )
+                            subset_uvs[uvs_more.shape[0]] = uvs_more
+                        else:
+                            break
+
+                # process GeomSubsets
                 for subset in UsdGeom.Subset.GetAllGeomSubsets(mesh_prim):
-                    print("\t" * (indent + 1) + str(subset))
-                    # ignore projected uv for this...
+                    # get subset indices
+                    subset_mask = subset.GetIndicesAttr().Get()
+                    subset_indices = indices[subset_mask]
+                    subset_normals = np.array(
+                        [normals[j * 3 + i] for i in range(3) for j in subset_mask]
+                    )
+
+                    # get subset material
+                    # TODO: handle project_uvw?
                     subset_mat_info = self.parse_prim_material((subset), indent + 1)
+                    subset_mat = None
                     if subset_mat_info is not None:
                         subset_mat = subset_mat_info.sim_mat
                     elif mat_info is not None:
                         subset_mat = mat_info.sim_mat
-                    else:
-                        subset_mat = None
-                    print("\t" * (indent + 1) + f"material: {subset_mat}")
-                    subset_indices = subset.GetIndicesAttr().Get()
-                    print("\t" * (indent + 1) + f"indices: {len(subset_indices)}")
-                    mesh_obj_mat.append(
-                        (
-                            trimesh.Trimesh(
-                                vertices=vertices,
-                                faces=indices[subset_indices],
-                                process=True,
-                                visual=uv_visual,
+
+                    mesh_info_list.append(
+                        {
+                            "mesh": MeshData(
+                                vertex_buf=vertices,
+                                normal_buf=subset_normals,
+                                index_buf=subset_indices,
+                                uv_buf=subset_uvs.get(
+                                    subset_indices.shape[0] * subset_indices.shape[1],
+                                    None,
+                                ),
                             ),
-                            subset_mat,
-                        )
-                    )
-                    print(
-                        "\t" * (indent + 1)
-                        + f"vertices: {len(mesh_obj_mat[-1][0].vertices)}"
+                            "material": subset_mat,
+                        }
                     )
 
+            # if the mesh has no GeomSubsets
             else:
-                mesh_obj_mat.append(
-                    (
-                        trimesh.Trimesh(
-                            vertices=vertices,
-                            faces=indices,
-                            process=True,
-                            visual=uv_visual,
-                        ),
-                        mat_info.sim_mat if mat_info is not None else None,
+                uvs = None
+                # get uv: compute projected uv with cube mapping
+                if mat_info is not None and mat_info.project_uvw:
+                    uvs = self.compute_projected_uv(
+                        prim=prim,
+                        vertex_buf=vertices,
+                        index_buf=indices,
+                        use_world_coord=mat_info.use_world_coord,
                     )
+                elif UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
+                    uvs = np.asarray(
+                        UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(),
+                        dtype=np.float32,
+                    )
+                    # discard invalid uv buffer
+                    if uvs.shape[0] != indices.shape[0] * indices.shape[1]:
+                        uvs = None
+
+                # if the mesh
+                mesh_info_list.append(
+                    {
+                        "mesh": MeshData(
+                            vertex_buf=vertices,
+                            normal_buf=normals,
+                            index_buf=indices,
+                            uv_buf=uvs,
+                        ),
+                        "material": mat_info.sim_mat if mat_info is not None else None,
+                    }
                 )
 
-            # # validate mesh data... (not really necessary)
-            # vertices = vertices.flatten()
-            # normals = normals.flatten()
-            # indices = indices.flatten()
-            # print(
-            #     "\t" * indent
-            #     + f"vertices size: {vertices.shape[0] // 3} {vertices.shape[0] % 3}"
-            # )
-            # print(
-            #     "\t" * indent
-            #     + f"normals size: {normals.shape[0] // 3} {normals.shape[0] % 3}"
-            # )
-            # print(
-            #     "\t" * indent
-            #     + f"triangles: {indices.shape[0] // 3} {indices.shape[0] % 3}"
-            # )
-            # assert normals.shape[0] // 3 == indices.shape[0]
-            # print(
-            #     "\t" * indent
-            #     + f"normal per index: {normals.shape[0] // 3} {indices.shape[0]}"
-            # )
+            # create SimMesh objects
 
-            for mesh_obj, mat in mesh_obj_mat:
+            for mesh_info in mesh_info_list:
+                mesh_data = split_mesh_faces(mesh_info["mesh"])
+
+                texture_visual = None
+                if mesh_data.uv_buf is not None:
+                    texture_visual = trimesh.visual.TextureVisuals(uv=mesh_data.uv_buf)
+
+                mesh_obj = trimesh.Trimesh(
+                    vertices=mesh_data.vertex_buf,
+                    vertex_normals=mesh_data.normal_buf,
+                    faces=mesh_data.index_buf,
+                    visual=texture_visual,
+                    # process=True,
+                )
+
+                print("\t" * (indent + 1) + "[mesh geometry]")
+                print("\t" * (indent + 1) + f"vertex:   {mesh_obj.vertices.shape}")
+                print(
+                    "\t" * (indent + 1) + f"normal:   {mesh_obj.vertex_normals.shape}"
+                )
+                print("\t" * (indent + 1) + f"index:    {mesh_obj.faces.shape}")
+                if mesh_data.uv_buf is not None:
+                    print("\t" * (indent + 1) + f"uv:       {mesh_obj.visual.uv.shape}")
+
                 sim_mesh = self.build_mesh_buffer(mesh_obj)
-                if mat is not None:
-                    print("\t" * indent + f"material: {mat}")
-                    sim_mesh.material = mat
-                else:
-                    print("\t" * indent + "no material")
+
+                if mesh_info["material"] is not None:
+                    sim_mesh.material = mesh_info["material"]
+                    print("\t" * (indent + 1) + f"material: {sim_mesh.material}")
+
                 sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cube":
