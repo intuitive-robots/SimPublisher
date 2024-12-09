@@ -11,14 +11,78 @@ class Mesh:
     uv_buf: npt.NDArray = np.array([])
     index_buf: npt.NDArray = np.array([])
 
+    def __post_init__(self):
+        assert type(self.vertex_buf) in {np.ndarray, list}
+        assert type(self.normal_buf) in {np.ndarray, list}
+        assert type(self.uv_buf) in {np.ndarray, list}
+        assert type(self.index_buf) in {np.ndarray, list}
 
-def split_mesh_by_uv_islands(input_mesh: Mesh) -> Mesh:
-    assert type(input_mesh.vertex_buf) is np.ndarray
-    assert type(input_mesh.normal_buf) is np.ndarray
-    assert type(input_mesh.uv_buf) is np.ndarray
-    assert type(input_mesh.index_buf) is np.ndarray
+        self.vertex_buf = np.array(self.vertex_buf)
+        self.normal_buf = np.array(self.normal_buf)
+        self.uv_buf = np.array(self.uv_buf)
+        self.index_buf = np.array(self.index_buf)
 
-    assert input_mesh.vertex_buf.shape[1] == 3
-    assert input_mesh.normal_buf.shape[1] == 3
-    assert input_mesh.uv_buf.shape[1] == 2
-    assert input_mesh.index_buf.shape[1] in {3, 4}
+        assert self.vertex_buf.shape[1] == 3
+        assert self.normal_buf.shape[1] == 3
+        assert self.uv_buf.shape[1] == 2
+        assert self.index_buf.shape[1] in {3, 4}
+
+        # for isaac sim format only...
+        assert self.vertex_buf.shape[0] <= self.normal_buf.shape[0]
+        assert self.normal_buf.shape[0] == self.uv_buf.shape[0]
+
+
+def split_mesh_faces(input_mesh: Mesh) -> Mesh:
+    # no need to process if each vertex has only one normal
+    if input_mesh.vertex_buf.shape[0] == input_mesh.normal_buf.shape[0]:
+        return input_mesh
+
+    vertex_buf = []
+    normal_buf = []
+    uv_buf = []
+    index_buf = []
+
+    for tri in input_mesh.index_buf:
+        if len(tri) == 3:
+            index_buf.append(
+                [
+                    len(vertex_buf) + 0,
+                    len(vertex_buf) + 1,
+                    len(vertex_buf) + 2,
+                ]
+            )
+        else:
+            assert len(index_buf) == 4
+            index_buf.append(
+                [
+                    len(vertex_buf) + 0,
+                    len(vertex_buf) + 1,
+                    len(vertex_buf) + 2,
+                    len(vertex_buf) + 3,
+                ]
+            )
+
+        vertex_buf.append(input_mesh.vertex_buf[tri[0]])
+        vertex_buf.append(input_mesh.vertex_buf[tri[1]])
+        vertex_buf.append(input_mesh.vertex_buf[tri[2]])
+        if len(tri) == 4:
+            vertex_buf.append(input_mesh.vertex_buf[tri[3]])
+
+        normal_buf.append(input_mesh.normal_buf[tri[0]])
+        normal_buf.append(input_mesh.normal_buf[tri[1]])
+        normal_buf.append(input_mesh.normal_buf[tri[2]])
+        if len(tri) == 4:
+            normal_buf.append(input_mesh.normal_buf[tri[3]])
+
+        uv_buf.append(input_mesh.uv_buf[tri[0]])
+        uv_buf.append(input_mesh.uv_buf[tri[1]])
+        uv_buf.append(input_mesh.uv_buf[tri[2]])
+        if len(tri) == 4:
+            uv_buf.append(input_mesh.uv_buf[tri[3]])
+
+    return Mesh(
+        vertex_buf=vertex_buf,
+        normal_buf=normal_buf,
+        uv_buf=uv_buf,
+        index_buf=index_buf,
+    )
