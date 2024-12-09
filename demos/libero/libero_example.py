@@ -20,7 +20,7 @@ class RobosuitePublisher(MujocoPublisher):
         super().__init__(
             env.sim.model._model,
             env.sim.data._data,
-            visible_geoms_groups=[1, 2, 3, 4]
+            # visible_geoms_groups=[1, 2, 3, 4]
         )
 
 
@@ -34,7 +34,7 @@ if __name__ == "__main__":
         "controller_configs": controller_config,
     }
 
-    bddl_path = "/home//LIBERO/libero/libero/bddl_files/"
+    bddl_path = "/home/xinkai/repository/LIBERO/libero/libero/bddl_files/"
     bddl_dataset_name = "libero_10"
     bddl_name = "LIVING_ROOM_SCENE2_put_both_the_cream_cheese_box_and_the_butter_in_the_basket.bddl"
     bddl_file = os.path.join(bddl_path, bddl_dataset_name, bddl_name)

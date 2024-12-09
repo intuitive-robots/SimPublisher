@@ -102,7 +102,6 @@ class SimMesh(SimAsset):
         vertex_uvs: Optional[np.ndarray] = None,
         faces_uv: Optional[np.ndarray] = None,
     ) -> SimMesh:
-        print("==================================================")
         uvs = None
         if vertex_uvs is not None:
             assert vertex_uvs.shape[0] == vertices.shape[0], (
@@ -122,7 +121,6 @@ class SimMesh(SimAsset):
                         mesh_texcoord,
                     )
                 )
-            print("uv shape", uvs.shape, "vertices shape", vertices.shape)
             assert uvs.shape[0] == vertices.shape[0], (
                 f"Number of mesh texcoords ({mesh_texcoord.shape[0]}) must be "
                 f"equal to number of vertices ({vertices.shape[0]})"
@@ -148,7 +146,6 @@ class SimMesh(SimAsset):
         vertices = vertices.flatten()
         # Indices / faces
         indices = indices.astype(np.int32)
-        num_indices = indices.shape[0]
         indices = indices[:, [2, 1, 0]]
         indices = indices.flatten()
         # Normals
@@ -160,7 +157,6 @@ class SimMesh(SimAsset):
                 f"Number of vertex normals ({normals.shape[0]}) must be equal "
                 f"to number of vertices ({num_vertices})"
             )
-        print(np.max(indices), num_vertices, num_indices)
         assert np.max(indices) < num_vertices, (
             f"Index value exceeds number of vertices: {np.max(indices)} >= "
             f"{num_vertices}"
@@ -205,13 +201,11 @@ class SimMesh(SimAsset):
         for face, face_texcoord in zip(faces, face_texcoord):
             new_vertices.append(vertices[face])
             vertex_texcoord.append(mesh_texcoord[face_texcoord])
-        # print(new_vertices[0].shape, vertex_texcoord[0].shape)
         for item in new_vertices:
             assert item.shape == (3, 3), f"Shape of item is {item.shape}"
         new_vertices = np.concatenate(new_vertices)
         vertex_texcoord = np.concatenate(vertex_texcoord)
         new_faces = np.arange(new_vertices.shape[0]).reshape(-1, 3)
-        # print(new_vertices.shape, new_faces.shape, vertex_texcoord.shape)
         return new_vertices, new_faces, vertex_texcoord, None
 
 
@@ -335,4 +329,3 @@ class SimScene:
         #         visual.mesh.generate_normals(self.raw_data)
         for child in sim_obj.children:
             self.process_sim_obj(child)
-

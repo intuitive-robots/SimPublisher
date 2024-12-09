@@ -242,7 +242,6 @@ class MjModelParser:
         if tex_id != -1:
             mat_texture = self.process_texture(mj_model, tex_id)
             mat_texture.textureScale = mj_model.mat_texrepeat[mat_id].tolist()
-            # print(mat_texture.textureScale)
         material = SimMaterial(
             color=mat_color,
             emissionColor=mat_emissionColor,
@@ -255,8 +254,7 @@ class MjModelParser:
 
     def process_texture(self, mj_model, tex_id: int):
         # build texture information
-        # TODO: Texture type?
-        # tex_type = mj_model.tex_type[tex_id]
+        # TODO: Support for more texture types
         # get the texture data
         tex_height = mj_model.tex_height[tex_id].item()
         tex_width = mj_model.tex_width[tex_id].item()
