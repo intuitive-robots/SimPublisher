@@ -67,9 +67,9 @@ class SimAsset(SimData):
         bin_buffer: io.BytesIO,
         data: np.ndarray,
     ) -> Tuple[int, int]:
-        # TODO: the data size should be bytes size rather than elements count
-        layout = bin_buffer.tell(), data.size
-        bin_buffer.write(data.tobytes())
+        byte_data = data.tobytes()
+        layout = bin_buffer.tell(), len(byte_data)
+        bin_buffer.write(byte_data)
         return layout
 
     def update_raw_data(
@@ -102,6 +102,7 @@ class SimMesh(SimAsset):
         vertex_uvs: Optional[np.ndarray] = None,
         faces_uv: Optional[np.ndarray] = None,
     ) -> SimMesh:
+        print("==================================================")
         uvs = None
         if vertex_uvs is not None:
             assert vertex_uvs.shape[0] == vertices.shape[0], (
@@ -121,6 +122,7 @@ class SimMesh(SimAsset):
                         mesh_texcoord,
                     )
                 )
+            print("uv shape", uvs.shape, "vertices shape", vertices.shape)
             assert uvs.shape[0] == vertices.shape[0], (
                 f"Number of mesh texcoords ({mesh_texcoord.shape[0]}) must be "
                 f"equal to number of vertices ({vertices.shape[0]})"
@@ -132,7 +134,7 @@ class SimMesh(SimAsset):
             faces=faces,
             vertex_normals=vertex_normals,
             face_normals=face_normals,
-            process=True,
+            process=False,
         )
         trimesh_obj.fix_normals()
         vertices = trimesh_obj.vertices
@@ -141,33 +143,44 @@ class SimMesh(SimAsset):
         # Vertices
         vertices = vertices.astype(np.float32)
         num_vertices = vertices.shape[0]
+        vertices = vertices[:, [1, 2, 0]]
+        vertices[:, 0] = -vertices[:, 0]
         vertices = vertices.flatten()
         # Indices / faces
         indices = indices.astype(np.int32)
-        # num_indices = indices.shape[0]
+        num_indices = indices.shape[0]
+        indices = indices[:, [2, 1, 0]]
         indices = indices.flatten()
         # Normals
         normals = normals.astype(np.float32)
-        assert normals.shape[0] == num_vertices, (
+        normals = normals[:, [1, 2, 0]]
+        normals[:, 0] = -normals[:, 0]
+        normals = normals.flatten()
+        assert normals.size == num_vertices * 3, (
                 f"Number of vertex normals ({normals.shape[0]}) must be equal "
                 f"to number of vertices ({num_vertices})"
             )
-        normals = normals.flatten()
+        print(np.max(indices), num_vertices, num_indices)
+        assert np.max(indices) < num_vertices, (
+            f"Index value exceeds number of vertices: {np.max(indices)} >= "
+            f"{num_vertices}"
+        )
+        assert indices.size % 3 == 0, (
+            f"Number of indices ({indices.size}) must be a multiple of 3"
+        )
         # write to buffer
         bin_buffer = io.BytesIO()
         vertices_layout = SimMesh.write_to_buffer(bin_buffer, vertices)
         indices_layout = SimMesh.write_to_buffer(bin_buffer, indices)
         normals_layout = SimMesh.write_to_buffer(bin_buffer, normals)
         # UVs
-        uv_layout = None
+        uv_layout = (0, 0)
         if uvs is not None:
-            pass
-        #     uvs = uvs.astype(np.float32)
-        #     uvs = uvs.flatten()
-        #     uv_layout = bin_buffer.tell(), uvs.shape[0]
-        #     bin_buffer.write(uvs)
-        #     bin_data = bin_buffer.getvalue()
-        #     vertices_layout = bin_buffer.tell(), vertices.shape[0]
+            assert uvs.size == num_vertices * 2, (
+                f"Number of vertex uvs ({uvs.shape[0]}) must be equal to "
+                f"number of vertices ({num_vertices})"
+            )
+            uv_layout = SimMesh.write_to_buffer(bin_buffer, uvs)
         bin_data = bin_buffer.getvalue()
         hash = SimMesh.generate_hash(bin_data)
         scene.raw_data[hash] = bin_data
@@ -189,17 +202,16 @@ class SimMesh(SimAsset):
         new_vertices = []
         new_faces = []
         vertex_texcoord = []
-        print(vertices.shape, faces.shape, face_texcoord.shape, mesh_texcoord.shape)
         for face, face_texcoord in zip(faces, face_texcoord):
             new_vertices.append(vertices[face])
             vertex_texcoord.append(mesh_texcoord[face_texcoord])
-        print(new_vertices[0].shape, vertex_texcoord[0].shape)
+        # print(new_vertices[0].shape, vertex_texcoord[0].shape)
         for item in new_vertices:
             assert item.shape == (3, 3), f"Shape of item is {item.shape}"
         new_vertices = np.concatenate(new_vertices)
         vertex_texcoord = np.concatenate(vertex_texcoord)
         new_faces = np.arange(new_vertices.shape[0]).reshape(-1, 3)
-        print(new_vertices.shape, new_faces.shape, vertex_texcoord.shape)
+        # print(new_vertices.shape, new_faces.shape, vertex_texcoord.shape)
         return new_vertices, new_faces, vertex_texcoord, None
 
 

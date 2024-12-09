@@ -8,7 +8,7 @@ from ..simdata import SimScene
 from .net_manager import init_net_manager, HostInfo
 from .net_manager import Streamer, BytesService
 from .log import logger
-from .utils import send_message
+from .utils import send_request
 
 
 class ServerBase(abc.ABC):
@@ -68,15 +68,13 @@ class SimPublisher(ServerBase):
         xr_info: HostInfo = json.loads(msg)
         if "LoadSimScene" in xr_info["serviceList"]:
             scene_string = f"LoadSimScene:{self.sim_scene.to_string()}"
-            req_socket = self.net_manager.create_socket(zmq.REQ)
-            req_socket.connect(
-                f"tcp://{xr_info['ip']}:{xr_info['servicePort']}"
-            )
             self.net_manager.submit_task(
-                send_message, scene_string, req_socket
+                send_request,
+                scene_string,
+                f"tcp://{xr_info['ip']}:{xr_info['servicePort']}",
+                self.net_manager.zmq_context
             )
             logger.info(f"Send scene to {xr_info['name']}")
-            req_socket.close()
 
     def _on_asset_request(self, req: str) -> bytes:
         return self.sim_scene.raw_data[req]
