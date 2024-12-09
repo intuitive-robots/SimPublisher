@@ -1,9 +1,6 @@
 import mujoco
 import numpy as np
-import io
-from hashlib import md5
 from typing import List, Dict, Callable
-import trimesh
 
 from ..simdata import SimObject, SimScene, SimTransform, SimVisual
 from ..simdata import SimMaterial, SimTexture, SimMesh
@@ -217,64 +214,6 @@ class MjModelParser:
             faces_uv=faces_uv,
         )
         return mesh
-
-    # def _process_mesh(self, mj_model, mesh_id: int):
-    #     # build mesh information
-    #     bin_buffer = io.BytesIO()
-    #     # vertices
-    #     start_vert = mj_model.mesh_vertadr[mesh_id]
-    #     num_verts = mj_model.mesh_vertnum[mesh_id]
-    #     vertices = mj_model.mesh_vert[start_vert:start_vert + num_verts]
-    #     vertices = vertices.astype(np.float32)
-    #     vertices = vertices[:, [1, 2, 0]]
-    #     vertices[:, 0] = - vertices[:, 0]
-    #     # normal
-    #     if hasattr(mj_model, "mesh_normaladr"):
-    #         start_norm = mj_model.mesh_normaladr[mesh_id]
-    #         num_norm = mj_model.mesh_normalnum[mesh_id]
-    #     else:
-    #         start_norm = start_vert
-    #         num_norm = num_verts
-    #     norms = mj_model.mesh_normal[start_norm:start_norm + num_norm]
-    #     norms = norms.astype(np.float32)
-    #     norms = norms[:, [1, 2, 0]]
-    #     norms[:, 0] = -norms[:, 0]
-    #     # faces
-    #     start_face = mj_model.mesh_faceadr[mesh_id]
-    #     num_faces = mj_model.mesh_facenum[mesh_id]
-    #     faces = mj_model.mesh_face[start_face:start_face + num_faces]
-    #     indices = faces.astype(np.int32)
-    #     indices = indices[:, [2, 1, 0]]
-    #     # Texture coords
-    #     uv_layout = (0, 0)
-    #     start_uv = mj_model.mesh_texcoordadr[mesh_id]
-    #     if start_uv != -1:
-    #         num_texcoord = mj_model.mesh_texcoordnum[mesh_id]
-    #         if num_texcoord > num_verts:
-    #             num_texcoord = num_verts
-    #         # TODO: fill in the missing texture coordinates
-    #         # TODO: YCB object in SimulationFramework is not worked
-    #         uvs = np.copy(mj_model.mesh_texcoord[
-    #             start_uv:start_uv + num_texcoord
-    #         ])
-    #         uvs = uvs.flatten()
-    #         start = bin_buffer.tell()
-    #         # uv_layout = bin_buffer.tell(), uvs.shape[0]
-    #         bin_buffer.write(uvs)
-    #         uv_layout = start, bin_buffer.tell() - start
-    #     # create a SiMmesh object and raw data
-    #     bin_data = bin_buffer.getvalue()
-    #     hash = md5(bin_data).hexdigest()
-    #     mesh = SimMesh(
-    #         indicesLayout=indices_layout,
-    #         verticesLayout=vertices_layout,
-    #         normalsLayout=normal_layout,
-    #         uvLayout=uv_layout,
-    #         hash=hash,
-    #         scene=self.sim_scene
-    #     )
-    #     self.sim_scene.raw_data[mesh.hash] = bin_data
-    #     return mesh
 
     def process_material(self, mj_model, mat_id: int):
         # build material information
