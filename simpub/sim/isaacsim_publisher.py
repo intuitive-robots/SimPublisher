@@ -475,26 +475,15 @@ class IsaacSimPublisher(SimPublisher):
                 uv_visual = trimesh.visual.TextureVisuals(uv=uvs)
                 print("\t" * indent + f"uvs:  {uvs.shape}")
 
-                if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st_1"):
-                    uvs_1 = np.asarray(
-                        UsdGeom.PrimvarsAPI(prim).GetPrimvar("st_1").Get(),
-                        dtype=np.float32,
-                    )
-                    print("\t" * indent + f"uvs_1: {uvs_1.shape}")
-
-                if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st_2"):
-                    uvs_2 = np.asarray(
-                        UsdGeom.PrimvarsAPI(prim).GetPrimvar("st_2").Get(),
-                        dtype=np.float32,
-                    )
-                    print("\t" * indent + f"uvs_2: {uvs_2.shape}")
-
-                if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st_3"):
-                    uvs_3 = np.asarray(
-                        UsdGeom.PrimvarsAPI(prim).GetPrimvar("st_3").Get(),
-                        dtype=np.float32,
-                    )
-                    print("\t" * indent + f"uvs_3: {uvs_3.shape}")
+                for i in range(1, 100):
+                    if UsdGeom.PrimvarsAPI(prim).HasPrimvar(f"st_{i}"):
+                        uvs_more = np.asarray(
+                            UsdGeom.PrimvarsAPI(prim).GetPrimvar(f"st_{i}").Get(),
+                            dtype=np.float32,
+                        )
+                        print("\t" * indent + f"uvs_{i}: {uvs_more.shape}")
+                    else:
+                        break
 
             mesh_subsets = UsdGeom.Subset.GetAllGeomSubsets(mesh_prim)
             mesh_obj_mat = []
