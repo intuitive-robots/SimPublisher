@@ -11,11 +11,11 @@ if __name__ == "__main__":
 
     argparse.ArgumentParser()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ycb_base_folder", type=str)
+    parser.add_argument("--folder", type=str)
     parser.add_argument("--object_id", type=str, default="013_apple")
     args = parser.parse_args()
 
-    ycb_base_folder = os.path.join(args.ycb_base_folder, "SF-ObjectDataset/YCB")
+    ycb_base_folder = os.path.join(args.folder, "SF-ObjectDataset/YCB")
     clamp = YCBMujocoObject(
         ycb_base_folder=ycb_base_folder,
         object_id="051_large_clamp",

@@ -308,6 +308,7 @@ class NetManager:
                         f"One error occurred when processing the Service "
                         f'"{service}": {e}'
                     )
+                    await self.service_socket.send_string("Service Wrong")
             await async_sleep(0.01)
 
     async def broadcast_loop(self):
