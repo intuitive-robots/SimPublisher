@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, fields, asdict
 from typing import Optional, Tuple, List, Dict
 from enum import Enum
 import numpy as np
@@ -9,6 +9,7 @@ import trimesh
 import io
 from hashlib import md5
 import cv2
+import abc
 
 
 class VisualType(str, Enum):
@@ -24,7 +25,13 @@ class VisualType(str, Enum):
 
 @dataclass
 class SimData:
-    pass
+
+    def to_dict(self):
+        return {
+            f.name: getattr(self, f.name)
+            for f in fields(self)
+            if not f.metadata.get("exclude", False)
+        }
 
 
 @dataclass
@@ -41,6 +48,29 @@ class SimMaterial(SimData):
 @dataclass
 class SimAsset(SimData):
     hash: str
+    # scene: SimScene = field(init=True, metadata={"exclude": True})
+
+    # def __post_init__(self):
+    #     raw_data = self.generate_raw_data()
+    #     self.hash = self.generate_hash(raw_data)
+
+    @abc.abstractmethod
+    def generate_raw_data(self) -> bytes:
+        raise NotImplementedError
+
+    @staticmethod
+    def generate_hash(data: bytes) -> str:
+        return md5(data).hexdigest()
+
+    @staticmethod
+    def write_to_buffer(
+        bin_buffer: io.BytesIO,
+        data: np.ndarray,
+    ) -> Tuple[int, int]:
+        # TODO: the data size should be bytes size rather than elements count
+        layout = bin_buffer.tell(), data.size
+        bin_buffer.write(data.tobytes())
+        return layout
 
     def update_raw_data(
         self,
@@ -58,65 +88,141 @@ class SimMesh(SimAsset):
     # (offset: bytes, count: int)
     verticesLayout: Tuple[int, int]
     indicesLayout: Tuple[int, int]
-    uvLayout: Tuple[int, int]
-    normalsLayout: Optional[Tuple[int, int]] = None
+    normalsLayout: Tuple[int, int]
+    uvLayout: Optional[Tuple[int, int]] = None
 
-    def generate_normals(self, raw_data: Dict[str, bytes]) -> None:
-        if self.normalsLayout is not None:
-            return
-        if self.hash not in raw_data:
-            raise ValueError(f"Mesh data {self.hash} not found in raw data")
-        bin_data = raw_data[self.hash]
-        vert_offset, vert_size = self.verticesLayout
-        vertices = np.frombuffer(
-            bin_data[vert_offset:vert_offset + vert_size * 4],
-            dtype=np.float32,
-        ).reshape(-1, 3)
-        indices_offset, indices_size = self.indicesLayout
-        indices = np.frombuffer(
-            bin_data[indices_offset:indices_offset + indices_size * 4],
-            dtype=np.int32,
-        ).reshape(-1, 3)
+    @staticmethod
+    def create_mesh(
+        scene: SimScene,
+        vertices: np.ndarray,
+        faces: np.ndarray,
+        vertex_normals: Optional[np.ndarray] = None,
+        face_normals: Optional[np.ndarray] = None,
+        mesh_texcoord: Optional[np.ndarray] = None,
+        vertex_uvs: Optional[np.ndarray] = None,
+        faces_uv: Optional[np.ndarray] = None,
+    ) -> SimMesh:
+        uvs = None
+        if vertex_uvs is not None:
+            assert vertex_uvs.shape[0] == vertices.shape[0], (
+                f"Number of vertex uvs ({vertex_uvs.shape[0]}) must be equal "
+                f"to number of vertices ({vertices.shape[0]})"
+            )
+            uvs = vertex_uvs.flatten()
+        elif mesh_texcoord is not None and faces_uv is not None:
+            if mesh_texcoord.shape[0] == vertices.shape[0]:
+                uvs = mesh_texcoord
+            else:
+                vertices, faces, uvs, vertex_normals = (
+                    SimMesh.generate_vertex_uv_from_face_uv(
+                        vertices,
+                        faces_uv,
+                        faces,
+                        mesh_texcoord,
+                    )
+                )
+            assert uvs.shape[0] == vertices.shape[0], (
+                f"Number of mesh texcoords ({mesh_texcoord.shape[0]}) must be "
+                f"equal to number of vertices ({vertices.shape[0]})"
+            )
+            uvs = uvs.flatten()
+        # create trimesh object
         trimesh_obj = trimesh.Trimesh(
             vertices=vertices,
-            faces=indices,
-            process=False,
+            faces=faces,
+            vertex_normals=vertex_normals,
+            face_normals=face_normals,
+            process=True,
         )
-        # fix normals
         trimesh_obj.fix_normals()
-        # save normals
-        bin_buffer = io.BytesIO(raw_data[self.hash])
+        vertices = trimesh_obj.vertices
+        indices = trimesh_obj.faces
+        normals = trimesh_obj.vertex_normals
+        # Vertices
+        vertices = vertices.astype(np.float32)
+        num_vertices = vertices.shape[0]
+        vertices = vertices.flatten()
+        # Indices / faces
+        indices = indices.astype(np.int32)
+        # num_indices = indices.shape[0]
+        indices = indices.flatten()
         # Normals
-        norms = trimesh_obj.vertex_normals.astype(np.float32)
-        norms = norms.flatten()
-        self.normalsLayout = bin_buffer.tell(), norms.shape[0]
-        bin_buffer.write(norms)
-        new_bin_data = bin_buffer.getvalue()
-        # update hash
-        self.update_raw_data(raw_data, new_bin_data)
+        normals = normals.astype(np.float32)
+        assert normals.shape[0] == num_vertices, (
+                f"Number of vertex normals ({normals.shape[0]}) must be equal "
+                f"to number of vertices ({num_vertices})"
+            )
+        normals = normals.flatten()
+        # write to buffer
+        bin_buffer = io.BytesIO()
+        vertices_layout = SimMesh.write_to_buffer(bin_buffer, vertices)
+        indices_layout = SimMesh.write_to_buffer(bin_buffer, indices)
+        normals_layout = SimMesh.write_to_buffer(bin_buffer, normals)
+        # UVs
+        uv_layout = None
+        if uvs is not None:
+            pass
+        #     uvs = uvs.astype(np.float32)
+        #     uvs = uvs.flatten()
+        #     uv_layout = bin_buffer.tell(), uvs.shape[0]
+        #     bin_buffer.write(uvs)
+        #     bin_data = bin_buffer.getvalue()
+        #     vertices_layout = bin_buffer.tell(), vertices.shape[0]
+        bin_data = bin_buffer.getvalue()
+        hash = SimMesh.generate_hash(bin_data)
+        scene.raw_data[hash] = bin_data
+        return SimMesh(
+            hash=hash,
+            verticesLayout=vertices_layout,
+            indicesLayout=indices_layout,
+            normalsLayout=normals_layout,
+            uvLayout=uv_layout,
+        )
+
+    @staticmethod
+    def generate_vertex_uv_from_face_uv(
+        vertices: np.ndarray,
+        face_texcoord: np.ndarray,
+        faces: np.ndarray,
+        mesh_texcoord: np.ndarray,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, None]:
+        new_vertices = []
+        new_faces = []
+        vertex_texcoord = []
+        print(vertices.shape, faces.shape, face_texcoord.shape, mesh_texcoord.shape)
+        for face, face_texcoord in zip(faces, face_texcoord):
+            new_vertices.append(vertices[face])
+            vertex_texcoord.append(mesh_texcoord[face_texcoord])
+        print(new_vertices[0].shape, vertex_texcoord[0].shape)
+        for item in new_vertices:
+            assert item.shape == (3, 3), f"Shape of item is {item.shape}"
+        new_vertices = np.concatenate(new_vertices)
+        vertex_texcoord = np.concatenate(vertex_texcoord)
+        new_faces = np.arange(new_vertices.shape[0]).reshape(-1, 3)
+        print(new_vertices.shape, new_faces.shape, vertex_texcoord.shape)
+        return new_vertices, new_faces, vertex_texcoord, None
 
 
 @dataclass
 class SimTexture(SimAsset):
-    width: int = 0
-    height: int = 0
-    # TODO: add new texture type
-    textureType: str = "2D"
-    textureScale: Tuple[int, int] = field(default_factory=lambda: (1, 1))
+    width: int
+    height: int
+    # TODO: new texture type
+    textureType: str
+    textureScale: Tuple[int, int]
 
-    def compress(
-        self,
-        raw_data: Dict[str, bytes],
+    @staticmethod
+    def compress_image(
+        image: np.ndarray,
+        height: int,
+        width: int,
         max_texture_size_kb: int = 5000,
         min_scale: float = 0.5,
-    ) -> None:
-        if self.hash not in raw_data:
-            raise ValueError(f"Texture data {self.hash} not found in raw data")
-        bin_data = raw_data[self.hash]
+    ) -> Tuple[np.ndarray, int, int]:
         # compress the texture data
         max_texture_size = max_texture_size_kb * 1024
         # Compute scale factor based on texture size
-        scale = np.sqrt(len(bin_data) / max_texture_size)
+        scale = np.sqrt(image.nbytes / max_texture_size)
         # Adjust scale factor for small textures
         if scale < 1:  # Texture is already under the limit
             scale = 1  # No resizing needed
@@ -124,21 +230,38 @@ class SimTexture(SimAsset):
             scale = 1 + (scale - 1) * min_scale
         else:  # Normal scaling for larger textures
             scale = int(scale) + 1
-        new_width = int(self.width // scale)
-        new_height = int(self.height // scale)
+        new_width = int(width // scale)
+        new_height = int(height // scale)
         # Reshape and resize the texture data
-        image_data = np.frombuffer(
-            bin_data, dtype=np.uint8
-        )
-        image_data = cv2.resize(
-            image_data.reshape(self.width, self.height, -1),
+        compressed_image = cv2.resize(
+            image.reshape(height, width, -1),
             (new_width, new_height),
             interpolation=cv2.INTER_LINEAR,
             # interpolation=cv2.INTER_AREA if scale > 2 else cv2.INTER_LINEAR,
         )
-        self.width, self.height = new_height, new_height
-        bin_data = image_data.astype(np.uint8).tobytes()
-        self.update_raw_data(raw_data, bin_data)
+        return compressed_image, new_height, new_width
+
+    @staticmethod
+    def create_texture(
+        image: np.ndarray,
+        height: int,
+        width: int,
+        scene: SimScene,
+        texture_scale: Tuple[int, int] = field(default_factory=lambda: (1, 1)),
+        texture_type: str = "2D",
+    ) -> SimTexture:
+        image = image.astype(np.uint8)
+        image, height, width = SimTexture.compress_image(image, height, width)
+        image_byte = image.astype(np.uint8).tobytes()
+        hash = SimTexture.generate_hash(image_byte)
+        scene.raw_data[hash] = image_byte
+        return SimTexture(
+            hash=hash,
+            width=image.shape[1],
+            height=image.shape[0],
+            textureType=texture_type,
+            textureScale=texture_scale,
+        )
 
 
 @dataclass
@@ -179,7 +302,7 @@ class SimObject(SimData):
     children: List[SimObject] = field(default_factory=list)
 
 
-class SimScene(SimData):
+class SimScene:
     def __init__(self) -> None:
         self.root: Optional[SimObject] = None
         self.id: str = str(random.randint(int(1e9), int(1e10 - 1)))
@@ -195,8 +318,9 @@ class SimScene(SimData):
         return json.dumps(dict_data)
 
     def process_sim_obj(self, sim_obj: SimObject) -> None:
-        for visual in sim_obj.visuals:
-            if visual.mesh is not None:
-                visual.mesh.generate_normals(self.raw_data)
+        # for visual in sim_obj.visuals:
+        #     if visual.mesh is not None:
+        #         visual.mesh.generate_normals(self.raw_data)
         for child in sim_obj.children:
             self.process_sim_obj(child)
+

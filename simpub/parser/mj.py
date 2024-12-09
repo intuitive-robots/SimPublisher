@@ -179,183 +179,102 @@ class MjModelParser:
         return sim_visual
 
     def process_mesh(self, mj_model, mesh_id: int):
-        # build mesh information
-        bin_buffer = io.BytesIO()
         # vertices
         start_vert = mj_model.mesh_vertadr[mesh_id]
         num_verts = mj_model.mesh_vertnum[mesh_id]
         vertices = mj_model.mesh_vert[start_vert:start_vert + num_verts]
         vertices = vertices.astype(np.float32)
-        # vertices = vertices[:, [1, 2, 0]]
-        # vertices[:, 0] = -vertices[:, 0]
-        # vertices = vertices.flatten()
-        # start = bin_buffer.tell()
-        # # vertices_layout = bin_buffer.tell(), vertices.shape[0]
-        # bin_buffer.write(vertices)
-        # vertices_layout = start, bin_buffer.tell() - start
-        # normal
-        # if hasattr(mj_model, "mesh_normaladr"):
-        # else:
-        #     start_norm = start_vert
-        #     num_norm = num_verts
+        # faces
+        start_face = mj_model.mesh_faceadr[mesh_id]
+        num_faces = mj_model.mesh_facenum[mesh_id]
+        faces = mj_model.mesh_face[start_face:start_face + num_faces]
+        faces = faces.astype(np.int32)
+        # normals
         start_norm = mj_model.mesh_normaladr[mesh_id]
         num_norm = mj_model.mesh_normalnum[mesh_id]
-        norms = mj_model.mesh_normal[start_norm:start_norm + num_norm]
-        norms = norms.astype(np.float32)
-        # norms = norms[:, [1, 2, 0]]
-        # norms[:, 0] = -norms[:, 0]
-        # norms = norms.flatten()
-        # start = bin_buffer.tell()
-        # normal_layout = bin_buffer.tell(), norms.shape[0]
-        # bin_buffer.write(norms)
-        # normal_layout = start, bin_buffer.tell() - start
-        # faces
-        start_face = mj_model.mesh_faceadr[mesh_id]
-        num_faces = mj_model.mesh_facenum[mesh_id]
-        faces = mj_model.mesh_face[start_face:start_face + num_faces]
-        indices = faces.astype(np.int32)
-        # indices = indices[:, [2, 1, 0]]
-        # indices = indices.flatten()
-        # start = bin_buffer.tell()
-        # indices_layout = bin_buffer.tell(), indices.shape[0]
-        # bin_buffer.write(indices)
-        # indices_layout = start, bin_buffer.tell() - start
-        # Texture coords
-        trimesh_obj = trimesh.Trimesh(
+        norms = None
+        if num_norm == num_verts:
+            norms = mj_model.mesh_normal[start_norm:start_norm + num_norm]
+            norms = norms.astype(np.float32)
+        # uv coordinates
+        start_uv = mj_model.mesh_texcoordadr[mesh_id]
+        mesh_texcoord = None
+        faces_uv = None
+        if start_uv != -1:
+            num_texcoord = mj_model.mesh_texcoordnum[mesh_id]
+            mesh_texcoord = mj_model.mesh_texcoord[
+                start_uv:start_uv + num_texcoord
+            ]
+            faces_uv = mj_model.mesh_facetexcoord[
+                start_face:start_face + num_faces
+            ]
+        mesh = SimMesh.create_mesh(
+            scene=self.sim_scene,
             vertices=vertices,
-            faces=indices,
-            # vertex_normals=normals
-            )
-        uv_layout = (0, 0)
-        start_uv = mj_model.mesh_texcoordadr[mesh_id]
-        if start_uv != -1:
-            num_texcoord = mj_model.mesh_texcoordnum[mesh_id]
-            # if num_texcoord > num_verts:
-            #     num_texcoord = num_verts
-            # TODO: fill in the missing texture coordinates
-            # TODO: YCB object in SimulationFramework is not worked
-            uvs = np.copy(mj_model.mesh_texcoord[
-                start_uv:start_uv + num_texcoord
-            ])
-            # uvs = uvs.flatten()
-            # start = bin_buffer.tell()
-            # uv_layout = bin_buffer.tell(), uvs.shape[0]
-            # bin_buffer.write(uvs)
-            # uv_layout = start, bin_buffer.tell() - start
-            trimesh_obj.visual.uv = uvs
-            trimesh_obj.visual.update_vertices()
-        # create a SiMmesh object and raw data
-        # print(trimesh_obj)
-
-        norms = trimesh_obj.vertex_normals.astype(np.float32)
-        norms = norms.flatten()
-        normal_layout = bin_buffer.tell(), norms.shape[0]
-        bin_buffer.write(norms)
-        vertices = trimesh_obj.vertices.astype(np.float32)
-        vertices = vertices.flatten()
-        vertices_layout = bin_buffer.tell(), vertices.shape[0]
-        bin_buffer.write(vertices)
-        indices = trimesh_obj.faces.astype(np.int32)
-        indices = indices.flatten()
-        indices_layout = bin_buffer.tell(), indices.shape[0]
-        bin_buffer.write(indices)
-        bin_data = bin_buffer.getvalue()
-        hash = md5(bin_data).hexdigest()
-        if start_uv != -1:
-            
-            uvs = trimesh_obj.visual.uv
-            uvs = uvs.flatten()
-            start = bin_buffer.tell()
-            uv_layout = bin_buffer.tell(), uvs.shape[0]
-            bin_buffer.write(uvs)
-            uv_layout = start, bin_buffer.tell() - start
-            print("nun of normals", len(trimesh_obj.vertex_normals))
-            print("nun of raw normals", num_norm)
-            print("nun of vertices", len(trimesh_obj.vertices))
-            print("nun of faces", len(trimesh_obj.faces))
-            print("nun of uvs", len(trimesh_obj.visual.uv))
-            print("=====================================")
-        mesh = SimMesh(
-            indicesLayout=indices_layout,
-            verticesLayout=vertices_layout,
-            normalsLayout=normal_layout,
-            uvLayout=uv_layout,
-            hash=hash
+            faces=faces,
+            vertex_normals=norms,
+            mesh_texcoord=mesh_texcoord,
+            faces_uv=faces_uv,
         )
-        self.sim_scene.raw_data[mesh.hash] = bin_data
         return mesh
 
-    def _process_mesh(self, mj_model, mesh_id: int):
-        # build mesh information
-        bin_buffer = io.BytesIO()
-        # vertices
-        start_vert = mj_model.mesh_vertadr[mesh_id]
-        num_verts = mj_model.mesh_vertnum[mesh_id]
-        vertices = mj_model.mesh_vert[start_vert:start_vert + num_verts]
-        vertices = vertices.astype(np.float32)
-        vertices = vertices[:, [1, 2, 0]]
-        vertices[:, 0] = -vertices[:, 0]
-        vertices = vertices.flatten()
-        start = bin_buffer.tell()
-        # vertices_layout = bin_buffer.tell(), vertices.shape[0]
-        bin_buffer.write(vertices)
-        vertices_layout = start, bin_buffer.tell() - start
-        # normal
-        if hasattr(mj_model, "mesh_normaladr"):
-            start_norm = mj_model.mesh_normaladr[mesh_id]
-            num_norm = mj_model.mesh_normalnum[mesh_id]
-        else:
-            start_norm = start_vert
-            num_norm = num_verts
-        norms = mj_model.mesh_normal[start_norm:start_norm + num_norm]
-        norms = norms.astype(np.float32)
-        norms = norms[:, [1, 2, 0]]
-        norms[:, 0] = -norms[:, 0]
-        norms = norms.flatten()
-        start = bin_buffer.tell()
-        # normal_layout = bin_buffer.tell(), norms.shape[0]
-        bin_buffer.write(norms)
-        normal_layout = start, bin_buffer.tell() - start
-        # faces
-        start_face = mj_model.mesh_faceadr[mesh_id]
-        num_faces = mj_model.mesh_facenum[mesh_id]
-        faces = mj_model.mesh_face[start_face:start_face + num_faces]
-        indices = faces.astype(np.int32)
-        indices = indices[:, [2, 1, 0]]
-        indices = indices.flatten()
-        start = bin_buffer.tell()
-        # indices_layout = bin_buffer.tell(), indices.shape[0]
-        bin_buffer.write(indices)
-        indices_layout = start, bin_buffer.tell() - start
-        # Texture coords
-        uv_layout = (0, 0)
-        start_uv = mj_model.mesh_texcoordadr[mesh_id]
-        if start_uv != -1:
-            num_texcoord = mj_model.mesh_texcoordnum[mesh_id]
-            if num_texcoord > num_verts:
-                num_texcoord = num_verts
-            # TODO: fill in the missing texture coordinates
-            # TODO: YCB object in SimulationFramework is not worked
-            uvs = np.copy(mj_model.mesh_texcoord[
-                start_uv:start_uv + num_texcoord
-            ])
-            uvs = uvs.flatten()
-            start = bin_buffer.tell()
-            # uv_layout = bin_buffer.tell(), uvs.shape[0]
-            bin_buffer.write(uvs)
-            uv_layout = start, bin_buffer.tell() - start
-        # create a SiMmesh object and raw data
-        bin_data = bin_buffer.getvalue()
-        hash = md5(bin_data).hexdigest()
-        mesh = SimMesh(
-            indicesLayout=indices_layout,
-            verticesLayout=vertices_layout,
-            normalsLayout=normal_layout,
-            uvLayout=uv_layout,
-            hash=hash
-        )
-        self.sim_scene.raw_data[mesh.hash] = bin_data
-        return mesh
+    # def _process_mesh(self, mj_model, mesh_id: int):
+    #     # build mesh information
+    #     bin_buffer = io.BytesIO()
+    #     # vertices
+    #     start_vert = mj_model.mesh_vertadr[mesh_id]
+    #     num_verts = mj_model.mesh_vertnum[mesh_id]
+    #     vertices = mj_model.mesh_vert[start_vert:start_vert + num_verts]
+    #     vertices = vertices.astype(np.float32)
+    #     vertices = vertices[:, [1, 2, 0]]
+    #     vertices[:, 0] = - vertices[:, 0]
+    #     # normal
+    #     if hasattr(mj_model, "mesh_normaladr"):
+    #         start_norm = mj_model.mesh_normaladr[mesh_id]
+    #         num_norm = mj_model.mesh_normalnum[mesh_id]
+    #     else:
+    #         start_norm = start_vert
+    #         num_norm = num_verts
+    #     norms = mj_model.mesh_normal[start_norm:start_norm + num_norm]
+    #     norms = norms.astype(np.float32)
+    #     norms = norms[:, [1, 2, 0]]
+    #     norms[:, 0] = -norms[:, 0]
+    #     # faces
+    #     start_face = mj_model.mesh_faceadr[mesh_id]
+    #     num_faces = mj_model.mesh_facenum[mesh_id]
+    #     faces = mj_model.mesh_face[start_face:start_face + num_faces]
+    #     indices = faces.astype(np.int32)
+    #     indices = indices[:, [2, 1, 0]]
+    #     # Texture coords
+    #     uv_layout = (0, 0)
+    #     start_uv = mj_model.mesh_texcoordadr[mesh_id]
+    #     if start_uv != -1:
+    #         num_texcoord = mj_model.mesh_texcoordnum[mesh_id]
+    #         if num_texcoord > num_verts:
+    #             num_texcoord = num_verts
+    #         # TODO: fill in the missing texture coordinates
+    #         # TODO: YCB object in SimulationFramework is not worked
+    #         uvs = np.copy(mj_model.mesh_texcoord[
+    #             start_uv:start_uv + num_texcoord
+    #         ])
+    #         uvs = uvs.flatten()
+    #         start = bin_buffer.tell()
+    #         # uv_layout = bin_buffer.tell(), uvs.shape[0]
+    #         bin_buffer.write(uvs)
+    #         uv_layout = start, bin_buffer.tell() - start
+    #     # create a SiMmesh object and raw data
+    #     bin_data = bin_buffer.getvalue()
+    #     hash = md5(bin_data).hexdigest()
+    #     mesh = SimMesh(
+    #         indicesLayout=indices_layout,
+    #         verticesLayout=vertices_layout,
+    #         normalsLayout=normal_layout,
+    #         uvLayout=uv_layout,
+    #         hash=hash,
+    #         scene=self.sim_scene
+    #     )
+    #     self.sim_scene.raw_data[mesh.hash] = bin_data
+    #     return mesh
 
     def process_material(self, mj_model, mat_id: int):
         # build material information
@@ -369,7 +288,7 @@ class MjModelParser:
         tex_id = mj_model.mat_texid[mat_id]
         mat_texture = None
         # support the 2.x version of mujoco
-        if isinstance(tex_id, np.int32):
+        if isinstance(tex_id, np.integer):
             tex_id = int(tex_id)
         # only for mjTEXROLE_RGB which support 3.x version of mujoco
         # The second element of the texture array is base color (albedo)
@@ -418,15 +337,6 @@ class MjModelParser:
             tex_data: np.ndarray = mj_model.tex_rgb[
                 start_tex:start_tex + num_tex_data
             ]
-        bin_data = tex_data.astype(np.uint8).tobytes()
-        texture_hash = md5(bin_data).hexdigest()
-        texture = SimTexture(
-            hash=texture_hash,
-            width=tex_width,
-            height=tex_height,
-            # Only support 2d texture
-            textureType="2D",
+        return SimTexture.create_texture(
+            tex_data, tex_height, tex_width, self.sim_scene
         )
-        self.sim_scene.raw_data[texture_hash] = bin_data
-        texture.compress(self.sim_scene.raw_data)
-        return texture
