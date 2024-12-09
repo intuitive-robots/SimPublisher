@@ -12,7 +12,7 @@ class Mesh:
     uv_buf: npt.NDArray | None = None
 
     def __post_init__(self):
-        if not self.uv_buf:
+        if self.uv_buf is not None and len(self.uv_buf) == 0:
             self.uv_buf = None
 
         assert type(self.vertex_buf) in {np.ndarray, list}
@@ -32,8 +32,15 @@ class Mesh:
         if self.uv_buf is not None:
             assert self.uv_buf.shape[1] == 2
 
-        # for isaac sim format only...
-        assert self.vertex_buf.shape[0] <= self.normal_buf.shape[0]
+        # assert self.vertex_buf.shape[0] <= self.normal_buf.shape[0]
+
+        # we must have one normal for each index (a vertex on a face)
+        assert (
+            self.normal_buf.shape[0]
+            == self.index_buf.shape[0] * self.index_buf.shape[1]
+        )
+
+        # the same for uv
         if self.uv_buf is not None:
             assert self.normal_buf.shape[0] == self.uv_buf.shape[0]
 
@@ -44,8 +51,6 @@ def split_mesh_faces(input_mesh: Mesh) -> Mesh:
         return input_mesh
 
     vertex_buf = []
-    normal_buf = []
-    uv_buf = []
     index_buf = []
 
     for tri in input_mesh.index_buf:
@@ -74,22 +79,15 @@ def split_mesh_faces(input_mesh: Mesh) -> Mesh:
         if len(tri) == 4:
             vertex_buf.append(input_mesh.vertex_buf[tri[3]])
 
-        normal_buf.append(input_mesh.normal_buf[tri[0]])
-        normal_buf.append(input_mesh.normal_buf[tri[1]])
-        normal_buf.append(input_mesh.normal_buf[tri[2]])
-        if len(tri) == 4:
-            normal_buf.append(input_mesh.normal_buf[tri[3]])
+    assert len(vertex_buf) == input_mesh.normal_buf.shape[0]
+    assert len(vertex_buf) == len(index_buf) * len(index_buf[0])
 
-        if input_mesh.uv_buf is not None:
-            uv_buf.append(input_mesh.uv_buf[tri[0]])
-            uv_buf.append(input_mesh.uv_buf[tri[1]])
-            uv_buf.append(input_mesh.uv_buf[tri[2]])
-            if len(tri) == 4:
-                uv_buf.append(input_mesh.uv_buf[tri[3]])
+    if input_mesh.uv_buf is not None:
+        assert len(vertex_buf) == input_mesh.uv_buf.shape[0]
 
     return Mesh(
         vertex_buf=vertex_buf,
-        normal_buf=normal_buf,
+        normal_buf=input_mesh.normal_buf,
         index_buf=index_buf,
-        uv_buf=uv_buf or None,
+        uv_buf=input_mesh.uv_buf,
     )
