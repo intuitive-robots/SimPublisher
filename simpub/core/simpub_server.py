@@ -5,7 +5,7 @@ import json
 import zmq
 
 from ..simdata import SimScene
-from .net_manager import init_net_manager, HostInfo
+from .net_manager import init_net_manager, NodeInfo
 from .net_manager import Streamer, BytesService
 from .log import logger
 from .utils import send_request
@@ -65,7 +65,7 @@ class SimPublisher(ServerBase):
         self.asset_service = BytesService("Asset", self._on_asset_request)
 
     def on_xr_client_registered(self, msg: str):
-        xr_info: HostInfo = json.loads(msg)
+        xr_info: NodeInfo = json.loads(msg)
         if "LoadSimScene" in xr_info["serviceList"]:
             scene_string = f"LoadSimScene:{self.sim_scene.to_string()}"
             self.net_manager.submit_task(
