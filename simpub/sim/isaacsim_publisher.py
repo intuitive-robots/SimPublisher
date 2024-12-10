@@ -335,9 +335,11 @@ class IsaacSimPublisher(SimPublisher):
                     hash=tex_hash,
                     width=image.width,
                     height=image.height,
+                    textureType="2D",
+                    textureScale=(1, 1),
                 )
                 self.sim_scene.raw_data[tex_hash] = bin_data
-                sim_mat.texture.compress(self.sim_scene.raw_data)
+                # sim_mat.texture.compress(self.sim_scene.raw_data)
 
         mi = MaterialInfo(sim_mat=sim_mat)
 
@@ -551,7 +553,7 @@ class IsaacSimPublisher(SimPublisher):
 
                 mesh_obj = trimesh.Trimesh(
                     vertices=mesh_data.vertex_buf,
-                    # vertex_normals=mesh_data.normal_buf,
+                    vertex_normals=mesh_data.normal_buf,
                     faces=mesh_data.index_buf,
                     visual=texture_visual,
                     process=False,
@@ -588,38 +590,54 @@ class IsaacSimPublisher(SimPublisher):
                     o3d.visualization.draw_geometries([mesh_np])
                     # o3d.io.write_triangle_mesh("./a.obj", mesh_np)
                     # raise SystemError()
-                #######################################################################################
+
+                    # with open("./c.obj", "w") as f:
+                    #     for v in mesh_obj.vertices:
+                    #         f.write(f"v {v[0]} {v[1]} {v[2]}\n")
+                    #     for i in mesh_obj.faces:
+                    #         f.write(f"f {i[0]} {i[1]} {i[2]}\n")
+                    # raise SystemError
 
                 #######################################################################################
-                # fill some buffers
-                bin_buffer = io.BytesIO()
 
-                # Vertices
-                verts = mesh_obj.vertices.astype(np.float32)
-                verts = verts.flatten()
-                vertices_layout = bin_buffer.tell(), verts.shape[0]
-                bin_buffer.write(verts)
+                #######################################################################################
 
-                # Indices
-                indices = mesh_obj.faces.astype(np.int32)
-                indices = indices.flatten()
-                indices_layout = bin_buffer.tell(), indices.shape[0]
-                bin_buffer.write(indices)
-
-                bin_data = bin_buffer.getvalue()
-                hash = md5(bin_data).hexdigest()
-
-                mesh = SimMesh(
-                    indicesLayout=indices_layout,
-                    verticesLayout=vertices_layout,
-                    normalsLayout=(0, 0),
-                    uvLayout=(0, 0),
-                    hash=hash,
+                mesh = SimMesh.create_mesh(
+                    scene=self.sim_scene,
+                    vertices=mesh_obj.vertices,
+                    faces=mesh_obj.faces,
+                    # vertex_normals=mesh_obj.vertex_normals,
                 )
 
-                assert self.sim_scene is not None
-                # self.sim_scene.meshes.append(mesh)
-                self.sim_scene.raw_data[mesh.hash] = bin_data
+                # # fill some buffers
+                # bin_buffer = io.BytesIO()
+
+                # # Vertices
+                # verts = mesh_obj.vertices.astype(np.float32)
+                # verts = verts.flatten()
+                # vertices_layout = bin_buffer.tell(), verts.shape[0]
+                # bin_buffer.write(verts)
+
+                # # Indices
+                # indices = mesh_obj.faces.astype(np.int32)
+                # indices = indices.flatten()
+                # indices_layout = bin_buffer.tell(), indices.shape[0]
+                # bin_buffer.write(indices)
+
+                # bin_data = bin_buffer.getvalue()
+                # hash = md5(bin_data).hexdigest()
+
+                # mesh = SimMesh(
+                #     indicesLayout=indices_layout,
+                #     verticesLayout=vertices_layout,
+                #     normalsLayout=(0, 0),
+                #     uvLayout=(0, 0),
+                #     hash=hash,
+                # )
+
+                # assert self.sim_scene is not None
+                # # self.sim_scene.meshes.append(mesh)
+                # self.sim_scene.raw_data[mesh.hash] = bin_data
 
                 sim_mesh = SimVisual(
                     name=mesh.hash,
