@@ -5,7 +5,7 @@ from typing import Optional, Dict, Callable
 from asyncio import sleep as async_sleep
 
 from ..core.log import logger
-from ..core.net_manager import NetManager, HostInfo
+from ..core.net_manager import NodeManager, NodeInfo
 from ..core.net_manager import TopicName, AsyncSocket
 
 
@@ -22,12 +22,12 @@ class XRDevice:
         self,
         device_name: str = "UnityClient",
     ) -> None:
-        if NetManager.manager is None:
-            raise Exception("NetManager is not initialized")
-        self.manager: NetManager = NetManager.manager
+        if NodeManager.manager is None:
+            raise Exception("NodeManager is not initialized")
+        self.manager: NodeManager = NodeManager.manager
         self.connected = False
         self.device_name = device_name
-        self.client: Optional[HostInfo] = None
+        self.client: Optional[NodeInfo] = None
         self.req_socket: AsyncSocket = self.manager.create_socket(zmq.REQ)
         self.sub_socket: AsyncSocket = self.manager.create_socket(zmq.SUB)
         # subscriber
