@@ -36,6 +36,7 @@ class Publisher(NetComponent):
             self.topic_name = f"{self.local_name}/{topic_name}"
         self.socket = self.manager.pub_socket
         if self.node_info_manager.check_topic(topic_name):
+            logger.warning(f"Topic {topic_name} is already registered")
             raise ValueError(f"Topic {topic_name} is already registered")
         else:
             self.node_info_manager.register_topic(topic_name)
@@ -53,7 +54,7 @@ class Publisher(NetComponent):
         self.manager.submit_task(self.send_bytes_async, msg.encode())
 
     def on_shutdown(self) -> None:
-        self.manager.local_info["topicList"].remove(self.topic_name)
+        self.node_info_manager.remove_topic(self.topic_name)
 
     async def send_bytes_async(self, msg: bytes) -> None:
         await self.socket.send(msg)
@@ -148,7 +149,8 @@ class Service(NetComponent):
         raise NotImplementedError
 
     def on_shutdown(self):
-        pass
+        self.manager.local_info["serviceList"].remove(self.service_name)
+        logger.info(f'"{self.service_name}" Service is stopped')
 
 
 class StringService(Service):
