@@ -430,7 +430,7 @@ class IsaacSimPublisher(SimPublisher):
 
             vertices = np.asarray(mesh_prim.GetPointsAttr().Get(), dtype=np.float32)
             normals = np.asarray(mesh_prim.GetNormalsAttr().Get(), dtype=np.float32)
-            indices = np.asarray(
+            indices_orig = np.asarray(
                 mesh_prim.GetFaceVertexIndicesAttr().Get(), dtype=np.int32
             )
             face_vertex_counts = np.asarray(
@@ -441,7 +441,7 @@ class IsaacSimPublisher(SimPublisher):
             assert len(set(face_vertex_counts)) == 1
             num_vert_per_face = face_vertex_counts[0]
             assert num_vert_per_face in {3, 4}
-            indices = indices.reshape(-1, num_vert_per_face)
+            indices = indices_orig.reshape(-1, num_vert_per_face)
             assert indices.shape[0] * indices.shape[1] == normals.shape[0]
 
             # get uv coordinates and store mesh data
@@ -557,6 +557,8 @@ class IsaacSimPublisher(SimPublisher):
                     process=False,
                 )
                 # mesh_obj.fix_normals()
+                # trimesh.repair.fix_winding(mesh_obj)
+                # trimesh.repair.fix_inversion(mesh_obj, True)
 
                 print("\t" * (indent + 1) + "[mesh geometry]")
                 print("\t" * (indent + 1) + f"vertex:   {mesh_obj.vertices.shape}")
@@ -567,11 +569,72 @@ class IsaacSimPublisher(SimPublisher):
                 if mesh_data.uv_buf is not None:
                     print("\t" * (indent + 1) + f"uv:       {mesh_obj.visual.uv.shape}")
 
-                sim_mesh = self.build_mesh_buffer(mesh_obj)
+                #######################################################################################
+                if not hasattr(self, "good") and mesh_data.index_buf.shape[1] == 3:
+                    self.good = True
+                    import open3d as o3d
 
-                if mesh_info["material"] is not None:
-                    sim_mesh.material = mesh_info["material"]
-                    print("\t" * (indent + 1) + f"material: {sim_mesh.material}")
+                    o3dverts = o3d.utility.Vector3dVector(mesh_obj.vertices)
+                    o3dtris = o3d.utility.Vector3iVector(
+                        mesh_obj.faces.astype(np.int64)
+                    )
+
+                    mesh_np = o3d.geometry.TriangleMesh(o3dverts, o3dtris)
+
+                    # mesh_np.vertex_colors = o3d.utility.Vector3dVector(
+                    #     np.random.uniform(0, 1, size=(5, 3))
+                    # )
+                    # mesh_np.compute_vertex_normals()
+                    o3d.visualization.draw_geometries([mesh_np])
+                    # o3d.io.write_triangle_mesh("./a.obj", mesh_np)
+                    # raise SystemError()
+                #######################################################################################
+
+                #######################################################################################
+                # fill some buffers
+                bin_buffer = io.BytesIO()
+
+                # Vertices
+                verts = mesh_obj.vertices.astype(np.float32)
+                verts = verts.flatten()
+                vertices_layout = bin_buffer.tell(), verts.shape[0]
+                bin_buffer.write(verts)
+
+                # Indices
+                indices = mesh_obj.faces.astype(np.int32)
+                indices = indices.flatten()
+                indices_layout = bin_buffer.tell(), indices.shape[0]
+                bin_buffer.write(indices)
+
+                bin_data = bin_buffer.getvalue()
+                hash = md5(bin_data).hexdigest()
+
+                mesh = SimMesh(
+                    indicesLayout=indices_layout,
+                    verticesLayout=vertices_layout,
+                    normalsLayout=(0, 0),
+                    uvLayout=(0, 0),
+                    hash=hash,
+                )
+
+                assert self.sim_scene is not None
+                # self.sim_scene.meshes.append(mesh)
+                self.sim_scene.raw_data[mesh.hash] = bin_data
+
+                sim_mesh = SimVisual(
+                    name=mesh.hash,
+                    type=VisualType.MESH,
+                    mesh=mesh,
+                    material=SimMaterial(color=[1.0, 1.0, 1.0, 1.0]),
+                    trans=SimTransform(),
+                )
+                #######################################################################################
+
+                # sim_mesh = self.build_mesh_buffer(mesh_obj)
+
+                # if mesh_info["material"] is not None:
+                #     sim_mesh.material = mesh_info["material"]
+                #     print("\t" * (indent + 1) + f"material: {sim_mesh.material}")
 
                 sim_obj.visuals.append(sim_mesh)
 
