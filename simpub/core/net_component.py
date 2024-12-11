@@ -14,7 +14,7 @@ class NetComponent(abc.ABC):
         if NodeManager.manager is None:
             raise ValueError("NodeManager is not initialized")
         self.manager: NodeManager = NodeManager.manager
-        self.node_info_manager = self.manager.node_info_manager
+        self.node_info_manager = self.manager.nodes_info_manager
         self.running: bool = False
         self.host_ip: str = self.manager.local_info["ip"]
         self.local_name: str = self.manager.local_info["name"]
