@@ -9,27 +9,31 @@ import zmq.asyncio
 import socket
 import time
 import uuid
-from json import loads
+from json import loads, dumps
 
 from .log import logger
 from .utils import IPAddress, TopicName, ServiceName, HashIdentifier
 from .utils import NodeInfo, DISCOVERY_PORT, HEARTBEAT_INTERVAL, MSG
 from .utils import calculate_broadcast_addr, split_byte, get_socket_port
 from .utils import generate_node_msg, search_for_master_node, create_udp_socket
+from .utils import split_byte_to_str
 
 
 class NodeInfoManager:
 
     def __init__(self, local_info: NodeInfo) -> None:
         self.nodes_info: Dict[HashIdentifier, NodeInfo] = {
-            local_info["nodeID"].encode(): local_info
+            local_info["nodeID"]: local_info
         }
         self.local_info = local_info
 
-    def update_nodes_info_dict(
-        self, nodes_info: Dict[HashIdentifier, NodeInfo]
+    def update_nodes_info(
+        self, nodes_info_dict: Dict[HashIdentifier, NodeInfo]
     ) -> None:
-        self.nodes_info = nodes_info
+        self.nodes_info = nodes_info_dict
+
+    def get_nodes_info_msg(self) -> bytes:
+        return dumps(list(self.nodes_info.values())).encode()
 
     def check_node(self, node_id: HashIdentifier) -> bool:
         return node_id in self.nodes_info.keys()
@@ -61,11 +65,11 @@ class NodeInfoManager:
         for node in self.nodes_info.values():
             node["topicList"].append(topic_name)
 
-    def remove_service(self, service_name: ServiceName) -> None:
+    def remove_local_service(self, service_name: ServiceName) -> None:
         if service_name in self.local_info["serviceList"]:
             self.local_info["serviceList"].remove(service_name)
 
-    def remove_topic(self, topic_name: TopicName) -> None:
+    def remove_local_topic(self, topic_name: TopicName) -> None:
         if topic_name in self.local_info["topicList"]:
             self.local_info["topicList"].remove(topic_name)
 
@@ -78,14 +82,20 @@ class MasterNodesInfoManager(NodeInfoManager):
 
     def update_node(self, node_id: HashIdentifier, info: NodeInfo):
         if node_id not in self.nodes_info.keys():
-            logger.info(f"Find a new node of {node_id}")
+            logger.info(
+                f"Node {info['name']} has been launched"
+            )
         self.nodes_info[node_id] = info
         self.last_heartbeat[node_id] = time.time()
 
     def remove_node(self, node_id: HashIdentifier):
-        if node_id in self.nodes_info.keys():
-            del self.nodes_info[node_id]
-            logger.info(f"Node {node_id} has been removed")
+        try:
+            if node_id in self.nodes_info.keys():
+                removed_info = self.nodes_info.pop(node_id)
+                logger.info(f"Node {removed_info['name']} has been removed")
+                self.last_heartbeat.pop(node_id)
+        except Exception as e:
+            logger.error(f"Error occurred when removing node: {e}")
 
     def check_heartbeat(self) -> None:
         for node_id, last in self.last_heartbeat.items():
@@ -119,15 +129,15 @@ class NodeManager:
             "name": node_name,
             "nodeID": str(uuid.uuid4()),
             "ip": host_ip,
+            # "master": False,
             "type": "Server",
-            "heartbeatPort": get_socket_port(self.heartbeat_socket),
+            # "heartbeatPort": get_socket_port(self.heartbeat_socket),
             "servicePort": get_socket_port(self.service_socket),
             "topicPort": get_socket_port(self.pub_socket),
             "serviceList": [],
             "topicList": [],
         }
-        # client info
-
+        logger.info(f"Node {self.local_info['name']} is initialized")
         # start the server in a thread pool
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         self.server_future = self.executor.submit(self.start_event_loop)
@@ -143,10 +153,8 @@ class NodeManager:
         self.loop = asyncio.new_event_loop()
         self.running = True
         asyncio.set_event_loop(self.loop)
-        # self.submit_task(self.broadcast_loop)
         self.submit_task(self.service_loop)
         self.submit_task(self.heartbeat_loop)
-        # self.submit_task(self.check_node_timeout_loop, 1)
         self.loop.run_forever()
 
     def submit_task(
@@ -185,7 +193,7 @@ class NodeManager:
                     await self.service_cbs[service_name](request)
                 except asyncio.TimeoutError:
                     logger.error("Timeout: callback function took too long")
-                    await service_socket.send_string("Timeout")
+                    await service_socket.send(MSG.SERVICE_TIMEOUT.value)
                 except Exception as e:
                     logger.error(
                         f"One error occurred when processing the Service "
@@ -201,6 +209,8 @@ class NodeManager:
             _socket = create_udp_socket()
             _socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             broadcast_ip = calculate_broadcast_addr(self.local_info["ip"])
+            _socket.bind((self.local_info["ip"], 0))
+            self.submit_task(self.update_info_loop, _socket)
         except Exception as e:
             logger.error(f"Failed to create udp socket: {e}")
             raise Exception("Failed to create udp socket")
@@ -211,16 +221,32 @@ class NodeManager:
             try:
                 msg = generate_node_msg(self.local_info)
                 _socket.sendto(msg, (broadcast_ip, DISCOVERY_PORT))
+                # _socket.settimeout(HEARTBEAT_INTERVAL)
                 await async_sleep(HEARTBEAT_INTERVAL)
             except Exception as e:
                 logger.error(f"Failed to broadcast: {e}")
         logger.info("Broadcasting loop has been stopped")
+
+    async def update_info_loop(self, _socket: socket.socket):
+        _socket.setblocking(False)
+        # _socket.settimeout(1)  # should be used in blocking mode
+        loop = asyncio.get_event_loop()
+        while self.running:
+            try:
+                msg = await loop.sock_recv(_socket, 1024)
+                self.nodes_info_manager.update_nodes_info(
+                    loads(msg.decode())
+                )
+                await async_sleep(0.1)
+            except Exception as e:
+                logger.error(f"Error occurred in update info loop: {e}")
 
 
 class MasterNodeManager(NodeManager):
 
     def __init__(self, host_ip: IPAddress, node_name: IPAddress) -> None:
         super().__init__(host_ip, node_name)
+        # self.local_info["master"] = True
         self.nodes_info_manager = MasterNodesInfoManager(self.local_info)
 
     def start_event_loop(self):
@@ -247,12 +273,15 @@ class MasterNodeManager(NodeManager):
                 if data == MSG.PING.value:
                     sock.sendto(MSG.PING_ACK.value, addr)
                 else:
-                    node_id, node_info = split_byte(data)
+                    node_id, node_info = split_byte_to_str(data)
                     self.nodes_info_manager.update_node(
-                        node_id, loads(node_info.decode())
+                        node_id, loads(node_info)
+                    )
+                    sock.sendto(
+                        self.nodes_info_manager.get_nodes_info_msg(), addr
                     )
             except Exception as e:
-                logger.error(f"Failed to receive a broadcast: {e}")
+                logger.error(f"Error occurs in the node discover: {e}")
             finally:
                 time.sleep(0.1)
         self.stop_node()
@@ -260,9 +289,12 @@ class MasterNodeManager(NodeManager):
 
     async def check_heartbeat_loop(self):
         while self.running:
+            remove_list = []
             for _id, last in self.nodes_info_manager.last_heartbeat.items():
                 if time.time() - last > 2 * HEARTBEAT_INTERVAL:
-                    self.nodes_info_manager.remove_node(_id)
+                    remove_list.append(_id)
+            for _id in remove_list:
+                self.nodes_info_manager.remove_node(_id)
             await async_sleep(HEARTBEAT_INTERVAL)
 
 

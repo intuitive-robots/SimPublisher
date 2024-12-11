@@ -71,7 +71,7 @@ class XRDevice:
             result = future.result()
             return result
         except Exception as e:
-            logger.error(f"Find a new error when waiting for a response: {e}")
+            logger.error(f"Error occurred when waiting for a response: {e}")
             return ""
 
     async def request_async(self, service: str, req: str) -> str:

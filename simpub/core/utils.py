@@ -12,18 +12,18 @@ IPAddress = str
 TopicName = str
 ServiceName = str
 AsyncSocket = zmq.asyncio.Socket
-HashIdentifier = bytes
+HashIdentifier = str
 
 BROADCAST_INTERVAL = 0.5
 HEARTBEAT_INTERVAL = 0.2
 DISCOVERY_PORT = 7720
-HEARTBEAT_PORT = 7721
 
 
 class MSG(enum.Enum):
     PING = b'\x01'
     PING_ACK = b'\x02'
     SERVICE_ERROR = b'\x03'
+    SERVICE_TIMEOUT = b'\x04'
 
 
 class NodeInfo(TypedDict):
@@ -31,7 +31,6 @@ class NodeInfo(TypedDict):
     nodeID: str  # hash code since bytes is not JSON serializable
     ip: str
     type: str
-    heartbeatPort: str
     servicePort: str
     topicPort: str
     serviceList: List[ServiceName]
@@ -77,6 +76,10 @@ def split_byte(bytes_msg: bytes) -> List[bytes]:
     return bytes_msg.split(b":", 1)
 
 
+def split_byte_to_str(bytes_msg: bytes) -> List[str]:
+    return [item.decode() for item in split_byte(bytes_msg)]
+
+
 def generate_node_msg(node_info: NodeInfo) -> bytes:
     return b"".join(
         [node_info["nodeID"].encode(), b":", dumps(node_info).encode()]
@@ -97,13 +100,12 @@ def search_for_master_node(
             # _, local_port = _socket.getsockname()
             _socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             _socket.sendto(MSG.PING.value, (broadcast_ip, DISCOVERY_PORT))
-            _socket.settimeout(0.2)
+            _socket.settimeout(0.1)
             try:
                 data, addr = _socket.recvfrom(1024)
                 logger.info(f"Find a master node at {addr[0]}:{addr[1]}")
                 return addr[0], data.decode()
             except socket.timeout:
-                logger.info("No master node found, checking again...")
                 continue
             except KeyboardInterrupt:
                 break
@@ -111,3 +113,14 @@ def search_for_master_node(
                 print(f"Error: {e}")
     logger.info("No master node found, start as master node")
     return None
+
+
+def print_node_info(node_info: NodeInfo):
+    print(f"Node name: {node_info['name']}")
+    print(f"    Node ID: {node_info['nodeID']}")
+    print(f"    Node IP: {node_info['ip']}")
+    print(f"    Node type: {node_info['type']}")
+    print(f"    Node service port: {node_info['servicePort']}")
+    print(f"    Node topic port: {node_info['topicPort']}")
+    print(f"    Node service list: {node_info['serviceList']}")
+    print(f"    Node topic list: {node_info['topicList']}")
