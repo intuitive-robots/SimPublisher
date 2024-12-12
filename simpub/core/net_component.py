@@ -4,9 +4,12 @@ from asyncio import sleep as async_sleep
 from typing import Callable, Dict, List, Optional, Union
 from json import dumps
 import time
+import zmq
+import traceback
 
 from .net_manager import NodeManager
 from .log import logger
+from .utils import AsyncSocket, Address
 
 
 class NetComponent(abc.ABC):
@@ -116,6 +119,56 @@ class ByteStreamer(Streamer):
 
     def generate_byte_msg(self) -> bytes:
         return self.update_func()
+
+
+class Subscriber(NetComponent):
+    # TODO: test this class
+    def __init__(self, topic_name: str, callback: Callable[[str], None]):
+        super().__init__()
+        self.sub_socket: AsyncSocket = self.manager.create_socket(zmq.SUB)
+        self.topic_name = topic_name
+        self.connected = False
+        self.callback = callback
+        self.remote_addr: Optional[Address] = None
+        self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, topic_name)
+
+    def change_connection(self, new_addr: Address) -> None:
+        """Changes the connection to a new IP address."""
+        if self.connected and self.remote_addr is not None:
+            logger.info(f"Disconnecting from {self.remote_addr}")
+            self.sub_socket.disconnect(
+                f"tcp://{self.remote_addr[0]}:{self.remote_addr[1]}"
+            )
+        self.sub_socket.connect(f"tcp://{new_addr[0]}:{new_addr[1]}")
+        self.remote_addr = new_addr
+        self.connected = True
+
+    async def wait_for_publisher(self) -> None:
+        """Waits for a publisher to be available for the topic."""
+        while self.running:
+            addr = self.manager.nodes_info_manager.check_topic(self.topic_name)
+            if addr is not None and addr != self.remote_addr:
+                self.change_connection(addr)
+                logger.info(
+                    f"Connected to new publisher at {addr} for topic "
+                    f"'{self.topic_name}'"
+                )
+            await async_sleep(0.5)
+
+    async def listen(self) -> None:
+        """Listens for incoming messages on the subscribed topic."""
+        while self.running:
+            try:
+                # Wait for a message
+                msg = await self.sub_socket.recv_string()
+                self.callback(msg)
+                # Invoke the callback
+                self.callback(msg)
+            except Exception as e:
+                logger.error(
+                    f"Error in subscriber for topic '{self.topic_name}': {e}"
+                )
+                traceback.print_exc()
 
 
 class Service(NetComponent):

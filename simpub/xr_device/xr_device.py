@@ -6,7 +6,8 @@ from asyncio import sleep as async_sleep
 
 from ..core.log import logger
 from ..core.net_manager import NodeManager, NodeInfo
-from ..core.net_manager import TopicName, AsyncSocket
+from ..core.net_manager import TopicName
+from ..core.utils import AsyncSocket
 
 
 class InputData:
