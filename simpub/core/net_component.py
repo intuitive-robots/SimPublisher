@@ -54,7 +54,7 @@ class Publisher(NetComponent):
         self.manager.submit_task(self.send_bytes_async, msg.encode())
 
     def on_shutdown(self) -> None:
-        self.node_info_manager.remove_topic(self.topic_name)
+        self.node_info_manager.remove_local_topic(self.topic_name)
 
     async def send_bytes_async(self, msg: bytes) -> None:
         await self.socket.send(msg)

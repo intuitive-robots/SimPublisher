@@ -10,11 +10,13 @@ import socket
 import time
 import uuid
 from json import loads, dumps
+import traceback
 
 from .log import logger
-from .utils import IPAddress, TopicName, ServiceName, HashIdentifier
-from .utils import NodeInfo, DISCOVERY_PORT, HEARTBEAT_INTERVAL, MSG
-from .utils import calculate_broadcast_addr, split_byte, get_socket_port
+from .utils import IPAddress, Address, TopicName, ServiceName, HashIdentifier
+from .utils import NodeInfo, DISCOVERY_PORT, HEARTBEAT_INTERVAL
+from .utils import EchoHeader, MSG
+from .utils import calculate_broadcast_addr, split_byte, get_zmq_socket_port
 from .utils import generate_node_msg, search_for_master_node, create_udp_socket
 from .utils import split_byte_to_str
 
@@ -33,7 +35,7 @@ class NodeInfoManager:
         self.nodes_info = nodes_info_dict
 
     def get_nodes_info_msg(self) -> bytes:
-        return dumps(list(self.nodes_info.values())).encode()
+        return dumps(self.nodes_info).encode()
 
     def check_node(self, node_id: HashIdentifier) -> bool:
         return node_id in self.nodes_info.keys()
@@ -132,8 +134,8 @@ class NodeManager:
             # "master": False,
             "type": "Server",
             # "heartbeatPort": get_socket_port(self.heartbeat_socket),
-            "servicePort": get_socket_port(self.service_socket),
-            "topicPort": get_socket_port(self.pub_socket),
+            "servicePort": get_zmq_socket_port(self.service_socket),
+            "topicPort": get_zmq_socket_port(self.pub_socket),
             "serviceList": [],
             "topicList": [],
         }
@@ -148,13 +150,22 @@ class NodeManager:
     def create_socket(self, socket_type: int):
         return self.zmq_context.socket(socket_type)
 
+    def thread_task(self):
+        try:
+            self.start_event_loop()
+        except KeyboardInterrupt:
+            self.stop_node()
+        finally:
+            logger.info("The node has been stopped")
+
     def start_event_loop(self):
         self.nodes_info_manager = NodeInfoManager(self.local_info)
         self.loop = asyncio.new_event_loop()
         self.running = True
+        self.connected = False
         asyncio.set_event_loop(self.loop)
         self.submit_task(self.service_loop)
-        self.submit_task(self.heartbeat_loop)
+        self.submit_task(self.node_task)
         self.loop.run_forever()
 
     def submit_task(
@@ -167,19 +178,16 @@ class NodeManager:
         return asyncio.run_coroutine_threadsafe(task(*args), self.loop)
 
     def stop_node(self):
-        if not self.running:
-            return
-        if not self.loop:
-            return
+        self.running = False
         try:
             if self.loop.is_running():
                 self.loop.call_soon_threadsafe(self.loop.stop)
         except RuntimeError as e:
             logger.error(f"One error occurred when stop server: {e}")
-        self.spin()
+        self.spin(False)
 
-    def spin(self):
-        self.executor.shutdown(wait=True)
+    def spin(self, wait=True):
+        self.executor.shutdown(wait=wait)
 
     async def service_loop(self):
         logger.info("The service loop is running...")
@@ -203,43 +211,144 @@ class NodeManager:
             await async_sleep(0.01)
         logger.info("Service loop has been stopped")
 
-    async def heartbeat_loop(self):
-        # set up udp socket
+    async def node_task(self):
         try:
             _socket = create_udp_socket()
             _socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             broadcast_ip = calculate_broadcast_addr(self.local_info["ip"])
             _socket.bind((self.local_info["ip"], 0))
-            self.submit_task(self.update_info_loop, _socket)
+        except Exception as e:
+            logger.error(f"Failed to create udp socket: {e}")
+            raise Exception("Failed to create udp socket")
+        while self.running:
+            master_address = await self.search_for_master_node(
+                _socket, broadcast_ip
+            )
+            if master_address is not None:
+                await self.heartbeat_loop(_socket, master_address)
+            await async_sleep(0.1)
+
+    async def search_for_master_node(
+        self,
+        _socket: socket.socket,
+        broadcast_ip: IPAddress,
+        time_out: float = 0.1
+    ) -> Optional[Address]:
+        loop = asyncio.get_running_loop()
+        master_address = None
+        logger.info("Searching for the master node")
+        while self.running:
+            try:
+                _socket.sendto(
+                    EchoHeader.PING.value, (broadcast_ip, DISCOVERY_PORT)
+                )
+                address_bytes = await asyncio.wait_for(
+                    loop.sock_recv(_socket, 2048),
+                    timeout=time_out,
+                )
+                master_addr, _ = split_byte_to_str(address_bytes)
+                master_address = tuple(loads(master_addr))
+                self.connected = True
+                break
+            except asyncio.TimeoutError:
+                continue
+            except Exception as e:
+                logger.error(f"Failed to broadcast the ping: {e}")
+                traceback.print_exc()
+            await async_sleep(0.1)
+        return master_address
+
+    async def heartbeat_loop(
+        self,
+        _socket: socket.socket,
+        master_address: Address,
+    ):
+        # set up udp socket
+        try:
+            self.submit_task(
+                self.update_info_loop, _socket, 2 * HEARTBEAT_INTERVAL
+            )
         except Exception as e:
             logger.error(f"Failed to create udp socket: {e}")
             raise Exception("Failed to create udp socket")
         logger.info(
             f"The Net Manager starts broadcasting at {self.local_info['ip']}"
         )
-        while self.running:
+        while self.connected:
             try:
                 msg = generate_node_msg(self.local_info)
-                _socket.sendto(msg, (broadcast_ip, DISCOVERY_PORT))
-                # _socket.settimeout(HEARTBEAT_INTERVAL)
+                # change broadcast ip to master ip
+                _socket.sendto(msg, master_address)
                 await async_sleep(HEARTBEAT_INTERVAL)
             except Exception as e:
                 logger.error(f"Failed to broadcast: {e}")
-        logger.info("Broadcasting loop has been stopped")
+                traceback.print_exc()
+        logger.info(
+            "Heartbeat loop has been stopped, waiting for other master node"
+        )
 
-    async def update_info_loop(self, _socket: socket.socket):
+    async def update_info_loop(self, _socket: socket.socket, time_out: float):
         _socket.setblocking(False)
         # _socket.settimeout(1)  # should be used in blocking mode
-        loop = asyncio.get_event_loop()
-        while self.running:
+        loop = asyncio.get_running_loop()
+        while self.connected:
             try:
-                msg = await loop.sock_recv(_socket, 1024)
+                msg = await asyncio.wait_for(
+                    loop.sock_recv(_socket, 2048),
+                    timeout=time_out,
+                )
+                assert type(loads(msg.decode())) == dict
                 self.nodes_info_manager.update_nodes_info(
                     loads(msg.decode())
                 )
                 await async_sleep(0.1)
+            except asyncio.TimeoutError:
+                logger.warning("Timeout: The master node is offline")
+                self.connected = False
             except Exception as e:
                 logger.error(f"Error occurred in update info loop: {e}")
+                traceback.print_exc()
+
+
+class MasterNodeEchoUDPProtocol(asyncio.DatagramProtocol):
+
+    def __init__(self, nodes_info_manager: MasterNodesInfoManager):
+        self.nodes_info_manager = nodes_info_manager
+        super().__init__()
+
+    def connection_made(self, transport):
+        self.transport = transport
+        self.handler: Dict[bytes, Callable[[bytes, Address], bytes]] = {
+            EchoHeader.PING.value: self.handle_ping,
+            EchoHeader.HEARTBEAT.value: self.handle_heartbeat,
+        }
+        sock_name = transport.get_extra_info('sockname')
+        logger.info(f"Master Node Echo UDP Server started at {sock_name}")
+        self.addr: Address = (str(sock_name[0]), int(sock_name[1]))
+
+    def datagram_received(self, data, addr):
+        try:
+            msg_type, msg_content = data[:1], data[1:]
+            if msg_type not in self.handler:
+                logger.error(f"Unknown Echo type: {msg_type}")
+                return
+            reply = self.handler[msg_type](msg_content, addr)
+            self.transport.sendto(reply, addr)
+        except Exception as e:
+            logger.error(f"Error occurred in UDP received: {e}")
+            traceback.print_exc()
+
+    def handle_ping(self, content: bytes, addr: Address) -> bytes:
+        return b"".join(
+            [dumps(self.addr).encode(), b":", dumps(addr).encode()]
+        )
+
+    def handle_heartbeat(self, content: bytes, addr: Address) -> bytes:
+        node_id, node_info = split_byte_to_str(content)
+        self.nodes_info_manager.update_node(
+            node_id, loads(node_info)
+        )
+        return self.nodes_info_manager.get_nodes_info_msg()
 
 
 class MasterNodeManager(NodeManager):
@@ -247,55 +356,36 @@ class MasterNodeManager(NodeManager):
     def __init__(self, host_ip: IPAddress, node_name: IPAddress) -> None:
         super().__init__(host_ip, node_name)
         # self.local_info["master"] = True
-        self.nodes_info_manager = MasterNodesInfoManager(self.local_info)
 
     def start_event_loop(self):
         self.loop = asyncio.new_event_loop()
-        self.nodes_info_manager = MasterNodesInfoManager(self.local_info)
         self.running = True
+        self.nodes_info_manager = MasterNodesInfoManager(self.local_info)
         asyncio.set_event_loop(self.loop)
-        self.submit_task(self.service_loop)
-        self.submit_task(self.check_heartbeat_loop)
-        self.executor.submit(self.node_discover_task)
+        # self.submit_task(self.service_loop)
+        self.submit_task(self.master_node_echo)
         self.loop.run_forever()
 
-    def node_discover_task(self):
+    async def master_node_echo(self):
+        # Create the UDP server
+        loop = asyncio.get_running_loop()
+        transport, protocol = await loop.create_datagram_endpoint(
+            lambda: MasterNodeEchoUDPProtocol(self.nodes_info_manager),
+            local_addr=('0.0.0.0', DISCOVERY_PORT)  # Bind to all interfaces
+        )
         logger.info("The Master starts to listen to broadcast")
-        try:
-            sock = create_udp_socket()
-            sock.bind(('0.0.0.0', DISCOVERY_PORT))
-        except Exception as e:
-            logger.error(f"Failed to create socket: {e}")
-            return
-        while self.running:
-            try:
-                data, addr = sock.recvfrom(1024)
-                if data == MSG.PING.value:
-                    sock.sendto(MSG.PING_ACK.value, addr)
-                else:
-                    node_id, node_info = split_byte_to_str(data)
-                    self.nodes_info_manager.update_node(
-                        node_id, loads(node_info)
-                    )
-                    sock.sendto(
-                        self.nodes_info_manager.get_nodes_info_msg(), addr
-                    )
-            except Exception as e:
-                logger.error(f"Error occurs in the node discover: {e}")
-            finally:
-                time.sleep(0.1)
-        self.stop_node()
-        logger.info("Node discover task has been stopped")
-
-    async def check_heartbeat_loop(self):
+        # check the heartbeat of nodes
         while self.running:
             remove_list = []
             for _id, last in self.nodes_info_manager.last_heartbeat.items():
-                if time.time() - last > 2 * HEARTBEAT_INTERVAL:
+                if time.time() - last > 3 * HEARTBEAT_INTERVAL:
                     remove_list.append(_id)
             for _id in remove_list:
                 self.nodes_info_manager.remove_node(_id)
             await async_sleep(HEARTBEAT_INTERVAL)
+        transport.close()
+        self.stop_node()
+        logger.info("Node discover task has been stopped")
 
 
 def init_node(
