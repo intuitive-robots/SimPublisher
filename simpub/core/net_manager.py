@@ -45,17 +45,17 @@ class NodeInfoManager:
             return self.nodes_info[node_id]
         return None
 
-    def check_service(self, service_name: ServiceName) -> bool:
+    def check_service(self, service_name: ServiceName) -> Optional[Address]:
         for node in self.nodes_info.values():
             if service_name in node["serviceList"]:
-                return True
-        return False
+                return (node["ip"], node["servicePort"])
+        return None
 
-    def check_topic(self, topic_name: TopicName) -> bool:
+    def check_topic(self, topic_name: TopicName) -> Optional[Address]:
         for node in self.nodes_info.values():
             if topic_name in node["topicList"]:
-                return True
-        return False
+                return (node["ip"], node["topicPort"])
+        return None
 
     def register_service(self, service_name: ServiceName) -> None:
         assert service_name not in self.nodes_info.values()
@@ -151,6 +151,7 @@ class NodeManager:
         return self.zmq_context.socket(socket_type)
 
     def thread_task(self):
+        # TODO: The non-master quit behavior is not correct
         try:
             self.start_event_loop()
         except KeyboardInterrupt:
