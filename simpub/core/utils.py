@@ -10,7 +10,6 @@ from .log import logger
 
 IPAddress = str
 Port = int
-Address = Tuple[IPAddress, Port]
 TopicName = str
 ServiceName = str
 AsyncSocket = zmq.asyncio.Socket
@@ -19,6 +18,15 @@ HashIdentifier = str
 BROADCAST_INTERVAL = 0.5
 HEARTBEAT_INTERVAL = 0.2
 DISCOVERY_PORT = int(7720)
+
+
+class Address(TypedDict):
+    ip: IPAddress
+    port: Port
+
+
+def create_address(ip: IPAddress, port: Port) -> Address:
+    return {"ip": ip, "port": port}
 
 
 class EchoHeader(enum.Enum):
@@ -34,7 +42,7 @@ class MSG(enum.Enum):
 class NodeInfo(TypedDict):
     name: str
     nodeID: str  # hash code since bytes is not JSON serializable
-    ip: str
+    addr: Address
     type: str
     servicePort: int
     topicPort: int
@@ -78,7 +86,7 @@ def get_zmq_socket_port(socket: zmq.asyncio.Socket) -> int:
 
 
 def split_byte(bytes_msg: bytes) -> List[bytes]:
-    return bytes_msg.split(b":", 1)
+    return bytes_msg.split(b"|", 1)
 
 
 def split_byte_to_str(bytes_msg: bytes) -> List[str]:
@@ -86,7 +94,7 @@ def split_byte_to_str(bytes_msg: bytes) -> List[str]:
 
 
 def split_str(str_msg: str) -> List[str]:
-    return str_msg.split(":", 1)
+    return str_msg.split("|", 1)
 
 
 def generate_node_msg(node_info: NodeInfo) -> bytes:
@@ -94,7 +102,7 @@ def generate_node_msg(node_info: NodeInfo) -> bytes:
         [
             EchoHeader.HEARTBEAT.value,
             node_info["nodeID"].encode(),
-            b":",
+            b"|",
             dumps(node_info).encode()
         ]
     )
@@ -130,14 +138,3 @@ def search_for_master_node(
                 print(f"Error: {e}")
     logger.info("No master node found, start as master node")
     return None
-
-
-def print_node_info(node_info: NodeInfo):
-    print(f"Node name: {node_info['name']}")
-    print(f"    Node ID: {node_info['nodeID']}")
-    print(f"    Node IP: {node_info['ip']}")
-    print(f"    Node type: {node_info['type']}")
-    print(f"    Node service port: {node_info['servicePort']}")
-    print(f"    Node topic port: {node_info['topicPort']}")
-    print(f"    Node service list: {node_info['serviceList']}")
-    print(f"    Node topic list: {node_info['topicList']}")

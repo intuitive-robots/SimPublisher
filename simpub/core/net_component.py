@@ -17,9 +17,8 @@ class NetComponent(abc.ABC):
         if NodeManager.manager is None:
             raise ValueError("NodeManager is not initialized")
         self.manager: NodeManager = NodeManager.manager
-        self.node_info_manager = self.manager.nodes_info_manager
         self.running: bool = False
-        self.host_ip: str = self.manager.local_info["ip"]
+        self.host_ip: str = self.manager.local_info["addr"]["ip"]
         self.local_name: str = self.manager.local_info["name"]
 
     def shutdown(self) -> None:
@@ -38,15 +37,15 @@ class Publisher(NetComponent):
         if with_local_namespace:
             self.topic_name = f"{self.local_name}/{topic_name}"
         self.socket = self.manager.pub_socket
-        if self.node_info_manager.check_topic(topic_name):
+        if self.manager.nodes_info_manager.check_topic(topic_name):
             logger.warning(f"Topic {topic_name} is already registered")
             raise ValueError(f"Topic {topic_name} is already registered")
         else:
-            self.node_info_manager.register_topic(topic_name)
+            self.manager.register_local_topic(topic_name)
             logger.info(msg=f'Topic "{self.topic_name}" is ready to publish')
 
     def publish_bytes(self, data: bytes) -> None:
-        msg = b''.join([f"{self.topic_name}:".encode(), b":", data])
+        msg = b''.join([f"{self.topic_name}:".encode(), b"|", data])
         self.manager.submit_task(self.send_bytes_async, msg)
 
     def publish_dict(self, data: Dict) -> None:
@@ -57,7 +56,7 @@ class Publisher(NetComponent):
         self.manager.submit_task(self.send_bytes_async, msg.encode())
 
     def on_shutdown(self) -> None:
-        self.node_info_manager.remove_local_topic(self.topic_name)
+        self.manager.remove_local_topic(self.topic_name)
 
     async def send_bytes_async(self, msg: bytes) -> None:
         await self.socket.send(msg)
@@ -100,7 +99,7 @@ class Streamer(Publisher):
                     await async_sleep(self.dt - diff)
                 last = time.monotonic()
                 await self.socket.send(
-                    b"".join([self.topic_byte, b":", self.generate_byte_msg()])
+                    b"".join([self.topic_byte, b"|", self.generate_byte_msg()])
                 )
             except Exception as e:
                 logger.error(f"Error when streaming {self.topic_name}: {e}")
@@ -137,9 +136,9 @@ class Subscriber(NetComponent):
         if self.connected and self.remote_addr is not None:
             logger.info(f"Disconnecting from {self.remote_addr}")
             self.sub_socket.disconnect(
-                f"tcp://{self.remote_addr[0]}:{self.remote_addr[1]}"
+                f"tcp://{self.remote_addr}"
             )
-        self.sub_socket.connect(f"tcp://{new_addr[0]}:{new_addr[1]}")
+        self.sub_socket.connect(f"tcp://{new_addr}")
         self.remote_addr = new_addr
         self.connected = True
 
