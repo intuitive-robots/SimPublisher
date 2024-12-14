@@ -3,7 +3,6 @@ import argparse
 from alr_sim.sims.SimFactory import SimRepository
 from alr_sim.sims.universal_sim.PrimitiveObjects import Box
 from simpub.sim.sf_publisher import SFPublisher
-from simpub.xr_device import XRDevice
 
 if __name__ == "__main__":
 
@@ -70,9 +69,10 @@ if __name__ == "__main__":
 
     assert host is not None, "Please specify the host"
     publisher = SFPublisher(
-        scene, host, no_tracked_objects=["table_plane", "table0"]
+        scene,
+        host, no_tracked_objects=["table_plane", "table0"],
     )
-    device = XRDevice(args.device)
+    # device = XRDevice(args.device)
 
     duration = 2
 
