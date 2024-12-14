@@ -15,7 +15,7 @@ import traceback
 from .log import logger
 from .utils import IPAddress, TopicName, ServiceName, HashIdentifier
 from .utils import NodeInfo, DISCOVERY_PORT, HEARTBEAT_INTERVAL
-from .utils import EchoHeader, MSG, Address
+from .utils import EchoHeader, MSG, Address, NodeTypes
 from .utils import calculate_broadcast_addr, split_byte, get_zmq_socket_port
 from .utils import generate_node_msg, search_for_master_node, create_udp_socket
 from .utils import split_byte_to_str, create_address
@@ -50,16 +50,16 @@ class NodesInfoManager:
             return self.nodes_info[node_id]
         return None
 
-    def check_service(self, service_name: ServiceName) -> Optional[Address]:
+    def check_service(self, service_name: ServiceName) -> Optional[NodeInfo]:
         for info in self.nodes_info.values():
             if service_name in info["serviceList"]:
-                return create_address(info["addr"]["ip"], info["servicePort"])
+                return info
         return None
 
-    def check_topic(self, topic_name: TopicName) -> Optional[Address]:
+    def check_topic(self, topic_name: TopicName) -> Optional[NodeInfo]:
         for info in self.nodes_info.values():
             if topic_name in info["topicList"]:
-                return create_address(info["addr"]["ip"], info["topicPort"])
+                return info
         return None
 
 
@@ -113,7 +113,7 @@ class NodeManager:
             "name": node_name,
             "nodeID": str(uuid.uuid4()),
             "addr": create_address(host_ip, 0),
-            "type": "Server",
+            "type": NodeTypes.SLAVE.value,
             "servicePort": get_zmq_socket_port(self.service_socket),
             "topicPort": get_zmq_socket_port(self.pub_socket),
             "serviceList": [],
@@ -339,13 +339,12 @@ class MasterNodeEchoUDPProtocol(asyncio.DatagramProtocol):
     def datagram_received(self, data, addr):
         try:
             msg_type, msg_content = data[:1], data[1:]
-            print(msg_type, msg_content.decode())
+            print(msg_type, addr)
             if msg_type not in self.handler:
                 logger.error(f"Unknown Echo type: {msg_type}")
                 return
             reply = self.handler[msg_type](msg_content, create_address(*addr))
             self.transport.sendto(reply, addr)
-            # self.transport.sendto(reply, addr)
         except Exception as e:
             logger.error(f"Error occurred in UDP received: {e}")
             traceback.print_exc()
@@ -377,6 +376,7 @@ class MasterNodeManager(NodeManager):
             self.local_info["addr"]["ip"],
             DISCOVERY_PORT
         )
+        self.local_info["type"] = NodeTypes.MASTER.value
         asyncio.set_event_loop(self.loop)
         self.submit_task(self.service_loop)
         self.submit_task(self.master_node_echo)

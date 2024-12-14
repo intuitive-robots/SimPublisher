@@ -39,6 +39,12 @@ class MSG(enum.Enum):
     SERVICE_TIMEOUT = b'\x04'
 
 
+class NodeTypes(enum.Enum):
+    MASTER = "master"
+    XR = "xr"
+    SLAVE = "slave"
+
+
 class NodeInfo(TypedDict):
     name: str
     nodeID: str  # hash code since bytes is not JSON serializable
