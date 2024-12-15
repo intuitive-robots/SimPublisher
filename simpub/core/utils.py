@@ -3,7 +3,6 @@ import zmq.asyncio
 import struct
 import socket
 from typing import List, Tuple, TypedDict, Optional
-from json import dumps
 import enum
 
 from .log import logger
@@ -20,23 +19,24 @@ HEARTBEAT_INTERVAL = 0.2
 DISCOVERY_PORT = int(7720)
 
 
-class Address(TypedDict):
+class NodeAddress(TypedDict):
     ip: IPAddress
     port: Port
 
 
-def create_address(ip: IPAddress, port: Port) -> Address:
+def create_address(ip: IPAddress, port: Port) -> NodeAddress:
     return {"ip": ip, "port": port}
 
 
 class EchoHeader(enum.Enum):
     PING = b'\x00'
     HEARTBEAT = b'\x01'
+    NODES = b'\x02'
 
 
 class MSG(enum.Enum):
-    SERVICE_ERROR = b'\x03'
-    SERVICE_TIMEOUT = b'\x04'
+    SERVICE_ERROR = b'\x10'
+    SERVICE_TIMEOUT = b'\x11'
 
 
 class NodeTypes(enum.Enum):
@@ -48,7 +48,7 @@ class NodeTypes(enum.Enum):
 class NodeInfo(TypedDict):
     name: str
     nodeID: str  # hash code since bytes is not JSON serializable
-    addr: Address
+    addr: NodeAddress
     type: str
     servicePort: int
     topicPort: int
@@ -101,17 +101,6 @@ def split_byte_to_str(bytes_msg: bytes) -> List[str]:
 
 def split_str(str_msg: str) -> List[str]:
     return str_msg.split("|", 1)
-
-
-def generate_node_msg(node_info: NodeInfo) -> bytes:
-    return b"".join(
-        [
-            EchoHeader.HEARTBEAT.value,
-            node_info["nodeID"].encode(),
-            b"|",
-            dumps(node_info).encode()
-        ]
-    )
 
 
 def search_for_master_node(
