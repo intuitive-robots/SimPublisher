@@ -1,7 +1,7 @@
 import abc
 import asyncio
 from asyncio import sleep as async_sleep
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, Optional, Union
 from json import dumps
 import time
 import zmq
@@ -9,7 +9,7 @@ import traceback
 
 from .net_manager import NodeManager
 from .log import logger
-from .utils import AsyncSocket, Address
+from .utils import AsyncSocket, NodeAddress
 
 
 class NetComponent(abc.ABC):
@@ -68,7 +68,7 @@ class Streamer(Publisher):
         topic_name: str,
         update_func: Callable[[], Optional[Union[str, bytes, Dict]]],
         fps: int = 45,
-        start_streaming: bool = True,
+        start_streaming: bool = False,
     ):
         super().__init__(topic_name)
         self.running = False
@@ -128,10 +128,10 @@ class Subscriber(NetComponent):
         self.topic_name = topic_name
         self.connected = False
         self.callback = callback
-        self.remote_addr: Optional[Address] = None
+        self.remote_addr: Optional[NodeAddress] = None
         self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, topic_name)
 
-    def change_connection(self, new_addr: Address) -> None:
+    def change_connection(self, new_addr: NodeAddress) -> None:
         """Changes the connection to a new IP address."""
         if self.connected and self.remote_addr is not None:
             logger.info(f"Disconnecting from {self.remote_addr}")
@@ -145,12 +145,13 @@ class Subscriber(NetComponent):
     async def wait_for_publisher(self) -> None:
         """Waits for a publisher to be available for the topic."""
         while self.running:
-            addr = self.manager.nodes_info_manager.check_topic(self.topic_name)
-            if addr is not None and addr != self.remote_addr:
-                self.change_connection(addr)
+            node_info = self.manager.nodes_info_manager.check_topic(
+                self.topic_name
+            )
+            if node_info is not None:
                 logger.info(
-                    f"Connected to new publisher at {addr} for topic "
-                    f"'{self.topic_name}'"
+                    f"Connected to new publisher from node "
+                    f"'{node_info['name']}' with topic '{self.topic_name}'"
                 )
             await async_sleep(0.5)
 
@@ -170,34 +171,31 @@ class Subscriber(NetComponent):
                 traceback.print_exc()
 
 
-class Service(NetComponent):
+class AbstractService(NetComponent):
+
     def __init__(
         self,
         service_name: str,
-        callback: Callable[[str], Union[str, bytes, Dict]],
     ) -> None:
         super().__init__()
         self.service_name = service_name
-        self.callback_func = callback
         self.socket = self.manager.service_socket
         # register service
         self.manager.local_info["serviceList"].append(service_name)
-        self.on_trigger_events: List[Callable[[str], None]] = []
+        self.manager.service_cbs[service_name.encode()] = self.callback
         logger.info(f'"{self.service_name}" Service is ready')
 
-    async def callback(self, msg: str):
+    async def callback(self, msg: bytes):
         result = await asyncio.wait_for(
             self.manager.loop.run_in_executor(
-                self.manager.executor, self.callback_func, msg
+                self.manager.executor, self.process_bytes_request, msg
             ),
             timeout=5.0,
         )
-        for event in self.on_trigger_events:
-            event(msg)
-        await self.send(result)
+        await self.socket.send(result)
 
     @abc.abstractmethod
-    async def send(self, data: Union[str, bytes, Dict]):
+    def process_bytes_request(self, msg: bytes) -> bytes:
         raise NotImplementedError
 
     def on_shutdown(self):
@@ -205,16 +203,29 @@ class Service(NetComponent):
         logger.info(f'"{self.service_name}" Service is stopped')
 
 
-class StringService(Service):
-    async def send(self, string: str):
-        await self.socket.send_string(string)
+class StrBytesService(AbstractService):
+
+    def __init__(
+        self,
+        service_name: str,
+        callback_func: Callable[[str], bytes],
+    ) -> None:
+        super().__init__(service_name)
+        self.callback_func = callback_func
+
+    def process_bytes_request(self, msg: bytes) -> bytes:
+        return self.callback_func(msg.decode())
 
 
-class BytesService(Service):
-    async def send(self, data: bytes):
-        await self.socket.send(data)
+class StrService(AbstractService):
 
+    def __init__(
+        self,
+        service_name: str,
+        callback_func: Callable[[str], str],
+    ) -> None:
+        super().__init__(service_name)
+        self.callback_func = callback_func
 
-class DictService(Service):
-    async def send(self, data: Dict):
-        await self.socket.send_string(dumps(data))
+    def process_bytes_request(self, msg: bytes) -> bytes:
+        return self.callback_func(msg.decode()).encode()

@@ -2,31 +2,32 @@ from __future__ import annotations
 import abc
 from typing import Dict, List, Optional, Set
 from asyncio import sleep as asyncio_sleep
+import traceback
 
 from ..simdata import SimScene
-from .net_manager import NodeManager, NodeInfo, init_node
-from .net_component import Streamer, BytesService
+from .net_manager import NodeManager, init_node
+from .net_component import Streamer, StrBytesService
 from .log import logger
-from .utils import send_request
+from .utils import send_request, HashIdentifier
 
 
 class ServerBase(abc.ABC):
 
-    def __init__(self, host: str = "127.0.0.1"):
-        self.host: str = host
-        self.net_manager = init_node(host)
-        # self.initialize()
-    #     self.net_manager.start()
+    def __init__(self, ip_addr: str, node_name: str):
+        self.ip_addr: str = ip_addr
+        self.net_manager = init_node(ip_addr, node_name)
+        self.initialize()
+        self.net_manager.start_node_discover()
 
-    # def join(self):
-    #     self.net_manager.join()
+    def spin(self):
+        self.net_manager.spin()
 
-    # @abc.abstractmethod
-    # def initialize(self):
-    #     raise NotImplementedError
+    @abc.abstractmethod
+    def initialize(self):
+        raise NotImplementedError
 
-    # def shutdown(self):
-    #     self.net_manager.shutdown()
+    def shutdown(self):
+        self.net_manager.stop_node()
 
 
 class MsgServer(ServerBase):
@@ -40,7 +41,7 @@ class SimPublisher(ServerBase):
     def __init__(
         self,
         sim_scene: SimScene,
-        host: str = "127.0.0.1",
+        ip_addr: str = "127.0.0.1",
         no_rendered_objects: Optional[List[str]] = None,
         no_tracked_objects: Optional[List[str]] = None,
     ) -> None:
@@ -53,19 +54,27 @@ class SimPublisher(ServerBase):
             self.no_tracked_objects = []
         else:
             self.no_tracked_objects = no_tracked_objects
-        super().__init__(host)
-        self.scene_update_streamer = Streamer("SceneUpdate", self.get_update)
-        self.asset_service = BytesService("Asset", self._on_asset_request)
-        self.xr_device_set: Set[NodeInfo] = set()
+        super().__init__(ip_addr, "SimPublisher")
+
+    def initialize(self) -> None:
+        self.scene_update_streamer = Streamer(
+            topic_name="SceneUpdate",
+            update_func=self.get_update,
+            fps=60,
+            start_streaming=True)
+        self.asset_service = StrBytesService("Asset", self._on_asset_request)
+        self.xr_device_set: Set[HashIdentifier] = set()
         self.net_manager.submit_task(self.search_xr_device, self.net_manager)
 
     async def search_xr_device(self, node: NodeManager):
         print("Start searching xr device")
         while node.running:
             xr_info = node.nodes_info_manager.check_service("LoadSimScene")
-            print(f"xr_info: {xr_info}")
-            if xr_info is not None and xr_info not in self.xr_device_set:
-                self.xr_device_set.add(xr_info)
+            if xr_info is None or xr_info["nodeID"] in self.xr_device_set:
+                await asyncio_sleep(1)
+                continue
+            try:
+                self.xr_device_set.add(xr_info["nodeID"])
                 scene_string = f"LoadSimScene|{self.sim_scene.to_string()}"
                 self.net_manager.submit_task(
                     send_request,
@@ -75,6 +84,9 @@ class SimPublisher(ServerBase):
                 )
                 print(f"Send scene to {xr_info['name']}")
                 logger.info(f"Send scene to {xr_info['name']}")
+            except Exception as e:
+                logger.error(f"Error when sending scene to xr device: {e}")
+                traceback.print_exc()
             await asyncio_sleep(0.5)
 
     def _on_asset_request(self, req: str) -> bytes:
