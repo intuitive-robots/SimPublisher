@@ -114,7 +114,13 @@ class MasterEchoUDPProtocol(asyncio.DatagramProtocol):
         return self.nodes_info_manager.get_local_info_msg()
 
     def handle_nodes(self, data: bytes, addr: NodeAddress) -> bytes:
-        return self.nodes_info_manager.get_nodes_info_msg()
+        return b"".join(
+            [
+                self.nodes_info_manager.get_local_info_msg(),
+                b"|",
+                self.nodes_info_manager.get_nodes_info_msg()
+            ]
+        )
 
 
 class NodeManager:
