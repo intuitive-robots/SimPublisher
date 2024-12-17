@@ -227,7 +227,7 @@ class NodeManager:
         loop = asyncio.get_running_loop()
         transport, _ = await loop.create_datagram_endpoint(
             lambda: MasterEchoUDPProtocol(self.nodes_info_manager),
-            local_addr=(self.local_info["addr"]["ip"], DISCOVERY_PORT)
+            local_addr=("0.0.0.0", DISCOVERY_PORT),
         )
         logger.info("The Master starts to listen to broadcast")
         # check the heartbeat of nodes

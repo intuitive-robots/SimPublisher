@@ -67,7 +67,6 @@ class SimPublisher(ServerBase):
         self.net_manager.submit_task(self.search_xr_device, self.net_manager)
 
     async def search_xr_device(self, node: NodeManager):
-        print("Start searching xr device")
         while node.running:
             xr_info = node.nodes_info_manager.check_service("LoadSimScene")
             if xr_info is None or xr_info["nodeID"] in self.xr_device_set:
