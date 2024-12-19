@@ -4,6 +4,7 @@ import struct
 import socket
 from typing import List, Tuple, TypedDict, Optional
 import enum
+from traceback import print_exc
 
 from .log import logger
 
@@ -130,6 +131,7 @@ def search_for_master_node(
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                print(f"Error: {e}")
+                logger.error(f"Error when searching for master node: {e}")
+                print_exc()
     logger.info("No master node found, start as master node")
     return None

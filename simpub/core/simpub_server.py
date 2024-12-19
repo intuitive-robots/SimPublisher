@@ -81,8 +81,7 @@ class SimPublisher(ServerBase):
                     f"tcp://{xr_info['addr']['ip']}:{xr_info['servicePort']}",
                     self.net_manager.zmq_context
                 )
-                print(f"Send scene to {xr_info['name']}")
-                logger.info(f"Send scene to {xr_info['name']}")
+                logger.info(f"The Scene is sent to {xr_info['name']}")
             except Exception as e:
                 logger.error(f"Error when sending scene to xr device: {e}")
                 traceback.print_exc()

@@ -49,7 +49,8 @@ class NodesInfoManager:
         node_id = info["nodeID"]
         if node_id not in self.nodes_info.keys():
             logger.info(
-                f"Node {info['name']} has been launched"
+                f"Node {info['name']} from "
+                f"{info['addr']['ip']} has been launched"
             )
         self.nodes_info[node_id] = info
         self.last_heartbeat[node_id] = time.time()
@@ -67,6 +68,12 @@ class NodesInfoManager:
         for node_id, last in self.last_heartbeat.items():
             if time.time() - last > 2 * HEARTBEAT_INTERVAL:
                 self.remove_node(node_id)
+
+    def get_node_info(self, node_name: str) -> Optional[NodeInfo]:
+        for info in self.nodes_info.values():
+            if info["name"] == node_name:
+                return info
+        return None
 
 
 class MasterEchoUDPProtocol(asyncio.DatagramProtocol):
@@ -149,7 +156,6 @@ class NodeManager:
             "topicList": [],
         }
         self.nodes_info_manager = NodesInfoManager(self.local_info)
-        print("length of local_info: ", len(dumps(self.local_info).encode()))
         # start the server in a thread pool
         self.executor = ThreadPoolExecutor(max_workers=10)
         self.server_future = self.executor.submit(self.thread_task)
