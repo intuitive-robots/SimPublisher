@@ -68,23 +68,25 @@ class SimPublisher(ServerBase):
 
     async def search_xr_device(self, node: NodeManager):
         while node.running:
-            xr_info = node.nodes_info_manager.check_service("LoadSimScene")
-            if xr_info is None or xr_info["nodeID"] in self.xr_device_set:
-                await asyncio_sleep(1)
-                continue
-            try:
-                self.xr_device_set.add(xr_info["nodeID"])
-                scene_string = f"LoadSimScene|{self.sim_scene.to_string()}"
-                self.net_manager.submit_task(
-                    send_request,
-                    scene_string,
-                    f"tcp://{xr_info['addr']['ip']}:{xr_info['servicePort']}",
-                    self.net_manager.zmq_context
-                )
-                logger.info(f"The Scene is sent to {xr_info['name']}")
-            except Exception as e:
-                logger.error(f"Error when sending scene to xr device: {e}")
-                traceback.print_exc()
+            for xr_info in node.nodes_info_manager.nodes_info.values():
+                if xr_info["nodeID"] in self.xr_device_set:
+                    continue
+                if "LoadSimScene" not in xr_info["serviceList"]:
+                    continue
+                try:
+                    self.xr_device_set.add(xr_info["nodeID"])
+                    scene_string = f"LoadSimScene|{self.sim_scene.to_string()}"
+                    ip, port = xr_info["addr"]["ip"], xr_info["servicePort"]
+                    self.net_manager.submit_task(
+                        send_request,
+                        scene_string,
+                        f"tcp://{ip}:{port}",
+                        self.net_manager.zmq_context
+                    )
+                    logger.info(f"The Scene is sent to {xr_info['name']}")
+                except Exception as e:
+                    logger.error(f"Error when sending scene to xr device: {e}")
+                    traceback.print_exc()
             await asyncio_sleep(0.5)
 
     def _on_asset_request(self, req: str) -> bytes:

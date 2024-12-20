@@ -170,6 +170,10 @@ class Subscriber(NetComponent):
                 )
                 traceback.print_exc()
 
+    def on_shutdown(self) -> None:
+        self.running = False
+        self.sub_socket.close()
+
 
 class AbstractService(NetComponent):
 
