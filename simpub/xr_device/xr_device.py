@@ -7,6 +7,7 @@ from asyncio import sleep as async_sleep
 from ..core.log import logger
 from ..core.net_manager import NodeManager, NodeInfo
 from ..core.net_manager import TopicName
+# from ..core.net_component import Subscriber
 from ..core.utils import AsyncSocket
 
 
