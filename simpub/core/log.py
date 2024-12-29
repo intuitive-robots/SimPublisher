@@ -4,14 +4,14 @@ from colorama import init, Fore
 init(autoreset=True)
 
 # Define a new log level
-REMOTELOG_LEVEL_NUM = 25
-logging.addLevelName(REMOTELOG_LEVEL_NUM, "REMOTELOG")
+REMOTE_LOG_LEVEL_NUM = 25
+logging.addLevelName(REMOTE_LOG_LEVEL_NUM, "REMOTELOG")
 
 
 class CustomLogger(logging.Logger):
     def remote_log(self, message, *args, **kws):
-        if self.isEnabledFor(REMOTELOG_LEVEL_NUM):
-            self._log(REMOTELOG_LEVEL_NUM, message, args, **kws)
+        if self.isEnabledFor(REMOTE_LOG_LEVEL_NUM):
+            self._log(REMOTE_LOG_LEVEL_NUM, message, args, **kws)
 
 
 class CustomFormatter(logging.Formatter):
@@ -25,7 +25,7 @@ class CustomFormatter(logging.Formatter):
         logging.ERROR: Fore.MAGENTA + FORMAT + Fore.RESET,
         logging.CRITICAL: Fore.CYAN + FORMAT + Fore.RESET,
         # Add custom level format
-        REMOTELOG_LEVEL_NUM: Fore.GREEN + FORMAT + Fore.RESET,
+        REMOTE_LOG_LEVEL_NUM: Fore.GREEN + FORMAT + Fore.RESET,
     }
 
     def format(self, record):
