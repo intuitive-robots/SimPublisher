@@ -19,5 +19,6 @@ class SFPublisher(MujocoPublisher):
             sf_mj_sim.data,
             host,
             no_rendered_objects,
-            no_tracked_objects
+            no_tracked_objects,
+            visible_geoms_groups=list(range(0, 3)),
         )

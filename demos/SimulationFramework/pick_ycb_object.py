@@ -11,11 +11,12 @@ if __name__ == "__main__":
 
     argparse.ArgumentParser()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ycb_base_folder", type=str)
+    parser.add_argument("--folder", type=str)
+    parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--object_id", type=str, default="013_apple")
     args = parser.parse_args()
 
-    ycb_base_folder = os.path.join(args.ycb_base_folder, "SF-ObjectDataset/YCB")
+    ycb_base_folder = os.path.join(args.folder, "SF-ObjectDataset/YCB")
     clamp = YCBMujocoObject(
         ycb_base_folder=ycb_base_folder,
         object_id="051_large_clamp",
@@ -70,7 +71,7 @@ if __name__ == "__main__":
     robot = sim_factory.create_robot(scene, dt=0.0005)
     scene.start()
 
-    publisher = SFPublisher(scene)
+    publisher = SFPublisher(scene, args.host)
 
     robot.set_desired_gripper_width(0.4)  # we set the gripper to clos at the beginning
 
