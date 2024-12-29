@@ -8,7 +8,6 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="127.0.0.1")
-    parser.add_argument("--device", type=str, default="UnityClient")
     args = parser.parse_args()
     host = args.host
 
@@ -72,7 +71,6 @@ if __name__ == "__main__":
         scene,
         host, no_tracked_objects=["table_plane", "table0"],
     )
-    # device = XRDevice(args.device)
 
     duration = 2
 
