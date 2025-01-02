@@ -81,25 +81,25 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Each group will have a mount and a robot on top of it
     origins = define_origins(num_origins=7, spacing=1.25)
 
-    # Origin 1 with Anymal B
-    prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
-    # -- Robot
-    anymal_b = Articulation(ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot"))
+    # # Origin 1 with Anymal B
+    # prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
+    # # -- Robot
+    # anymal_b = Articulation(ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot"))
 
-    # Origin 2 with Anymal C
-    prim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
-    # -- Robot
-    anymal_c = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot"))
+    # # Origin 2 with Anymal C
+    # prim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
+    # # -- Robot
+    # anymal_c = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot"))
 
     # Origin 3 with Anymal D
     prim_utils.create_prim("/World/Origin3", "Xform", translation=origins[2])
     # -- Robot
     anymal_d = Articulation(ANYMAL_D_CFG.replace(prim_path="/World/Origin3/Robot"))
 
-    # Origin 4 with Unitree A1
-    prim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
-    # -- Robot
-    unitree_a1 = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
+    # # Origin 4 with Unitree A1
+    # prim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
+    # # -- Robot
+    # unitree_a1 = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
 
     # there is a bug with go1...
     # # Origin 5 with Unitree Go1
@@ -107,25 +107,25 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # # -- Robot
     # unitree_go1 = Articulation(UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot"))
 
-    # Origin 6 with Unitree Go2
-    prim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
-    # -- Robot
-    unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
+    # # Origin 6 with Unitree Go2
+    # prim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
+    # # -- Robot
+    # unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
 
-    # Origin 7 with Boston Dynamics Spot
-    prim_utils.create_prim("/World/Origin7", "Xform", translation=origins[6])
-    # -- Robot
-    spot = Articulation(SPOT_CFG.replace(prim_path="/World/Origin7/Robot"))
+    # # Origin 7 with Boston Dynamics Spot
+    # prim_utils.create_prim("/World/Origin7", "Xform", translation=origins[6])
+    # # -- Robot
+    # spot = Articulation(SPOT_CFG.replace(prim_path="/World/Origin7/Robot"))
 
     # return the scene information
     scene_entities = {
-        "anymal_b": anymal_b,
-        "anymal_c": anymal_c,
+        # "anymal_b": anymal_b,
+        # "anymal_c": anymal_c,
         "anymal_d": anymal_d,
-        "unitree_a1": unitree_a1,
-        "unitree_go1": unitree_go1,
-        "unitree_go2": unitree_go2,
-        "spot": spot,
+        # "unitree_a1": unitree_a1,
+        # "unitree_go1": unitree_go1,
+        # "unitree_go2": unitree_go2,
+        # "spot": spot,
     }
     return scene_entities, origins
 
