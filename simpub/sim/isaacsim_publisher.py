@@ -405,6 +405,11 @@ class IsaacSimPublisher(SimPublisher):
     ):
         prim_type = prim.GetTypeName()
 
+        # check visibility first
+        # [!] should check each prim, not just here...
+        if str(prim.GetAttribute("visibility").Get()) == "invisible":
+            return
+
         if prim_type == "Mesh":
             # currently each instance of a prototype will create a different mesh object
             # detecting this and use the same mesh object would reduce memory usage
