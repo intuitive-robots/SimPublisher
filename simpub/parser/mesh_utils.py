@@ -43,9 +43,9 @@ class Mesh:
 
 
 def split_mesh_faces(input_mesh: Mesh) -> Mesh:
-    # no need to process if each vertex has only one normal
-    if input_mesh.vertex_buf.shape[0] == input_mesh.normal_buf.shape[0]:
-        return input_mesh
+    # # no need to process if each vertex has only one normal
+    # if input_mesh.vertex_buf.shape[0] == input_mesh.normal_buf.shape[0]:
+    #     return input_mesh
 
     vertex_buf = []
     index_buf = []
@@ -60,7 +60,7 @@ def split_mesh_faces(input_mesh: Mesh) -> Mesh:
                 ]
             )
         else:
-            assert len(index_buf) == 4
+            assert len(tri) == 4
             index_buf.append(
                 [
                     len(vertex_buf) + 0,
@@ -75,6 +75,12 @@ def split_mesh_faces(input_mesh: Mesh) -> Mesh:
         vertex_buf.append(input_mesh.vertex_buf[tri[2]])
         if len(tri) == 4:
             vertex_buf.append(input_mesh.vertex_buf[tri[3]])
+
+        # uv_buf.append(input_mesh.uv_buf[tri[0]])
+        # uv_buf.append(input_mesh.uv_buf[tri[1]])
+        # uv_buf.append(input_mesh.uv_buf[tri[2]])
+        # if len(tri) == 4:
+        #     uv_buf.append(input_mesh.uv_buf[tri[3]])
 
     assert len(vertex_buf) == input_mesh.normal_buf.shape[0]
     assert len(vertex_buf) == len(index_buf) * len(index_buf[0])
