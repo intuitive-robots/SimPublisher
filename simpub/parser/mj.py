@@ -187,8 +187,12 @@ class MjModelParser:
         faces = mj_model.mesh_face[start_face:start_face + num_faces]
         faces = faces.astype(np.int32)
         # normals
-        start_norm = mj_model.mesh_normaladr[mesh_id]
-        num_norm = mj_model.mesh_normalnum[mesh_id]
+        if hasattr(mj_model, "mesh_normaladr"):
+            start_norm = mj_model.mesh_normaladr[mesh_id]
+            num_norm = mj_model.mesh_normalnum[mesh_id]
+        else:
+            start_norm = start_vert
+            num_norm = num_verts
         norms = None
         if num_norm == num_verts:
             norms = mj_model.mesh_normal[start_norm:start_norm + num_norm]

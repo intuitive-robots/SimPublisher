@@ -2,7 +2,7 @@ from typing import Optional, TypedDict, Callable, Dict, List
 import json
 from asyncio import sleep as async_sleep
 
-from simpub.core.net_manager import Publisher
+from simpub.core.net_component import Publisher
 from .xr_device import XRDevice
 
 
@@ -69,6 +69,8 @@ class MetaQuest3(XRDevice):
         self.last_input_data = self.input_data
         self.input_data = json.loads(data)
         if self.last_input_data is None:
+            return
+        if self.input_data is None:
             return
         for button, callbacks in self.button_press_event.items():
             if self.input_data[button] and not self.last_input_data[button]:

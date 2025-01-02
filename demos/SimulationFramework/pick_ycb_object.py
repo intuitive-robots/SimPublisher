@@ -12,6 +12,7 @@ if __name__ == "__main__":
     argparse.ArgumentParser()
     parser = argparse.ArgumentParser()
     parser.add_argument("--folder", type=str)
+    parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--object_id", type=str, default="013_apple")
     args = parser.parse_args()
 
@@ -70,7 +71,7 @@ if __name__ == "__main__":
     robot = sim_factory.create_robot(scene, dt=0.0005)
     scene.start()
 
-    publisher = SFPublisher(scene)
+    publisher = SFPublisher(scene, args.host)
 
     robot.set_desired_gripper_width(0.4)  # we set the gripper to clos at the beginning
 
