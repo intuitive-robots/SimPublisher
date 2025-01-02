@@ -26,7 +26,7 @@ from usdrt import Usd as RtUsd
 from usdrt import UsdGeom as RtGeom
 from dataclasses import dataclass
 
-from simpub.core.net_manager import ByteStreamer
+from simpub.core.net_component import ByteStreamer
 from simpub.core.simpub_server import SimPublisher
 from simpub.simdata import (
     SimMaterial,
@@ -37,6 +37,7 @@ from simpub.simdata import (
     SimTransform,
     SimVisual,
     VisualType,
+    SimAsset,
 )
 
 from simpub.parser.mesh_utils import split_mesh_faces, Mesh as MeshData
@@ -66,9 +67,7 @@ class IsaacSimPublisher(SimPublisher):
         super().__init__(self.sim_scene, host)
 
         # add deformable update streamer
-        self.deform_update_streamer = ByteStreamer(
-            "DeformUpdate", self.get_deform_update
-        )
+        self.deform_update_streamer = ByteStreamer("DeformUpdate", self.get_deform_update)
 
     def parse_scene(self, stage: Usd.Stage) -> SimScene:
         print("parsing stage:", stage)
@@ -168,18 +167,12 @@ class IsaacSimPublisher(SimPublisher):
         # track prims with rigid objects attached
         if (attr := root.GetAttribute("physics:rigidBodyEnabled")) and attr.Get():
             print("\t" * indent + f"tracking {prim_path}")
-            self.tracked_prims.append(
-                {"name": sim_object.name, "prim": root, "prim_path": prim_path}
-            )
+            self.tracked_prims.append({"name": sim_object.name, "prim": root, "prim_path": prim_path})
 
         # track prims with deformable enabled
-        if (
-            attr := root.GetAttribute("physxDeformable:deformableEnabled")
-        ) and attr.Get():
+        if (attr := root.GetAttribute("physxDeformable:deformableEnabled")) and attr.Get():
             print("\t" * indent + f"tracking deform {prim_path}")
-            self.tracked_deform_prims.append(
-                {"name": sim_object.name, "prim": root, "prim_path": prim_path}
-            )
+            self.tracked_deform_prims.append({"name": sim_object.name, "prim": root, "prim_path": prim_path})
 
         child: Usd.Prim
         if root.IsInstance():
@@ -343,30 +336,22 @@ class IsaacSimPublisher(SimPublisher):
 
         mi = MaterialInfo(sim_mat=sim_mat)
 
-        if (
-            use_uvw := mat_shader.GetInput("project_uvw").Get()
-        ) is not None and use_uvw is True:
+        if (use_uvw := mat_shader.GetInput("project_uvw").Get()) is not None and use_uvw is True:
             mi.project_uvw = True
 
-            if (
-                world_coord := mat_shader.GetInput("world_or_object")
-            ) is not None and world_coord is True:
+            if (world_coord := mat_shader.GetInput("world_or_object")) is not None and world_coord is True:
                 mi.use_world_coord = True
 
         return mi
 
-    def compute_projected_uv(
-        self, prim: Usd.Prim, vertex_buf, index_buf, use_world_coord: bool = False
-    ):
+    def compute_projected_uv(self, prim: Usd.Prim, vertex_buf, index_buf, use_world_coord: bool = False):
         assert type(vertex_buf) is np.ndarray
         assert len(vertex_buf.shape) == 2 and vertex_buf.shape[1] in {3, 4}
         assert type(index_buf) is np.ndarray
         assert len(index_buf.shape) == 2 and index_buf.shape[1] in {3, 4}
 
         uvs = []
-        axes = np.array(
-            [[0, 0, 1], [0, 0, -1], [0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0]]
-        )
+        axes = np.array([[0, 0, 1], [0, 0, -1], [0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0]])
         axis_projectors = [
             lambda v: [v[0], v[1]],
             lambda v: [v[0], -v[1]],
@@ -432,12 +417,8 @@ class IsaacSimPublisher(SimPublisher):
 
             vertices = np.asarray(mesh_prim.GetPointsAttr().Get(), dtype=np.float32)
             normals = np.asarray(mesh_prim.GetNormalsAttr().Get(), dtype=np.float32)
-            indices_orig = np.asarray(
-                mesh_prim.GetFaceVertexIndicesAttr().Get(), dtype=np.int32
-            )
-            face_vertex_counts = np.asarray(
-                mesh_prim.GetFaceVertexCountsAttr().Get(), dtype=np.int32
-            )
+            indices_orig = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get(), dtype=np.int32)
+            face_vertex_counts = np.asarray(mesh_prim.GetFaceVertexCountsAttr().Get(), dtype=np.int32)
 
             # assuming there are either only triangular faces or only quad faces...
             assert len(set(face_vertex_counts)) == 1
@@ -478,11 +459,7 @@ class IsaacSimPublisher(SimPublisher):
                     subset_mask = subset.GetIndicesAttr().Get()
                     subset_indices = indices[subset_mask]
                     subset_normals = np.array(
-                        [
-                            normals[j * num_vert_per_face + i]
-                            for i in range(num_vert_per_face)
-                            for j in subset_mask
-                        ]
+                        [normals[j * num_vert_per_face + i] for i in range(num_vert_per_face) for j in subset_mask]
                     )
 
                     # get subset material
@@ -564,95 +541,93 @@ class IsaacSimPublisher(SimPublisher):
 
                 print("\t" * (indent + 1) + "[mesh geometry]")
                 print("\t" * (indent + 1) + f"vertex:   {mesh_obj.vertices.shape}")
-                print(
-                    "\t" * (indent + 1) + f"normal:   {mesh_obj.vertex_normals.shape}"
-                )
+                print("\t" * (indent + 1) + f"normal:   {mesh_obj.vertex_normals.shape}")
                 print("\t" * (indent + 1) + f"index:    {mesh_obj.faces.shape}")
                 if mesh_data.uv_buf is not None:
                     print("\t" * (indent + 1) + f"uv:       {mesh_obj.visual.uv.shape}")
 
-                #######################################################################################
-                if not hasattr(self, "good") and mesh_data.index_buf.shape[1] == 3:
-                    self.good = True
-                    import open3d as o3d
+                # #######################################################################################
+                # if not hasattr(self, "good") and mesh_data.index_buf.shape[1] == 3:
+                #     self.good = True
+                #     import open3d as o3d
 
-                    o3dverts = o3d.utility.Vector3dVector(mesh_obj.vertices)
-                    o3dtris = o3d.utility.Vector3iVector(
-                        mesh_obj.faces.astype(np.int64)
-                    )
+                #     o3dverts = o3d.utility.Vector3dVector(mesh_obj.vertices)
+                #     o3dtris = o3d.utility.Vector3iVector(
+                #         mesh_obj.faces.astype(np.int64)
+                #     )
 
-                    mesh_np = o3d.geometry.TriangleMesh(o3dverts, o3dtris)
+                #     mesh_np = o3d.geometry.TriangleMesh(o3dverts, o3dtris)
 
-                    # mesh_np.vertex_colors = o3d.utility.Vector3dVector(
-                    #     np.random.uniform(0, 1, size=(5, 3))
-                    # )
-                    # mesh_np.compute_vertex_normals()
-                    o3d.visualization.draw_geometries([mesh_np])
-                    # o3d.io.write_triangle_mesh("./a.obj", mesh_np)
-                    # raise SystemError()
+                #     # mesh_np.vertex_colors = o3d.utility.Vector3dVector(
+                #     #     np.random.uniform(0, 1, size=(5, 3))
+                #     # )
+                #     # mesh_np.compute_vertex_normals()
+                #     o3d.visualization.draw_geometries([mesh_np])
+                #     # o3d.io.write_triangle_mesh("./a.obj", mesh_np)
+                #     # raise SystemError()
 
-                    # with open("./c.obj", "w") as f:
-                    #     for v in mesh_obj.vertices:
-                    #         f.write(f"v {v[0]} {v[1]} {v[2]}\n")
-                    #     for i in mesh_obj.faces:
-                    #         f.write(f"f {i[0]} {i[1]} {i[2]}\n")
-                    # raise SystemError
+                #     # with open("./c.obj", "w") as f:
+                #     #     for v in mesh_obj.vertices:
+                #     #         f.write(f"v {v[0]} {v[1]} {v[2]}\n")
+                #     #     for i in mesh_obj.faces:
+                #     #         f.write(f"f {i[0]} {i[1]} {i[2]}\n")
+                #     # raise SystemError
 
-                #######################################################################################
+                # #######################################################################################
 
-                #######################################################################################
+                # #######################################################################################
 
-                mesh = SimMesh.create_mesh(
-                    scene=self.sim_scene,
-                    vertices=mesh_obj.vertices,
-                    faces=mesh_obj.faces,
-                    # vertex_normals=mesh_obj.vertex_normals,
-                )
-
-                # # fill some buffers
-                # bin_buffer = io.BytesIO()
-
-                # # Vertices
-                # verts = mesh_obj.vertices.astype(np.float32)
-                # verts = verts.flatten()
-                # vertices_layout = bin_buffer.tell(), verts.shape[0]
-                # bin_buffer.write(verts)
-
-                # # Indices
-                # indices = mesh_obj.faces.astype(np.int32)
-                # indices = indices.flatten()
-                # indices_layout = bin_buffer.tell(), indices.shape[0]
-                # bin_buffer.write(indices)
-
-                # bin_data = bin_buffer.getvalue()
-                # hash = md5(bin_data).hexdigest()
-
-                # mesh = SimMesh(
-                #     indicesLayout=indices_layout,
-                #     verticesLayout=vertices_layout,
-                #     normalsLayout=(0, 0),
-                #     uvLayout=(0, 0),
-                #     hash=hash,
+                # mesh = SimMesh.create_mesh(
+                #     scene=self.sim_scene,
+                #     vertices=mesh_obj.vertices,
+                #     faces=mesh_obj.faces,
+                #     # vertex_normals=mesh_obj.vertex_normals,
                 # )
 
-                # assert self.sim_scene is not None
-                # # self.sim_scene.meshes.append(mesh)
-                # self.sim_scene.raw_data[mesh.hash] = bin_data
+                # # # fill some buffers
+                # # bin_buffer = io.BytesIO()
 
-                sim_mesh = SimVisual(
-                    name=mesh.hash,
-                    type=VisualType.MESH,
-                    mesh=mesh,
-                    material=SimMaterial(color=[1.0, 1.0, 1.0, 1.0]),
-                    trans=SimTransform(),
-                )
-                #######################################################################################
+                # # # Vertices
+                # # verts = mesh_obj.vertices.astype(np.float32)
+                # # verts = verts.flatten()
+                # # vertices_layout = bin_buffer.tell(), verts.shape[0]
+                # # bin_buffer.write(verts)
 
-                # sim_mesh = self.build_mesh_buffer(mesh_obj)
+                # # # Indices
+                # # indices = mesh_obj.faces.astype(np.int32)
+                # # indices = indices.flatten()
+                # # indices_layout = bin_buffer.tell(), indices.shape[0]
+                # # bin_buffer.write(indices)
 
-                # if mesh_info["material"] is not None:
-                #     sim_mesh.material = mesh_info["material"]
-                #     print("\t" * (indent + 1) + f"material: {sim_mesh.material}")
+                # # bin_data = bin_buffer.getvalue()
+                # # hash = md5(bin_data).hexdigest()
+
+                # # mesh = SimMesh(
+                # #     indicesLayout=indices_layout,
+                # #     verticesLayout=vertices_layout,
+                # #     normalsLayout=(0, 0),
+                # #     uvLayout=(0, 0),
+                # #     hash=hash,
+                # # )
+
+                # # assert self.sim_scene is not None
+                # # # self.sim_scene.meshes.append(mesh)
+                # # self.sim_scene.raw_data[mesh.hash] = bin_data
+
+                # sim_mesh = SimVisual(
+                #     name=mesh.hash,
+                #     type=VisualType.MESH,
+                #     mesh=mesh,
+                #     material=SimMaterial(color=[1.0, 1.0, 1.0, 1.0]),
+                #     trans=SimTransform(),
+                # )
+                # #######################################################################################
+
+                sim_mesh = self.build_mesh_buffer(mesh_obj)
+
+                if mesh_info["material"] is not None:
+                    sim_mesh.material = mesh_info["material"]
+                    print("\t" * (indent + 1) + f"material: {sim_mesh.material}")
 
                 sim_obj.visuals.append(sim_mesh)
 
@@ -695,13 +670,9 @@ class IsaacSimPublisher(SimPublisher):
 
             capsule_mesh = trimesh.creation.capsule(height=height, radius=radius)
             if axis == "Y":
-                capsule_mesh.apply_transform(
-                    trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0])
-                )
+                capsule_mesh.apply_transform(trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0]))
             elif axis == "X":
-                capsule_mesh.apply_transform(
-                    trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0])
-                )
+                capsule_mesh.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
 
             # scale/translation/rotation not handled,
             # since it seems that isaac lab won't modify them...
@@ -721,17 +692,11 @@ class IsaacSimPublisher(SimPublisher):
             radius = cap_prim.GetRadiusAttr().Get()
 
             cone_mesh = trimesh.creation.cone(height=height, radius=radius)
-            cone_mesh.apply_transform(
-                trimesh.transformations.translation_matrix([0, 0, -height * 0.5])
-            )
+            cone_mesh.apply_transform(trimesh.transformations.translation_matrix([0, 0, -height * 0.5]))
             if axis == "Y":
-                cone_mesh.apply_transform(
-                    trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0])
-                )
+                cone_mesh.apply_transform(trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0]))
             elif axis == "X":
-                cone_mesh.apply_transform(
-                    trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0])
-                )
+                cone_mesh.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
 
             # scale/translation/rotation not handled,
             # since it seems that isaac lab won't modify them...
@@ -752,13 +717,9 @@ class IsaacSimPublisher(SimPublisher):
 
             cylinder_mesh = trimesh.creation.cylinder(height=height, radius=radius)
             if axis == "Y":
-                cylinder_mesh.apply_transform(
-                    trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0])
-                )
+                cylinder_mesh.apply_transform(trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0]))
             elif axis == "X":
-                cylinder_mesh.apply_transform(
-                    trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0])
-                )
+                cylinder_mesh.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
 
             # scale/translation/rotation not handled,
             # since it seems that isaac lab won't modify them...
@@ -802,20 +763,17 @@ class IsaacSimPublisher(SimPublisher):
         # Vertices
         verts = mesh_obj.vertices.astype(np.float32)
         verts = verts.flatten()
-        vertices_layout = bin_buffer.tell(), verts.shape[0]
-        bin_buffer.write(verts)
-
-        # Normals
-        norms = mesh_obj.vertex_normals.astype(np.float32)
-        norms = norms.flatten()
-        normal_layout = bin_buffer.tell(), norms.shape[0]
-        bin_buffer.write(norms)
+        vertices_layout = SimAsset.write_to_buffer(bin_buffer, verts)
 
         # Indices
         indices = mesh_obj.faces.astype(np.int32)
         indices = indices.flatten()
-        indices_layout = bin_buffer.tell(), indices.shape[0]
-        bin_buffer.write(indices)
+        indices_layout = SimAsset.write_to_buffer(bin_buffer, indices)
+
+        # Normals
+        norms = mesh_obj.vertex_normals.astype(np.float32)
+        norms = norms.flatten()
+        normal_layout = SimAsset.write_to_buffer(bin_buffer, norms)
 
         # Texture coords
         uv_layout = (0, 0)
@@ -823,8 +781,7 @@ class IsaacSimPublisher(SimPublisher):
             uvs = mesh_obj.visual.uv.astype(np.float32)
             uvs[:, 1] = 1 - uvs[:, 1]
             uvs = uvs.flatten()
-            uv_layout = bin_buffer.tell(), uvs.shape[0]
-            bin_buffer.write(uvs)
+            uv_layout = SimAsset.write_to_buffer(bin_buffer, uvs)
 
         bin_data = bin_buffer.getvalue()
         hash = md5(bin_data).hexdigest()
@@ -926,9 +883,7 @@ class IsaacSimPublisher(SimPublisher):
             prim_path = tracked_prim["prim_path"]
 
             vertices = np.asarray(
-                self.rt_stage.GetPrimAtPath(prim_path)
-                .GetAttribute(RtGeom.Tokens.points)
-                .Get(),
+                self.rt_stage.GetPrimAtPath(prim_path).GetAttribute(RtGeom.Tokens.points).Get(),
                 dtype=np.float32,
             )
             vertices = vertices[:, [1, 2, 0]]
