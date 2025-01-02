@@ -35,10 +35,7 @@ class Mesh:
         # assert self.vertex_buf.shape[0] <= self.normal_buf.shape[0]
 
         # we must have one normal for each index (a vertex on a face)
-        assert (
-            self.normal_buf.shape[0]
-            == self.index_buf.shape[0] * self.index_buf.shape[1]
-        )
+        assert self.normal_buf.shape[0] == self.index_buf.shape[0] * self.index_buf.shape[1]
 
         # the same for uv
         if self.uv_buf is not None:
