@@ -523,6 +523,7 @@ class IsaacSimPublisher(SimPublisher):
 
             for mesh_info in mesh_info_list:
                 mesh_data = split_mesh_faces(mesh_info["mesh"])
+                # mesh_data = mesh_info["mesh"]
 
                 texture_visual = None
                 if mesh_data.uv_buf is not None:
@@ -530,14 +531,14 @@ class IsaacSimPublisher(SimPublisher):
 
                 mesh_obj = trimesh.Trimesh(
                     vertices=mesh_data.vertex_buf,
-                    vertex_normals=mesh_data.normal_buf,
+                    # vertex_normals=mesh_data.normal_buf,
                     faces=mesh_data.index_buf,
                     visual=texture_visual,
-                    process=False,
+                    process=True,
                 )
-                # mesh_obj.fix_normals()
-                # trimesh.repair.fix_winding(mesh_obj)
-                # trimesh.repair.fix_inversion(mesh_obj, True)
+                mesh_obj.fix_normals()
+                trimesh.repair.fix_winding(mesh_obj)
+                trimesh.repair.fix_inversion(mesh_obj, True)
 
                 print("\t" * (indent + 1) + "[mesh geometry]")
                 print("\t" * (indent + 1) + f"vertex:   {mesh_obj.vertices.shape}")
@@ -546,34 +547,38 @@ class IsaacSimPublisher(SimPublisher):
                 if mesh_data.uv_buf is not None:
                     print("\t" * (indent + 1) + f"uv:       {mesh_obj.visual.uv.shape}")
 
-                # #######################################################################################
-                # if not hasattr(self, "good") and mesh_data.index_buf.shape[1] == 3:
-                #     self.good = True
-                #     import open3d as o3d
+                # # #######################################################################################
+                # if mesh_data.index_buf.shape[1] == 3:
+                #     # import open3d as o3d
 
-                #     o3dverts = o3d.utility.Vector3dVector(mesh_obj.vertices)
-                #     o3dtris = o3d.utility.Vector3iVector(
-                #         mesh_obj.faces.astype(np.int64)
-                #     )
+                #     # o3dverts = o3d.utility.Vector3dVector(mesh_obj.vertices)
+                #     # o3dtris = o3d.utility.Vector3iVector(mesh_obj.faces.astype(np.int64))
 
-                #     mesh_np = o3d.geometry.TriangleMesh(o3dverts, o3dtris)
-
-                #     # mesh_np.vertex_colors = o3d.utility.Vector3dVector(
-                #     #     np.random.uniform(0, 1, size=(5, 3))
-                #     # )
+                #     # mesh_np = o3d.geometry.TriangleMesh(o3dverts, o3dtris)
                 #     # mesh_np.compute_vertex_normals()
-                #     o3d.visualization.draw_geometries([mesh_np])
-                #     # o3d.io.write_triangle_mesh("./a.obj", mesh_np)
-                #     # raise SystemError()
 
-                #     # with open("./c.obj", "w") as f:
-                #     #     for v in mesh_obj.vertices:
-                #     #         f.write(f"v {v[0]} {v[1]} {v[2]}\n")
-                #     #     for i in mesh_obj.faces:
-                #     #         f.write(f"f {i[0]} {i[1]} {i[2]}\n")
+                #     # # mesh_np.vertex_colors = o3d.utility.Vector3dVector(
+                #     # #     np.random.uniform(0, 1, size=(5, 3))
+                #     # # )
+                #     # # mesh_np.compute_vertex_normals()
+                #     # o3d.visualization.draw_geometries([mesh_np])
+                #     # # o3d.io.write_triangle_mesh("./a.obj", mesh_np)
+                #     # # raise SystemError()
+
+                #     # # mesh_obj.vertices = np.asarray(mesh_np.vertices)
+                #     # # mesh_obj.faces = np.asarray(mesh_np.triangles)
+                #     # # mesh_obj.vertex_normals = np.asarray(mesh_np.vertex_normals)
+
+                #     with open(f"./{uuid.uuid4()}.obj", "w") as f:
+                #         for v in mesh_obj.vertices:
+                #             f.write(f"v {v[0]} {v[1]} {v[2]}\n")
+                #         for vn in mesh_obj.vertex_normals:
+                #             f.write(f"vn {vn[0]} {vn[1]} {vn[2]}\n")
+                #         for i in mesh_obj.faces:
+                #             f.write(f"f {i[0]+1} {i[1]+1} {i[2]+1}\n")
                 #     # raise SystemError
 
-                # #######################################################################################
+                # # #######################################################################################
 
                 # #######################################################################################
 
@@ -771,9 +776,9 @@ class IsaacSimPublisher(SimPublisher):
         indices_layout = SimAsset.write_to_buffer(bin_buffer, indices)
 
         # Normals
-        norms = mesh_obj.vertex_normals.astype(np.float32)
-        norms = norms.flatten()
-        normal_layout = SimAsset.write_to_buffer(bin_buffer, norms)
+        normals = mesh_obj.vertex_normals.astype(np.float32)
+        normals = normals.flatten()
+        normal_layout = SimAsset.write_to_buffer(bin_buffer, normals)
 
         # Texture coords
         uv_layout = (0, 0)

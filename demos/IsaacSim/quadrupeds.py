@@ -21,9 +21,7 @@ import time
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(
-    description="This script demonstrates different legged robots."
-)
+parser = argparse.ArgumentParser(description="This script demonstrates different legged robots.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -62,15 +60,9 @@ def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
     # create a grid of origins
     num_cols = np.floor(np.sqrt(num_origins))
     num_rows = np.ceil(num_origins / num_cols)
-    xx, yy = torch.meshgrid(
-        torch.arange(num_rows), torch.arange(num_cols), indexing="xy"
-    )
-    env_origins[:, 0] = (
-        spacing * xx.flatten()[:num_origins] - spacing * (num_rows - 1) / 2
-    )
-    env_origins[:, 1] = (
-        spacing * yy.flatten()[:num_origins] - spacing * (num_cols - 1) / 2
-    )
+    xx, yy = torch.meshgrid(torch.arange(num_rows), torch.arange(num_cols), indexing="xy")
+    env_origins[:, 0] = spacing * xx.flatten()[:num_origins] - spacing * (num_rows - 1) / 2
+    env_origins[:, 1] = spacing * yy.flatten()[:num_origins] - spacing * (num_cols - 1) / 2
     env_origins[:, 2] = 0.0
     # return the origins
     return env_origins.tolist()
@@ -109,19 +101,15 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # # -- Robot
     # unitree_a1 = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
 
-    # # Origin 5 with Unitree Go1
-    # prim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
-    # # -- Robot
-    # unitree_go1 = Articulation(
-    #     UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot")
-    # )
-
-    # Origin 6 with Unitree Go2
-    prim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
+    # Origin 5 with Unitree Go1
+    prim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
     # -- Robot
-    unitree_go2 = Articulation(
-        UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot")
-    )
+    unitree_go1 = Articulation(UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot"))
+
+    # # Origin 6 with Unitree Go2
+    # prim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
+    # # -- Robot
+    # unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
 
     # # Origin 7 with Boston Dynamics Spot
     # prim_utils.create_prim("/World/Origin7", "Xform", translation=origins[6])
@@ -134,8 +122,8 @@ def design_scene() -> tuple[dict, list[list[float]]]:
         # "anymal_c": anymal_c,
         # "anymal_d": anymal_d,
         # "unitree_a1": unitree_a1,
-        # "unitree_go1": unitree_go1,
-        "unitree_go2": unitree_go2,
+        "unitree_go1": unitree_go1,
+        # "unitree_go2": unitree_go2,
         # "spot": spot,
     }
     return scene_entities, origins
@@ -176,10 +164,7 @@ def run_simulator(
         # apply default actions to the quadrupedal robots
         for robot in entities.values():
             # generate random joint positions
-            joint_pos_target = (
-                robot.data.default_joint_pos
-                + torch.randn_like(robot.data.joint_pos) * 0.1
-            )
+            joint_pos_target = robot.data.default_joint_pos + torch.randn_like(robot.data.joint_pos) * 0.1
             # apply action to the robot
             robot.set_joint_position_target(joint_pos_target)
             # write data to sim
