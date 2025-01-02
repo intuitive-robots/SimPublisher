@@ -16,6 +16,7 @@ This script demonstrates different legged robots.
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import math
 import time
 
 from omni.isaac.lab.app import AppLauncher
@@ -37,18 +38,26 @@ import numpy as np
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.lab.sim as sim_utils
 import torch
+from omni.isaac.core.utils.rotations import euler_angles_to_quat
 from omni.isaac.lab.assets import Articulation
-
-##
-# Pre-defined configs
-##
-from omni.isaac.lab_assets.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
-from omni.isaac.lab_assets.spot import SPOT_CFG  # isort:skip
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.lab_assets import (
+    FRANKA_PANDA_CFG,
+    G1_MINIMAL_CFG,
+    H1_MINIMAL_CFG,
+    KINOVA_GEN3_N7_CFG,
+    KINOVA_JACO2_N6S300_CFG,
+    KINOVA_JACO2_N7S300_CFG,
+    SAWYER_CFG,
+    UR10_CFG,
+)
+from omni.isaac.lab_assets.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG
+from omni.isaac.lab_assets.spot import SPOT_CFG
 from omni.isaac.lab_assets.unitree import (
     UNITREE_A1_CFG,
     UNITREE_GO1_CFG,
     UNITREE_GO2_CFG,
-)  # isort:skip
+)
 
 from simpub.sim.isaacsim_publisher import IsaacSimPublisher
 
@@ -57,15 +66,15 @@ def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
     """Defines the origins of the scene."""
     # create tensor based on number of environments
     env_origins = torch.zeros(num_origins, 3)
-    # create a grid of origins
-    num_cols = np.floor(np.sqrt(num_origins))
-    num_rows = np.ceil(num_origins / num_cols)
-    xx, yy = torch.meshgrid(torch.arange(num_rows), torch.arange(num_cols), indexing="xy")
-    env_origins[:, 0] = spacing * xx.flatten()[:num_origins] - spacing * (num_rows - 1) / 2
-    env_origins[:, 1] = spacing * yy.flatten()[:num_origins] - spacing * (num_cols - 1) / 2
-    env_origins[:, 2] = 0.0
+    env_quats = torch.zeros(num_origins, 4)
+    # compute origins
+    x = 0
+    for i in range(num_origins):
+        env_origins[i, 0] = x
+        env_quats[i, :] = torch.tensor(euler_angles_to_quat([0, 0, -0.5 * math.pi]))
+        x += spacing
     # return the origins
-    return env_origins.tolist()
+    return env_origins.tolist(), env_quats.tolist()
 
 
 def design_scene() -> tuple[dict, list[list[float]]]:
@@ -79,54 +88,179 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # Create separate groups called "Origin1", "Origin2", "Origin3"
     # Each group will have a mount and a robot on top of it
-    origins = define_origins(num_origins=7, spacing=1.25)
+    origin_x = 0
+    origins = []
+    orientation = euler_angles_to_quat([0, 0, 0.5 * math.pi])
+    i_origin = -1
+    scene_entities = {}
 
-    # # Origin 1 with Anymal B
-    # prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
-    # # -- Robot
-    # anymal_b = Articulation(ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot"))
+    #
+    # quadrupeds
+    #
 
-    # # Origin 2 with Anymal C
-    # prim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
-    # # -- Robot
-    # anymal_c = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot"))
+    # Origin 1 with Anymal B
+    i_origin += 1
+    origins.append([origin_x, 0, 0])
+    prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
+    # -- Robot
+    anymal_b_cfg = ANYMAL_B_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
+    anymal_b_cfg.init_state.rot = orientation
+    anymal_b = Articulation(cfg=anymal_b_cfg)
+    scene_entities["anymal_b"] = anymal_b
+
+    # Origin 2 with Anymal C
+    i_origin += 1
+    origin_x += 1.0
+    origins.append([origin_x, 0, 0])
+    prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
+    # -- Robot
+    anymal_c_cfg = ANYMAL_C_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
+    anymal_c_cfg.init_state.rot = orientation
+    anymal_c = Articulation(cfg=anymal_c_cfg)
+    scene_entities["anymal_c"] = anymal_c
 
     # Origin 3 with Anymal D
-    prim_utils.create_prim("/World/Origin3", "Xform", translation=origins[2])
+    i_origin += 1
+    origin_x += 1.0
+    origins.append([origin_x, 0, 0])
+    prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
     # -- Robot
-    anymal_d = Articulation(ANYMAL_D_CFG.replace(prim_path="/World/Origin3/Robot"))
+    anymal_d_cfg = ANYMAL_D_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
+    anymal_d_cfg.init_state.rot = orientation
+    anymal_d = Articulation(cfg=anymal_d_cfg)
+    scene_entities["anymal_d"] = anymal_d
 
-    # # Origin 4 with Unitree A1
-    # prim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
-    # # -- Robot
-    # unitree_a1 = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
+    # Origin 4 with Unitree A1
+    i_origin += 1
+    origin_x += 0.7
+    origins.append([origin_x, 0, 0])
+    prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
+    # -- Robot
+    unitree_a1_cfg = UNITREE_A1_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
+    unitree_a1_cfg.init_state.rot = orientation
+    unitree_a1 = Articulation(cfg=unitree_a1_cfg)
+    scene_entities["unitree_a1"] = unitree_a1
 
-    # there is a bug with go1...
-    # # Origin 5 with Unitree Go1
-    # prim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
-    # # -- Robot
-    # unitree_go1 = Articulation(UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot"))
+    # Origin 5 with Unitree Go2
+    i_origin += 1
+    origin_x += 0.7
+    origins.append([origin_x, 0, 0])
+    prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
+    # -- Robot
+    unitree_go2_cfg = UNITREE_GO2_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
+    unitree_go2_cfg.init_state.rot = orientation
+    unitree_go2 = Articulation(cfg=unitree_go2_cfg)
+    scene_entities["unitree_go2"] = unitree_go2
 
-    # # Origin 6 with Unitree Go2
-    # prim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
-    # # -- Robot
-    # unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
+    # Origin 6 with Boston Dynamics Spot
+    i_origin += 1
+    origin_x += 0.7
+    origins.append([origin_x, 0, 0])
+    prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
+    # -- Robot
+    spot_cfg = SPOT_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
+    spot_cfg.init_state.rot = orientation
+    spot = Articulation(cfg=spot_cfg)
+    scene_entities["spot"] = spot
 
-    # # Origin 7 with Boston Dynamics Spot
-    # prim_utils.create_prim("/World/Origin7", "Xform", translation=origins[6])
-    # # -- Robot
-    # spot = Articulation(SPOT_CFG.replace(prim_path="/World/Origin7/Robot"))
+    #
+    # robot arms
+    #
+
+    # Franka Panda
+    i_origin += 1
+    origin_x += 0.7
+    origins.append([origin_x, 0, 0])
+    prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
+    # -- Table
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
+    cfg.func(f"/World/Origin{i_origin}/Table", cfg, translation=(0.55, 0.0, 1.05))
+    # -- Robot
+    franka_arm_cfg = FRANKA_PANDA_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
+    franka_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
+    franka_arm_cfg.init_state.rot = orientation
+    franka_panda = Articulation(cfg=franka_arm_cfg)
+    scene_entities["franka_panda"] = franka_panda
+
+    # UR10
+    i_origin += 1
+    origin_x += 1.5
+    origins.append([origin_x, 0, 0])
+    prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
+    # -- Table
+    cfg = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(2.0, 2.0, 2.0)
+    )
+    cfg.func(f"/World/Origin{i_origin}/Table", cfg, translation=(0.0, 0.0, 1.03))
+    # -- Robot
+    ur10_cfg = UR10_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
+    ur10_cfg.init_state.pos = (0.0, 0.0, 1.03)
+    ur10_cfg.init_state.rot = orientation
+    ur10 = Articulation(cfg=ur10_cfg)
+    scene_entities["ur10"] = ur10
+
+    # Sawyer
+    i_origin += 1
+    origin_x += 0.7
+    origins.append([origin_x, 0, 0])
+    prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
+    # -- Table
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
+    cfg.func(f"/World/Origin{i_origin}/Table", cfg, translation=(0.55, 0.0, 1.05))
+    # -- Robot
+    kinova_arm_cfg = KINOVA_GEN3_N7_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
+    kinova_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
+    kinova_arm_cfg.init_state.rot = orientation
+    kinova_gen3n7 = Articulation(cfg=kinova_arm_cfg)
+    scene_entities["kinova_gen3n7"] = kinova_gen3n7
+
+    # Kinova Gen3 (7-Dof) arm
+    i_origin += 1
+    origin_x += 1.5
+    origins.append([origin_x, 0, 0])
+    prim_utils.create_prim(
+        f"/World/Origin{i_origin}",
+        "Xform",
+        translation=origins[-1],
+        orientation=orientation,
+    )
+    # -- Table
+    cfg = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(2.0, 2.0, 2.0)
+    )
+    cfg.func(f"/World/Origin{i_origin}/Table", cfg, translation=(0.0, 0.0, 1.03))
+    # -- Robot
+    sawyer_arm_cfg = SAWYER_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
+    sawyer_arm_cfg.init_state.pos = (0.0, 0.0, 1.03)
+    sawyer_arm_cfg.init_state.rot = orientation
+    sawyer = Articulation(cfg=sawyer_arm_cfg)
+    scene_entities["sawyer"] = sawyer
+
+    #
+    # humanoid robots
+    #
+
+    # H1
+    i_origin += 1
+    origin_x += 0.7
+    origins.append([origin_x, 0, 0])
+    prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
+    h1_cfg = H1_MINIMAL_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
+    h1_cfg.init_state.rot = orientation
+    h1 = Articulation(cfg=h1_cfg)
+    scene_entities["h1"] = h1
+
+    # G1
+    i_origin += 1
+    origin_x += 1.0
+    origins.append([origin_x, 0, 0])
+    prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
+    g1_cfg = G1_MINIMAL_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
+    g1_cfg.init_state.rot = orientation
+    g1 = Articulation(cfg=g1_cfg)
+    scene_entities["g1"] = g1
 
     # return the scene information
-    scene_entities = {
-        # "anymal_b": anymal_b,
-        # "anymal_c": anymal_c,
-        "anymal_d": anymal_d,
-        # "unitree_a1": unitree_a1,
-        # "unitree_go1": unitree_go1,
-        # "unitree_go2": unitree_go2,
-        # "spot": spot,
-    }
     return scene_entities, origins
 
 
