@@ -2,33 +2,39 @@ import io
 import math
 import os
 import random
-from hashlib import md5
 import uuid
+from dataclasses import dataclass
+from hashlib import md5
 
 import numpy as np
+import numpy.typing as npt
 import omni
-import trimesh.visual
 import omni.usd
-from PIL import Image
 import pxr
 import requests
 import trimesh
+import trimesh.visual
+from omni.isaac.core.utils.rotations import quat_to_rot_matrix
+from omni.isaac.core.prims import XFormPrim
 from omni.isaac.lab.utils.assets import (
     ISAAC_NUCLEUS_DIR,
     ISAACLAB_NUCLEUS_DIR,
     NUCLEUS_ASSET_ROOT_DIR,
     NVIDIA_NUCLEUS_DIR,
 )
+from PIL import Image
 from pxr import Gf, Usd, UsdGeom, UsdShade, UsdUtils
 from tabulate import tabulate
 from usdrt import Rt
 from usdrt import Usd as RtUsd
 from usdrt import UsdGeom as RtGeom
-from dataclasses import dataclass
 
 from simpub.core.net_component import ByteStreamer
 from simpub.core.simpub_server import SimPublisher
+from simpub.parser.mesh_utils import Mesh as MeshData
+from simpub.parser.mesh_utils import split_mesh_faces
 from simpub.simdata import (
+    SimAsset,
     SimMaterial,
     SimMesh,
     SimObject,
@@ -37,10 +43,7 @@ from simpub.simdata import (
     SimTransform,
     SimVisual,
     VisualType,
-    SimAsset,
 )
-
-from simpub.parser.mesh_utils import split_mesh_faces, Mesh as MeshData
 
 
 @dataclass
@@ -246,20 +249,18 @@ class IsaacSimPublisher(SimPublisher):
 
         return translate, rot, scale
 
-    def compute_world_trans(self, prim: Usd.Prim):
-        # not really necessary...
-        timeline = omni.timeline.get_timeline_interface()
-        timecode = timeline.get_current_time() * timeline.get_time_codes_per_seconds()
+    def compute_world_trans(self, prim: Usd.Prim) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
+        prim = XFormPrim(str(prim.GetPath()))
+        assert prim.is_valid()
 
-        # extract local transformation
-        # [BUG] omni.usd.get_local_transform_matrix returns wrong rotation, use get_local_transform_SRT instead
-        trans_mat = omni.usd.get_local_transform_matrix(prim, timecode)
-        # sc, ro, roo, tr = omni.usd.get_local_transform_SRT(prim, timecode)
+        pos, quat = prim.get_world_pose()
+        scale = prim.get_world_scale()
 
-        trans_mat = np.array(trans_mat)
-        print(trans_mat)
-        raise SystemError("good!")
-        return trans_mat
+        return (
+            pos.cpu().numpy(),
+            quat_to_rot_matrix(quat.cpu().numpy()),
+            scale.cpu().numpy(),
+        )
 
     def parse_prim_material(
         self,
@@ -339,7 +340,7 @@ class IsaacSimPublisher(SimPublisher):
         if (use_uvw := mat_shader.GetInput("project_uvw").Get()) is not None and use_uvw is True:
             mi.project_uvw = True
 
-            if (world_coord := mat_shader.GetInput("world_or_object")) is not None and world_coord is True:
+            if (world_coord := mat_shader.GetInput("world_or_object").Get()) is not None and world_coord is True:
                 mi.use_world_coord = True
 
         return mi
@@ -369,13 +370,12 @@ class IsaacSimPublisher(SimPublisher):
                 p3 = vertex_buf[tri[3]]
 
             if use_world_coord:
-                world_trans = self.compute_world_trans(prim)
-                print(world_trans)
-                p0 = world_trans @ p0
-                p1 = world_trans @ p1
-                p2 = world_trans @ p2
+                pos, quat, scale = self.compute_world_trans(prim)
+                p0 = quat @ (p0 * scale) + pos
+                p1 = quat @ (p1 * scale) + pos
+                p2 = quat @ (p2 * scale) + pos
                 if len(tri) == 4:
-                    p3 = world_trans @ p3
+                    p3 = quat @ (p3 * scale) + pos
 
             normal = np.cross(p1 - p0, p2 - p0)
             normal /= np.linalg.norm(normal)
@@ -491,6 +491,7 @@ class IsaacSimPublisher(SimPublisher):
                 uvs = None
                 # get uv: compute projected uv with cube mapping
                 if mat_info is not None and mat_info.project_uvw:
+                    # [!] this will compute uv per-index, NOT per-vertex
                     uvs = self.compute_projected_uv(
                         prim=prim,
                         vertex_buf=vertices,
@@ -522,6 +523,7 @@ class IsaacSimPublisher(SimPublisher):
             # create SimMesh objects
 
             for mesh_info in mesh_info_list:
+                # [!] here we expect the uvs to be already per-index
                 mesh_data = split_mesh_faces(mesh_info["mesh"])
                 # mesh_data = mesh_info["mesh"]
 
@@ -569,7 +571,7 @@ class IsaacSimPublisher(SimPublisher):
                 #     # # mesh_obj.faces = np.asarray(mesh_np.triangles)
                 #     # # mesh_obj.vertex_normals = np.asarray(mesh_np.vertex_normals)
 
-                #     with open(f"./{uuid.uuid4()}.obj", "w") as f:
+                #     with open(f"./{prim_path.replace('/','-')}-{uuid.uuid4().hex}.obj", "w") as f:
                 #         for v in mesh_obj.vertices:
                 #             f.write(f"v {v[0]} {v[1]} {v[2]}\n")
                 #         for vn in mesh_obj.vertex_normals:
