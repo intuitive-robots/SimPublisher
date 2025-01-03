@@ -89,6 +89,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Create separate groups called "Origin1", "Origin2", "Origin3"
     # Each group will have a mount and a robot on top of it
     origin_x = 0
+    origin_y = 0
     origins = []
     orientation = euler_angles_to_quat([0, 0, 0.5 * math.pi])
     i_origin = -1
@@ -100,7 +101,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # Origin 1 with Anymal B
     i_origin += 1
-    origins.append([origin_x, 0, 0])
+    origins.append([origin_x, origin_y, 0])
     prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
     # -- Robot
     anymal_b_cfg = ANYMAL_B_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
@@ -110,8 +111,8 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # Origin 2 with Anymal C
     i_origin += 1
-    origin_x += 1.0
-    origins.append([origin_x, 0, 0])
+    origin_x += 1.2
+    origins.append([origin_x, origin_y, 0])
     prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
     # -- Robot
     anymal_c_cfg = ANYMAL_C_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
@@ -121,8 +122,8 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # Origin 3 with Anymal D
     i_origin += 1
-    origin_x += 1.0
-    origins.append([origin_x, 0, 0])
+    origin_x += 1.2
+    origins.append([origin_x, origin_y, 0])
     prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
     # -- Robot
     anymal_d_cfg = ANYMAL_D_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
@@ -132,8 +133,8 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # Origin 4 with Unitree A1
     i_origin += 1
-    origin_x += 0.7
-    origins.append([origin_x, 0, 0])
+    origin_x += 0.9
+    origins.append([origin_x, origin_y, 0])
     prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
     # -- Robot
     unitree_a1_cfg = UNITREE_A1_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
@@ -143,8 +144,8 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # Origin 5 with Unitree Go2
     i_origin += 1
-    origin_x += 0.7
-    origins.append([origin_x, 0, 0])
+    origin_x += 0.9
+    origins.append([origin_x, origin_y, 0])
     prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
     # -- Robot
     unitree_go2_cfg = UNITREE_GO2_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
@@ -154,8 +155,8 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # Origin 6 with Boston Dynamics Spot
     i_origin += 1
-    origin_x += 0.7
-    origins.append([origin_x, 0, 0])
+    origin_x += 0.9
+    origins.append([origin_x, origin_y, 0])
     prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
     # -- Robot
     spot_cfg = SPOT_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
@@ -169,8 +170,9 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # Franka Panda
     i_origin += 1
-    origin_x += 0.7
-    origins.append([origin_x, 0, 0])
+    origin_y -= 2.5
+    origin_x = 0
+    origins.append([origin_x, origin_y, 0])
     prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
     # -- Table
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
@@ -185,7 +187,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # UR10
     i_origin += 1
     origin_x += 1.5
-    origins.append([origin_x, 0, 0])
+    origins.append([origin_x, origin_y, 0])
     prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
     # -- Table
     cfg = sim_utils.UsdFileCfg(
@@ -202,7 +204,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Sawyer
     i_origin += 1
     origin_x += 0.7
-    origins.append([origin_x, 0, 0])
+    origins.append([origin_x, origin_y, 0])
     prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
     # -- Table
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
@@ -217,7 +219,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Kinova Gen3 (7-Dof) arm
     i_origin += 1
     origin_x += 1.5
-    origins.append([origin_x, 0, 0])
+    origins.append([origin_x, origin_y, 0])
     prim_utils.create_prim(
         f"/World/Origin{i_origin}",
         "Xform",
@@ -243,7 +245,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # H1
     i_origin += 1
     origin_x += 0.7
-    origins.append([origin_x, 0, 0])
+    origins.append([origin_x, origin_y, 0])
     prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
     h1_cfg = H1_MINIMAL_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
     h1_cfg.init_state.rot = orientation
@@ -252,8 +254,8 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # G1
     i_origin += 1
-    origin_x += 1.0
-    origins.append([origin_x, 0, 0])
+    origin_x += 0.7
+    origins.append([origin_x, origin_y, 0])
     prim_utils.create_prim(f"/World/Origin{i_origin}", "Xform", translation=origins[-1])
     g1_cfg = G1_MINIMAL_CFG.replace(prim_path=f"/World/Origin{i_origin}/Robot")
     g1_cfg.init_state.rot = orientation
@@ -327,11 +329,13 @@ def main():
     # Play the simulator
     sim.reset()
 
-    _ = IsaacSimPublisher(
-        host="127.0.0.1",
-        stage=sim.stage,
-        ignore_prim_paths=["/World/defaultGroundPlane"],
-    )
+    cmd = input("\n\nstart simpub server? [Y/n] ")
+    if cmd.lower().strip() != "n":
+        _ = IsaacSimPublisher(
+            host="127.0.0.1",
+            stage=sim.stage,
+            ignore_prim_paths=["/World/defaultGroundPlane"],
+        )
 
     # Now we are ready!
     print("[INFO]: Setup complete...")
