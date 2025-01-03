@@ -4,6 +4,7 @@ import os
 import uuid
 from dataclasses import dataclass
 from hashlib import md5
+from timeit import default_timer as timer
 
 import numpy as np
 import numpy.typing as npt
@@ -16,6 +17,7 @@ from omni.isaac.core.prims import XFormPrim
 from omni.isaac.core.utils.rotations import quat_to_rot_matrix
 from PIL import Image
 from pxr import Gf, Usd, UsdGeom, UsdShade, UsdUtils
+from tabulate import tabulate
 from usdrt import Usd as RtUsd
 from usdrt import UsdGeom as RtGeom
 
@@ -34,6 +36,19 @@ from ..simdata import (
 )
 
 
+def time_func(timer_name: str):
+    def decorator(func):
+        def impl(self, *args, **kwargs):
+            time_0 = timer()
+            results = func(self, *args, **kwargs)
+            self.timers[timer_name] += timer() - time_0
+            return results
+
+        return impl
+
+    return decorator
+
+
 @dataclass
 class MaterialInfo:
     sim_mat: SimMaterial
@@ -44,7 +59,6 @@ class MaterialInfo:
         assert self.sim_mat is not None
 
 
-#! todo: separate the parser and the publisher...
 class IsaacSimStageParser:
     def __init__(self, stage: Usd.Stage, ignored_prim_paths: list[str] = []) -> None:
         assert isinstance(stage, Usd.Stage)
@@ -64,6 +78,24 @@ class IsaacSimStageParser:
         self.tracked_prims: list[dict] = []
         self.tracked_deform_prims: list[dict] = []
 
+        # timer logs
+        self.timers = {
+            "parse_prim": 0,
+            "parse_geometry": 0,
+            "parse_material": 0,
+        }
+
+    def get_usdrt_stage(self) -> RtUsd.Stage:
+        return self.rt_stage
+
+    def get_tracked_prims(self) -> tuple[list[dict], list[dict]]:
+        return self.tracked_prims, self.tracked_deform_prims
+
+    def print_timers(self):
+        print("\n\n[*** timers (unit: seconds) ***]")
+        print(tabulate(list(self.timers.items())))
+        print()
+
     def parse_scene(self) -> SimScene:
         print("parsing stage:", self.stage)
 
@@ -73,11 +105,14 @@ class IsaacSimStageParser:
 
         # parse the usd stage
         root_path = "/World"
+        _time0 = timer()
         sim_obj = self.parse_prim_tree(root=self.stage.GetPrimAtPath(root_path))
+        self.timers["parse_prim"] += timer() - _time0
 
         assert sim_obj is not None
         scene.root.children.append(sim_obj)
 
+        self.print_timers()
         return scene
 
     def parse_prim_tree(
@@ -92,7 +127,7 @@ class IsaacSimStageParser:
         if str(root.GetPath()) in self.ignored_prim_paths:
             return
 
-        # define prim types that are not ignored
+        # define prim types to be handled
         if root.GetTypeName() not in {
             "",
             "Xform",
@@ -104,7 +139,7 @@ class IsaacSimStageParser:
             "Cylinder",
             "Sphere",
         }:
-            #! todo: perhaps traverse twice and preserve only prims with meshes as children
+            # TODO: traverse twice and preserve only prims with meshes as children
             return
 
         # filter out colliders prims
@@ -128,15 +163,19 @@ class IsaacSimStageParser:
         )
 
         print(
-            "\t" * indent
-            + f"{prim_path}: {root.GetTypeName()} {root.GetAttribute('purpose').Get()} {sim_object.trans.scale}"
+            "\t" * indent + f"{prim_path}: {root.GetTypeName()} "
+            f"{root.GetAttribute('purpose').Get()} "
+            f"{sim_object.trans.scale}"
         )
 
         # parse material
+        _time0 = timer()
         mat_info = self.parse_prim_material(prim=root, indent=indent)
+        self.timers["parse_material"] += timer() - _time0
         # print("\t" * indent + f"material parsed: {mat_info}")
 
         # parse meshes and other primitive shapes
+        _time0 = timer()
         self.parse_prim_geometries(
             prim=root,
             prim_path=prim_path,
@@ -144,6 +183,7 @@ class IsaacSimStageParser:
             indent=indent,
             mat_info=mat_info or inherited_material,
         )
+        self.timers["parse_geometry"] += timer() - _time0
 
         # track prims with rigid objects attached
         if (attr := root.GetAttribute("physics:rigidBodyEnabled")) and attr.Get():
@@ -228,6 +268,8 @@ class IsaacSimStageParser:
         return translate, rot, scale
 
     def compute_world_trans(self, prim: Usd.Prim) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
+        # TODO: use isaacsim api instead of usd api for getting transformations
+
         prim = XFormPrim(str(prim.GetPath()))
         assert prim.is_valid()
 
@@ -268,13 +310,6 @@ class IsaacSimStageParser:
         mat_shader_prim = mat_prim.GetAllChildren()[0]
         mat_shader = UsdShade.Shader(mat_shader_prim)
 
-        # print("shader inputs:")
-        # input_table = []
-        # for i in mat_shader.GetInputs(onlyAuthored=False):
-        #     # print(i.GetFullName(), "=>", i.Get())
-        #     input_table.append([str(i.GetFullName()), str(i.Get()), str(type(i.Get()))])
-        # print(tabulate(input_table))
-
         diffuse_texture = mat_shader.GetInput("diffuse_texture")
         texture_path = None
         if diffuse_texture.Get() is not None:
@@ -289,8 +324,6 @@ class IsaacSimStageParser:
         sim_mat = SimMaterial(color=diffuse_color + [1])
 
         if texture_path is not None:
-            tex_id = str(uuid.uuid4())
-
             image = None
             if texture_path.startswith(("http://", "https://")):
                 response = requests.get(texture_path)
@@ -324,6 +357,8 @@ class IsaacSimStageParser:
         return mi
 
     def compute_projected_uv(self, prim: Usd.Prim, vertex_buf, index_buf, use_world_coord: bool = False):
+        """project_uvw: cube map for uv"""
+
         assert type(vertex_buf) is np.ndarray
         assert len(vertex_buf.shape) == 2 and vertex_buf.shape[1] in {3, 4}
         assert type(index_buf) is np.ndarray
@@ -363,12 +398,8 @@ class IsaacSimStageParser:
             uvs.append(projector(p0))
             uvs.append(projector(p1))
             uvs.append(projector(p2))
-            # print(p0)
-            # print(p1)
-            # print(p2)
             if len(tri) == 4:
                 uvs.append(projector(p3))
-                # print(p3)
 
         assert len(uvs) == index_buf.shape[0] * index_buf.shape[1]
         return np.array(uvs)
@@ -384,7 +415,6 @@ class IsaacSimStageParser:
         prim_type = prim.GetTypeName()
 
         # check visibility first
-        # [!] should check each prim, not just here...
         if str(prim.GetAttribute("visibility").Get()) == "invisible":
             return
 
@@ -533,6 +563,7 @@ class IsaacSimStageParser:
                     print("\t" * (indent + 1) + f"uv:       {mesh_obj.visual.uv.shape}")
 
                 # # #######################################################################################
+                # # (for debug) export extracted mesh and check
                 # if mesh_data.index_buf.shape[1] == 3:
                 #     # import open3d as o3d
 
@@ -564,54 +595,6 @@ class IsaacSimStageParser:
                 #     # raise SystemError
 
                 # # #######################################################################################
-
-                # #######################################################################################
-
-                # mesh = SimMesh.create_mesh(
-                #     scene=self.sim_scene,
-                #     vertices=mesh_obj.vertices,
-                #     faces=mesh_obj.faces,
-                #     # vertex_normals=mesh_obj.vertex_normals,
-                # )
-
-                # # # fill some buffers
-                # # bin_buffer = io.BytesIO()
-
-                # # # Vertices
-                # # verts = mesh_obj.vertices.astype(np.float32)
-                # # verts = verts.flatten()
-                # # vertices_layout = bin_buffer.tell(), verts.shape[0]
-                # # bin_buffer.write(verts)
-
-                # # # Indices
-                # # indices = mesh_obj.faces.astype(np.int32)
-                # # indices = indices.flatten()
-                # # indices_layout = bin_buffer.tell(), indices.shape[0]
-                # # bin_buffer.write(indices)
-
-                # # bin_data = bin_buffer.getvalue()
-                # # hash = md5(bin_data).hexdigest()
-
-                # # mesh = SimMesh(
-                # #     indicesLayout=indices_layout,
-                # #     verticesLayout=vertices_layout,
-                # #     normalsLayout=(0, 0),
-                # #     uvLayout=(0, 0),
-                # #     hash=hash,
-                # # )
-
-                # # assert self.sim_scene is not None
-                # # # self.sim_scene.meshes.append(mesh)
-                # # self.sim_scene.raw_data[mesh.hash] = bin_data
-
-                # sim_mesh = SimVisual(
-                #     name=mesh.hash,
-                #     type=VisualType.MESH,
-                #     mesh=mesh,
-                #     material=SimMaterial(color=[1.0, 1.0, 1.0, 1.0]),
-                #     trans=SimTransform(),
-                # )
-                # #######################################################################################
 
                 sim_mesh = self.build_mesh_buffer(mesh_obj)
 
