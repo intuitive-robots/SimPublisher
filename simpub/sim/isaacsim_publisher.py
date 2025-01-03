@@ -58,11 +58,13 @@ class MaterialInfo:
 
 #! todo: separate the parser and the publisher...
 class IsaacSimPublisher(SimPublisher):
-    def __init__(self, host: str, stage: Usd.Stage) -> None:
+    def __init__(self, host: str, stage: Usd.Stage, ignore_prim_paths: list[str] = []) -> None:
         # self.sim_scene = None
         # self.rt_stage = None
         self.tracked_prims: list[dict] = []
         self.tracked_deform_prims: list[dict] = []
+
+        self.ignore_prim_paths = set(ignore_prim_paths)
 
         self.parse_scene(stage)
         self.sim_scene.process_sim_obj(self.sim_scene.root)
@@ -113,6 +115,9 @@ class IsaacSimPublisher(SimPublisher):
         inherited_material: MaterialInfo | None = None,
     ) -> SimObject | None:
         """parse the tree starting from a prim"""
+
+        if str(root.GetPath()) in self.ignore_prim_paths:
+            return
 
         # define prim types that are not ignored
         if root.GetTypeName() not in {

@@ -327,7 +327,11 @@ def main():
     # Play the simulator
     sim.reset()
 
-    _ = IsaacSimPublisher(host="127.0.0.1", stage=sim.stage)
+    _ = IsaacSimPublisher(
+        host="127.0.0.1",
+        stage=sim.stage,
+        ignore_prim_paths=["/World/defaultGroundPlane"],
+    )
 
     # Now we are ready!
     print("[INFO]: Setup complete...")
