@@ -21,9 +21,8 @@ class IsaacSimPublisher(SimPublisher):
         self.sim_scene = self.parser.parse_scene()
 
         # set usdrt stage and tracked prims
-        self.rt_stage = self.parser.rt_stage
-        self.tracked_prims = self.parser.tracked_prims
-        self.tracked_deform_prims = self.parser.tracked_deform_prims
+        self.rt_stage = self.parser.get_usdrt_stage()
+        self.tracked_prims, self.tracked_deform_prims = self.parser.get_tracked_prims()
 
         self.sim_scene.process_sim_obj(self.sim_scene.root)
 
