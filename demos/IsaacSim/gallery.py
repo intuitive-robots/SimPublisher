@@ -334,7 +334,7 @@ def main():
         _ = IsaacSimPublisher(
             host="127.0.0.1",
             stage=sim.stage,
-            ignore_prim_paths=["/World/defaultGroundPlane"],
+            ignored_prim_paths=["/World/defaultGroundPlane"],
         )
 
     # Now we are ready!
