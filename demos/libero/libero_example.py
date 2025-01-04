@@ -7,7 +7,7 @@ import os
 from simpub.xr_device.meta_quest3 import MetaQuest3 as MetaQuest3Sim
 from simpub.sim.mj_publisher import MujocoPublisher
 
-
+import libero
 from robosuite import load_controller_config
 import libero.libero.envs.bddl_utils as BDDLUtils
 from libero.libero.envs import TASK_MAPPING
@@ -20,24 +20,28 @@ class RobosuitePublisher(MujocoPublisher):
         super().__init__(
             env.sim.model._model,
             env.sim.data._data,
-            # visible_geoms_groups=[1, 2, 3, 4]
+            visible_geoms_groups=[1, 2, 3, 4]
         )
+
+
+def pick_one_bddl_file(bddl_dataset_name: str = "libero_10", index: int = None) -> str:
+    bddl_path = os.path.join(libero.__path__[0], "libero", "bddl_files", bddl_dataset_name)
+    bddl_files = [file for file in os.listdir(bddl_path) if file.endswith(".bddl")]
+    if index is None:
+        index = np.random.randint(len(bddl_files))
+    return os.path.join(bddl_path, bddl_files[index])
 
 
 if __name__ == "__main__":
     # Get controller config
-    controller_config = load_controller_config(default_controller="OSC_POSE")
-
+    controller_config = load_controller_config(default_controller="JOINT_POSITION")
     # Create argument configuration
     config = {
         "robots": ["Panda"],
         "controller_configs": controller_config,
     }
 
-    bddl_path = "/home/xinkai/repository/LIBERO/libero/libero/bddl_files/"
-    bddl_dataset_name = "libero_10"
-    bddl_name = "LIVING_ROOM_SCENE2_put_both_the_cream_cheese_box_and_the_butter_in_the_basket.bddl"
-    bddl_file = os.path.join(bddl_path, bddl_dataset_name, bddl_name)
+    bddl_file = pick_one_bddl_file("libero_spatial")
     problem_info = BDDLUtils.get_problem_info(bddl_file)
     # Create environment
     problem_name = problem_info["problem_name"]
@@ -62,6 +66,6 @@ if __name__ == "__main__":
     env.reset()
     publisher = RobosuitePublisher(env)
     while True:
-        action = np.random.randn(env.robots[0].dof - 1)  # sample random action
+        action = np.random.randn(env.robots[0].dof)  # sample random action
         obs, reward, done, info = env.step(action)  # take action in the environment
         env.render()  # render on display
