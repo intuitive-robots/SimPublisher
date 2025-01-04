@@ -14,7 +14,7 @@ import traceback
 from .log import logger
 from .utils import IPAddress, TopicName, ServiceName, HashIdentifier
 from .utils import NodeInfo, DISCOVERY_PORT, HEARTBEAT_INTERVAL
-from .utils import EchoHeader, MSG, NodeAddress, NodeTypes
+from .utils import EchoHeader, MSG, NodeAddress
 from .utils import split_byte, get_zmq_socket_port, create_address
 
 
@@ -149,7 +149,7 @@ class NodeManager:
             "name": node_name,
             "nodeID": str(uuid.uuid4()),
             "addr": create_address(host_ip, DISCOVERY_PORT),
-            "type": NodeTypes.MASTER.value,
+            "type": "Master",
             "servicePort": get_zmq_socket_port(self.service_socket),
             "topicPort": get_zmq_socket_port(self.pub_socket),
             "serviceList": [],
