@@ -22,8 +22,12 @@ import argparse
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Pick and lift a teddy bear with a robotic arm.")
-parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
+parser = argparse.ArgumentParser(
+    description="Pick and lift a teddy bear with a robotic arm."
+)
+parser.add_argument(
+    "--num_envs", type=int, default=1, help="Number of environments to simulate."
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -81,17 +85,18 @@ class PickSmWaitTime:
     LIFT_OBJECT = wp.constant(1.0)
     OPEN_GRIPPER = wp.constant(0.0)
 
+
 @wp.kernel
-def infer_state_machine(    
-    dt: wp.array(dtype=float),                          # pyright: ignore[reportInvalidTypeForm]
-    sm_state: wp.array(dtype=int),                      # pyright: ignore[reportInvalidTypeForm]
-    sm_wait_time: wp.array(dtype=float),                # pyright: ignore[reportInvalidTypeForm]
-    ee_pose: wp.array(dtype=wp.transform),              # pyright: ignore[reportInvalidTypeForm]
-    object_pose: wp.array(dtype=wp.transform),          # pyright: ignore[reportInvalidTypeForm]
-    des_object_pose: wp.array(dtype=wp.transform),      # pyright: ignore[reportInvalidTypeForm]
-    des_ee_pose: wp.array(dtype=wp.transform),          # pyright: ignore[reportInvalidTypeForm]
-    gripper_state: wp.array(dtype=float),               # pyright: ignore[reportInvalidTypeForm]
-    offset: wp.array(dtype=wp.transform),               # pyright: ignore[reportInvalidTypeForm]
+def infer_state_machine(
+    dt: wp.array(dtype=float),  # pyright: ignore[reportInvalidTypeForm]
+    sm_state: wp.array(dtype=int),  # pyright: ignore[reportInvalidTypeForm]
+    sm_wait_time: wp.array(dtype=float),  # pyright: ignore[reportInvalidTypeForm]
+    ee_pose: wp.array(dtype=wp.transform),  # pyright: ignore[reportInvalidTypeForm]
+    object_pose: wp.array(dtype=wp.transform),  # pyright: ignore[reportInvalidTypeForm]
+    des_object_pose: wp.array(dtype=wp.transform),  # pyright: ignore[reportInvalidTypeForm]
+    des_ee_pose: wp.array(dtype=wp.transform),  # pyright: ignore[reportInvalidTypeForm]
+    gripper_state: wp.array(dtype=float),  # pyright: ignore[reportInvalidTypeForm]
+    offset: wp.array(dtype=wp.transform),  # pyright: ignore[reportInvalidTypeForm]
 ):
     # retrieve thread id
     tid = wp.tid()
@@ -182,7 +187,9 @@ class PickAndLiftSm:
         self.device = device
         # initialize state machine
         self.sm_dt = torch.full((self.num_envs,), self.dt, device=self.device)
-        self.sm_state = torch.full((self.num_envs,), 0, dtype=torch.int32, device=self.device)
+        self.sm_state = torch.full(
+            (self.num_envs,), 0, dtype=torch.int32, device=self.device
+        )
         self.sm_wait_time = torch.zeros((self.num_envs,), device=self.device)
 
         # desired state
@@ -209,7 +216,12 @@ class PickAndLiftSm:
         self.sm_state[env_ids] = 0
         self.sm_wait_time[env_ids] = 0.0
 
-    def compute(self, ee_pose: torch.Tensor, object_pose: torch.Tensor, des_object_pose: torch.Tensor):
+    def compute(
+        self,
+        ee_pose: torch.Tensor,
+        object_pose: torch.Tensor,
+        des_object_pose: torch.Tensor,
+    ):
         """Compute the desired state of the robot's end-effector and the gripper."""
         # convert all transformations from (w, x, y, z) to (x, y, z, w)
         ee_pose = ee_pose[:, [0, 1, 2, 4, 5, 6, 3]]
@@ -264,25 +276,35 @@ def main():
     actions = torch.zeros(env.unwrapped.action_space.shape, device=env.unwrapped.device)
     actions[:, 3] = 1.0
     # desired rotation after grasping
-    desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
+    desired_orientation = torch.zeros(
+        (env.unwrapped.num_envs, 4), device=env.unwrapped.device
+    )
     desired_orientation[:, 1] = 1.0
 
-    object_grasp_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
+    object_grasp_orientation = torch.zeros(
+        (env.unwrapped.num_envs, 4), device=env.unwrapped.device
+    )
     # z-axis pointing down and 45 degrees rotation
     object_grasp_orientation[:, 1] = 0.9238795
     object_grasp_orientation[:, 2] = -0.3826834
-    object_local_grasp_position = torch.tensor([0.02, -0.08, 0.0], device=env.unwrapped.device)
+    object_local_grasp_position = torch.tensor(
+        [0.02, -0.08, 0.0], device=env.unwrapped.device
+    )
 
     # create state machine
-    pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
-    
-    if env.sim is not None and env.sim.stage is not None:
+    pick_sm = PickAndLiftSm(
+        env_cfg.sim.dt * env_cfg.decimation,
+        env.unwrapped.num_envs,
+        env.unwrapped.device,
+    )
+
+    if env.unwrapped.sim is not None and env.unwrapped.sim.stage is not None:
         print("parsing usd stage...")
-        publisher = IsaacSimPublisher(host="192.168.170.22", stage=env.sim.stage)
+        publisher = IsaacSimPublisher(host="127.0.0.1", stage=env.unwrapped.sim.stage)
         # publisher = IsaacSimPublisher(host="127.0.0.1", stage=env.sim.stage)
 
     while simulation_app.is_running():
-        # run everything in inference mode 
+        # run everything in inference mode
         with torch.inference_mode():
             # step environment
             dones = env.step(actions)[-2]
@@ -290,7 +312,10 @@ def main():
             # observations
             # -- end-effector frame
             ee_frame_sensor = env.unwrapped.scene["ee_frame"]
-            tcp_rest_position = ee_frame_sensor.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
+            tcp_rest_position = (
+                ee_frame_sensor.data.target_pos_w[..., 0, :].clone()
+                - env.unwrapped.scene.env_origins
+            )
             tcp_rest_orientation = ee_frame_sensor.data.target_quat_w[..., 0, :].clone()
             # -- object frame
             object_data: RigidObjectData = env.unwrapped.scene["object"].data
@@ -299,7 +324,9 @@ def main():
             object_position += object_local_grasp_position
 
             # -- target object frame
-            desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
+            desired_position = env.unwrapped.command_manager.get_command("object_pose")[
+                ..., :3
+            ]
 
             # advance state machine
             actions = pick_sm.compute(
@@ -314,6 +341,7 @@ def main():
 
     # close the environment
     env.close()
+
 
 if __name__ == "__main__":
     # run the main function
