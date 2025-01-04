@@ -6,10 +6,8 @@
 import argparse
 import numpy as np
 import torch
-import carb
-
 from omni.isaac.lab.app import AppLauncher
-import gymnasium as gym
+
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -25,6 +23,9 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 # isaac sim modules are only available after launching it (?)
+
+import carb
+import gymnasium as gym
 
 from pxr import Usd
 
@@ -99,7 +100,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg_wall_1 = sim_utils.CuboidCfg(
         size=(10, 0.1, 1),
         collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0)),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.7, 0.4)),
     )
     cfg_wall_1.func("/World/Wall1", cfg_wall_1, translation=(0, -5, 0))
     cfg_wall_1.func("/World/Wall2", cfg_wall_1, translation=(0, 5, 0))
@@ -360,8 +361,7 @@ def main():
 
     # start publisher
     # make sure you have a correct host address
-    publisher = IsaacSimPublisher(host="192.168.0.134", stage=sim.stage)
-    # publisher = IsaacSimPublisher(host="127.0.0.1", stage=sim.stage)
+    _ = IsaacSimPublisher(host="127.0.0.1", stage=sim.stage)
 
     # Run the simulator
     run_simulator(sim, scene_entities, scene_origins)
