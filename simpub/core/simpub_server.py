@@ -44,8 +44,10 @@ class SimPublisher(ServerBase):
         ip_addr: str = "127.0.0.1",
         no_rendered_objects: Optional[List[str]] = None,
         no_tracked_objects: Optional[List[str]] = None,
+        fps: int = 60
     ) -> None:
         self.sim_scene = sim_scene
+        self.fps = fps
         if no_rendered_objects is None:
             self.no_rendered_objects = []
         else:
@@ -60,7 +62,7 @@ class SimPublisher(ServerBase):
         self.scene_update_streamer = Streamer(
             topic_name="SceneUpdate",
             update_func=self.get_update,
-            fps=60,
+            fps=self.fps,
             start_streaming=True)
         self.asset_service = StrBytesService("Asset", self._on_asset_request)
         self.xr_device_set: Set[HashIdentifier] = set()

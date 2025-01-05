@@ -185,10 +185,16 @@ class NodeManager:
                 self.loop.call_soon_threadsafe(self.loop.stop)
         except RuntimeError as e:
             logger.error(f"One error occurred when stop server: {e}")
-        self.spin(False)
+        self.executor.shutdown(wait=False)
 
-    def spin(self, wait=True):
-        self.executor.shutdown(wait=wait)
+    def spin(self):
+        while True:
+            try:
+                time.sleep(0.01)
+            except KeyboardInterrupt:
+                break
+        self.stop_node()
+        logger.info("The node has been stopped")
 
     def submit_task(
         self,
@@ -217,6 +223,7 @@ class NodeManager:
                         f"One error occurred when processing the Service "
                         f'"{service_name}": {e}'
                     )
+                    traceback.print_exc()
                     await service_socket.send(MSG.SERVICE_ERROR.value)
             await async_sleep(0.01)
         logger.info("Service loop has been stopped")

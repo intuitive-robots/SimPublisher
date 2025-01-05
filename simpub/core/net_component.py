@@ -103,6 +103,7 @@ class Streamer(Publisher):
                 )
             except Exception as e:
                 logger.error(f"Error when streaming {self.topic_name}: {e}")
+                traceback.print_exc()
         logger.info(f"Streamer for topic {self.topic_name} is stopped")
 
 
