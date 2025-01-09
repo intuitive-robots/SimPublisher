@@ -4,7 +4,7 @@ import numpy as np
 import time
 import os
 import argparse
-from typing import Optional, Union, Dict, Callable
+from typing import Optional
 
 from simpub.sim.mj_publisher import MujocoPublisher
 from simpub.xr_device.meta_quest3 import MetaQuest3
@@ -14,10 +14,15 @@ def check_episode_and_rest(mj_model, mj_data):
     target_ball_id = mj_name2id(model, mjtObj.mjOBJ_BODY, "target_ball")
     object_position = mj_data.xpos[target_ball_id]
     if abs(object_position[0]) > 2 or abs(object_position[1]) > 2:
-        body_jnt_addr = mj_model.body_jntadr[target_ball_id]
-        qposadr = mj_model.jnt_qposadr[body_jnt_addr]
-        mj_data.qpos[qposadr:qposadr + 3] = np.array([0, 0, 2])
-        mj_data.qvel[qposadr:qposadr + 3] = np.array([0, 0, 0])
+        reset_ball(mj_model, mj_data)
+
+
+def reset_ball(mj_model, mj_data):
+    target_ball_id = mj_name2id(model, mjtObj.mjOBJ_BODY, "target_ball")
+    body_jnt_addr = mj_model.body_jntadr[target_ball_id]
+    qposadr = mj_model.jnt_qposadr[body_jnt_addr]
+    mj_data.qpos[qposadr:qposadr + 3] = np.array([0, 0, 2])
+    mj_data.qvel[qposadr:qposadr + 3] = np.array([0, 0, 0])
 
 
 def update_bat(mj_model, mj_data, player1: MetaQuest3, player2: Optional[MetaQuest3] = None):
@@ -42,7 +47,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="127.0.0.1")
     args = parser.parse_args()
-    
     xml_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "assets/table_tennis_env.xml"
@@ -63,8 +67,8 @@ if __name__ == '__main__':
             if time.time() - last_time < 0.001:
                 time.sleep(0.001 - (time.time() - last_time))
             last_time = time.time()
+            update_bat(model, data, player1)
             if count % 10 == 0:
-                update_bat(model, data, player1)
                 check_episode_and_rest(model, data)
             count += 1
         except KeyboardInterrupt:
