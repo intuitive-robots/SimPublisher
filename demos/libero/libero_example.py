@@ -16,20 +16,24 @@ from robosuite.robots import ROBOT_CLASS_MAPPING
 
 class RobosuitePublisher(MujocoPublisher):
 
-    def __init__(self, env: RobosuiteEnv):
+    def __init__(self, env: RobosuiteEnv, host):
         super().__init__(
             env.sim.model._model,
             env.sim.data._data,
+            host,
             visible_geoms_groups=[1, 2, 3, 4]
         )
 
 
-def pick_one_bddl_file(bddl_dataset_name: str = "libero_10", index: int = None) -> str:
-    bddl_path = os.path.join(libero.__path__[0], "libero", "bddl_files", bddl_dataset_name)
-    bddl_files = [file for file in os.listdir(bddl_path) if file.endswith(".bddl")]
-    if index is None:
-        index = np.random.randint(len(bddl_files))
-    return os.path.join(bddl_path, bddl_files[index])
+def select_file_from_txt(bddl_dataset_name: str, index: int = None) -> str:
+
+    bddl_base_path = os.path.join(libero.__path__[0], "libero", "bddl_files", bddl_dataset_name)
+    task_info_path = os.path.join(bddl_base_path, "tasks_info.txt")
+    with open(task_info_path, "r") as file:
+        bddl_paths = [line.strip() for line in file.readlines()]
+
+    if index < 0 or index >= len(bddl_paths):
+        raise IndexError("Index is out of file bounds")
 
 
 if __name__ == "__main__":
