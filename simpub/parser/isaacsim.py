@@ -1,10 +1,12 @@
 import io
+import json
 import math
 import os
+import timeit
 import uuid
+from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import md5
-from timeit import default_timer as timer
 
 import numpy as np
 import numpy.typing as npt
@@ -36,17 +38,47 @@ from ..simdata import (
 )
 
 
-def time_func(timer_name: str):
-    def decorator(func):
-        def impl(self, *args, **kwargs):
-            time_0 = timer()
-            results = func(self, *args, **kwargs)
-            self.timers[timer_name] += timer() - time_0
-            return results
+class Timer:
+    class TimerObject:
+        def __init__(self, name, timer_obj):
+            self.name = name
+            self.accum_times = timer_obj.accum_times
+            self.started_timers = timer_obj.started_timers
+            self.start_time = None
 
-        return impl
+        def __enter__(self):
+            if self.name in self.started_timers:
+                raise RuntimeError(f"repeatedly started timer: {self.name}")
+            self.started_timers.add(self.name)
+            self.start_time = timeit.default_timer()
+            return self
 
-    return decorator
+        def __exit__(self, exception_type, exception_value, exception_traceback):
+            self.accum_times[self.name] += timeit.default_timer() - self.start_time
+            self.started_timers.remove(self.name)
+
+    def __init__(self):
+        self.accum_times = defaultdict(lambda: 0)
+        self.started_timers = set()
+
+    def start(self, name) -> TimerObject:
+        return Timer.TimerObject(name, self)
+
+    def print_timings(self):
+        print("\n\n[*** timers (unit: seconds) ***]")
+        print(tabulate(sorted(list(self.accum_times.items()), key=lambda x: x[0])))
+        print()
+
+    @staticmethod
+    def time_function(name, timer_var="timer"):
+        def decorator(func):
+            def decorated_func(self, *args, **kwargs):
+                with getattr(self, timer_var).start(name):
+                    return func(self, *args, **kwargs)
+
+            return decorated_func
+
+        return decorator
 
 
 @dataclass
@@ -59,8 +91,19 @@ class MaterialInfo:
         assert self.sim_mat is not None
 
 
+@dataclass
+class TextureInfo:
+    relative_path: str = None
+    image: Image = None
+
+
 class IsaacSimStageParser:
-    def __init__(self, stage: Usd.Stage, ignored_prim_paths: list[str] = []) -> None:
+    def __init__(
+        self,
+        stage: Usd.Stage,
+        ignored_prim_paths: list[str] = [],
+        texture_cache_dir: str = None,
+    ) -> None:
         assert isinstance(stage, Usd.Stage)
         self.stage = stage
         self.ignored_prim_paths = set(ignored_prim_paths)
@@ -79,11 +122,33 @@ class IsaacSimStageParser:
         self.tracked_deform_prims: list[dict] = []
 
         # timer logs
-        self.timers = {
-            "parse_prim": 0,
-            "parse_geometry": 0,
-            "parse_material": 0,
-        }
+        self.timer = Timer()
+
+        # cache for downloaded textures
+        self.texture_cache_dir = texture_cache_dir
+        # full texture path --> texture info
+        self.texture_dict: dict[str, TextureInfo] = {}
+        # path to the json file storing texture_dict
+        self.texture_dict_path = None
+
+        # load texture cache...
+        if texture_cache_dir is not None:
+            if not os.path.isdir(texture_cache_dir):
+                os.makedirs(texture_cache_dir, exist_ok=True)
+                print(f"texture cache dir [{texture_cache_dir}] does not exist. it is created.")
+            print(f"using texture cache dir: {texture_cache_dir}")
+            # load texture dict
+            texture_dict_path = os.path.join(texture_cache_dir, "texture_dict.json")
+            if os.path.isfile(texture_dict_path):
+                print(f"loading texture dict from: {texture_dict_path}")
+                with open(texture_dict_path) as f:
+                    self.texture_dict = json.load(f)
+                    # stores path relative to the texture_cache_dir
+                    for k, v in self.texture_dict.items():
+                        self.texture_dict[k] = TextureInfo(relative_path=v)
+            self.texture_dict_path = texture_dict_path
+        else:
+            print("no texture cache dir is specified; performance will degrade.")
 
     def get_usdrt_stage(self) -> RtUsd.Stage:
         return self.rt_stage
@@ -92,9 +157,7 @@ class IsaacSimStageParser:
         return self.tracked_prims, self.tracked_deform_prims
 
     def print_timers(self):
-        print("\n\n[*** timers (unit: seconds) ***]")
-        print(tabulate(list(self.timers.items())))
-        print()
+        self.timer.print_timings()
 
     def parse_scene(self) -> SimScene:
         print("parsing stage:", self.stage)
@@ -105,14 +168,21 @@ class IsaacSimStageParser:
 
         # parse the usd stage
         root_path = "/World"
-        _time0 = timer()
-        sim_obj = self.parse_prim_tree(root=self.stage.GetPrimAtPath(root_path))
-        self.timers["parse_prim"] += timer() - _time0
+        with self.timer.start("parse_prim_tree"):
+            sim_obj = self.parse_prim_tree(root=self.stage.GetPrimAtPath(root_path))
 
         assert sim_obj is not None
         scene.root.children.append(sim_obj)
 
+        # show timing information
         self.print_timers()
+
+        # store texture dict
+        if self.texture_dict_path is not None:
+            with open(self.texture_dict_path, "w") as f:
+                json.dump({k: v.relative_path for k, v in self.texture_dict.items()}, f)
+            print(f"texture dict stored to: {self.texture_dict_path}")
+
         return scene
 
     def parse_prim_tree(
@@ -169,13 +239,10 @@ class IsaacSimStageParser:
         )
 
         # parse material
-        _time0 = timer()
         mat_info = self.parse_prim_material(prim=root, indent=indent)
-        self.timers["parse_material"] += timer() - _time0
         # print("\t" * indent + f"material parsed: {mat_info}")
 
         # parse meshes and other primitive shapes
-        _time0 = timer()
         self.parse_prim_geometries(
             prim=root,
             prim_path=prim_path,
@@ -183,7 +250,6 @@ class IsaacSimStageParser:
             indent=indent,
             mat_info=mat_info or inherited_material,
         )
-        self.timers["parse_geometry"] += timer() - _time0
 
         # track prims with rigid objects attached
         if (attr := root.GetAttribute("physics:rigidBodyEnabled")) and attr.Get():
@@ -282,77 +348,105 @@ class IsaacSimStageParser:
             scale.cpu().numpy(),
         )
 
+    @Timer.time_function("parse_prim_material")
     def parse_prim_material(
         self,
         prim: Usd.Prim,
         indent: int,
     ) -> MaterialInfo | None:
-        matapi = UsdShade.MaterialBindingAPI(prim)
-        if matapi is None:
-            # print("\t" * indent + "material binding api not found")
-            return
+        with self.timer.start("parse_prim_material_1"):
+            matapi = UsdShade.MaterialBindingAPI(prim)
+            if matapi is None:
+                # print("\t" * indent + "material binding api not found")
+                return
 
-        mat = matapi.GetDirectBinding().GetMaterial()
-        if not mat:
-            # print("\t" * indent + "material not found")
-            return
+            mat = matapi.GetDirectBinding().GetMaterial()
+            if not mat:
+                # print("\t" * indent + "material not found")
+                return
 
-        mat_prim = self.stage.GetPrimAtPath(mat.GetPath())
-        if not mat_prim:
-            # print("\t" * indent + "material prim not found")
-            return
+            mat_prim = self.stage.GetPrimAtPath(mat.GetPath())
+            if not mat_prim:
+                # print("\t" * indent + "material prim not found")
+                return
 
-        if not mat_prim.GetAllChildren():
-            # print("\t" * indent + "material has no shaders")
-            return
+            if not mat_prim.GetAllChildren():
+                # print("\t" * indent + "material has no shaders")
+                return
 
-        # we only care about the first shader
-        mat_shader_prim = mat_prim.GetAllChildren()[0]
-        mat_shader = UsdShade.Shader(mat_shader_prim)
+            # we only care about the first shader
+            mat_shader_prim = mat_prim.GetAllChildren()[0]
+            mat_shader = UsdShade.Shader(mat_shader_prim)
 
-        diffuse_texture = mat_shader.GetInput("diffuse_texture")
-        texture_path = None
-        if diffuse_texture.Get() is not None:
-            texture_path = str(diffuse_texture.Get().resolvedPath)
+        with self.timer.start("parse_prim_material_2"):
+            diffuse_texture = mat_shader.GetInput("diffuse_texture")
+            texture_path = None
+            if diffuse_texture.Get() is not None:
+                texture_path = str(diffuse_texture.Get().resolvedPath)
+            else:
+                diffuse_texture = mat_shader.GetInput("AlbedoTexture")
+                if diffuse_texture.Get() is not None:
+                    texture_path = str(diffuse_texture.Get().resolvedPath)
 
-        diffuse_color = [1.0, 1.0, 1.0]
-        if (c := mat_shader.GetInput("diffuse_color_constant").Get()) is not None:
-            diffuse_color = [c[0], c[1], c[2]]
-        elif (c := mat_shader.GetInput("diffuseColor").Get()) is not None:
-            diffuse_color = [c[0], c[1], c[2]]
+        with self.timer.start("parse_prim_material_3"):
+            diffuse_color = [1.0, 1.0, 1.0]
+            if (c := mat_shader.GetInput("diffuse_color_constant").Get()) is not None:
+                diffuse_color = [c[0], c[1], c[2]]
+            elif (c := mat_shader.GetInput("diffuseColor").Get()) is not None:
+                diffuse_color = [c[0], c[1], c[2]]
 
-        sim_mat = SimMaterial(color=diffuse_color + [1])
+            sim_mat = SimMaterial(color=diffuse_color + [1])
 
         if texture_path is not None:
-            image = None
-            if texture_path.startswith(("http://", "https://")):
-                response = requests.get(texture_path)
-                image = Image.open(io.BytesIO(response.content))
-            elif os.path.isfile(texture_path):
-                image = Image.open(texture_path)
+            with self.timer.start("parse_prim_material_4.1"):
+                image = None
+                # first try to find the texture in cache
+                if texture_path in self.texture_dict:
+                    tex_info = self.texture_dict[texture_path]
+                    if tex_info.image is None:
+                        tex_info.image = Image.open(os.path.join(self.texture_cache_dir, tex_info.relative_path))
+                    image = tex_info.image
 
-            if image is not None:
-                image = image.convert("RGB")
-                bin_data = image.tobytes()
-                assert len(bin_data) == image.width * image.height * 3
-                tex_hash = md5(bin_data).hexdigest()
-                sim_mat.texture = SimTexture(
-                    hash=tex_hash,
-                    width=image.width,
-                    height=image.height,
-                    textureType="2D",
-                    textureScale=(1, 1),
-                )
-                self.sim_scene.raw_data[tex_hash] = bin_data
-                # sim_mat.texture.compress(self.sim_scene.raw_data)
+                # if not found, download the texture and add it to cache
+                else:
+                    if texture_path.startswith(("http://", "https://")):
+                        response = requests.get(texture_path)
+                        image = Image.open(io.BytesIO(response.content))
+                    elif os.path.isfile(texture_path):
+                        image = Image.open(texture_path)
 
-        mi = MaterialInfo(sim_mat=sim_mat)
+                    # this is not needed for local textures. but anyway...
+                    if image is not None:
+                        ext = os.path.splitext(texture_path)[1]
+                        texture_file_name = f"{str(uuid.uuid4())}{ext}"
+                        texture_file_path = os.path.join(self.texture_cache_dir, texture_file_name)
+                        image.save(texture_file_path)
+                        self.texture_dict[texture_path] = TextureInfo(relative_path=texture_file_name, image=image)
 
-        if (use_uvw := mat_shader.GetInput("project_uvw").Get()) is not None and use_uvw is True:
-            mi.project_uvw = True
+            with self.timer.start("parse_prim_material_4.2"):
+                if image is not None:
+                    image = image.convert("RGB")
+                    bin_data = image.tobytes()
+                    assert len(bin_data) == image.width * image.height * 3
+                    tex_hash = md5(bin_data).hexdigest()
+                    sim_mat.texture = SimTexture(
+                        hash=tex_hash,
+                        width=image.width,
+                        height=image.height,
+                        textureType="2D",
+                        textureScale=(1, 1),
+                    )
+                    self.sim_scene.raw_data[tex_hash] = bin_data
+                    # sim_mat.texture.compress(self.sim_scene.raw_data)
 
-            if (world_coord := mat_shader.GetInput("world_or_object").Get()) is not None and world_coord is True:
-                mi.use_world_coord = True
+        with self.timer.start("parse_prim_material_5"):
+            mi = MaterialInfo(sim_mat=sim_mat)
+
+            if (use_uvw := mat_shader.GetInput("project_uvw").Get()) is not None and use_uvw is True:
+                mi.project_uvw = True
+
+                if (world_coord := mat_shader.GetInput("world_or_object").Get()) is not None and world_coord is True:
+                    mi.use_world_coord = True
 
         return mi
 
@@ -404,6 +498,7 @@ class IsaacSimStageParser:
         assert len(uvs) == index_buf.shape[0] * index_buf.shape[1]
         return np.array(uvs)
 
+    @Timer.time_function("parse_prim_geometries")
     def parse_prim_geometries(
         self,
         prim: Usd.Prim,
@@ -419,148 +514,157 @@ class IsaacSimStageParser:
             return
 
         if prim_type == "Mesh":
-            # currently each instance of a prototype will create a different mesh object
-            # detecting this and use the same mesh object would reduce memory usage
+            with self.timer.start("parse_prim_geometries_mesh_1"):
+                # currently each instance of a prototype will create a different mesh object
+                # detecting this and use the same mesh object would reduce memory usage
 
-            # for soft body, maybe use usdrt.UsdGeom.xxx (in get_update() function, not here)
-            mesh_prim = UsdGeom.Mesh(prim)
-            assert mesh_prim is not None
+                # for soft body, maybe use usdrt.UsdGeom.xxx (in get_update() function, not here)
+                mesh_prim = UsdGeom.Mesh(prim)
+                assert mesh_prim is not None
 
-            # read vertices, normals and indices
+                # read vertices, normals and indices
 
-            vertices = np.asarray(mesh_prim.GetPointsAttr().Get(), dtype=np.float32)
-            normals = np.asarray(mesh_prim.GetNormalsAttr().Get(), dtype=np.float32)
-            indices_orig = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get(), dtype=np.int32)
-            face_vertex_counts = np.asarray(mesh_prim.GetFaceVertexCountsAttr().Get(), dtype=np.int32)
+                vertices = np.asarray(mesh_prim.GetPointsAttr().Get(), dtype=np.float32)
+                # normals = np.asarray(mesh_prim.GetNormalsAttr().Get(), dtype=np.float32)
+                indices_orig = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get(), dtype=np.int32)
+                face_vertex_counts = np.asarray(mesh_prim.GetFaceVertexCountsAttr().Get(), dtype=np.int32)
 
-            # assuming there are either only triangular faces or only quad faces...
-            assert len(set(face_vertex_counts)) == 1
-            num_vert_per_face = face_vertex_counts[0]
-            assert num_vert_per_face in {3, 4}
-            indices = indices_orig.reshape(-1, num_vert_per_face)
-            assert indices.shape[0] * indices.shape[1] == normals.shape[0]
+                # assuming there are either only triangular faces or only quad faces...
+                assert len(set(face_vertex_counts)) == 1
+                num_vert_per_face = face_vertex_counts[0]
+                assert num_vert_per_face in {3, 4}
+                indices = indices_orig.reshape(-1, num_vert_per_face)
+                # if indices.shape[0] * indices.shape[1] != normals.shape[0]:
+                #     raise RuntimeError(
+                #         f"indices shape {indices.shape} and normals shape {normals.shape} mismatch. "
+                #         f"vertices shape: {vertices.shape}"
+                #     )
 
-            # get uv coordinates and store mesh data
+                # get uv coordinates and store mesh data
 
-            mesh_subsets = UsdGeom.Subset.GetAllGeomSubsets(mesh_prim)
-            mesh_info_list = []
+                mesh_subsets = UsdGeom.Subset.GetAllGeomSubsets(mesh_prim)
+                mesh_info_list = []
 
             # if the mesh has multiple GeomSubsets
             if mesh_subsets:
-                # retrieve uv sets for GeomSubsets
-                subset_uvs = {}
-                if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
-                    uvs = np.asarray(
-                        UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(),
-                        dtype=np.float32,
-                    )
-                    subset_uvs[uvs.shape[0]] = uvs
+                with self.timer.start("parse_prim_geometries_mesh_2.1"):
+                    # retrieve uv sets for GeomSubsets
+                    subset_uvs = {}
+                    if UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
+                        uvs = np.asarray(
+                            UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(),
+                            dtype=np.float32,
+                        )
+                        subset_uvs[uvs.shape[0]] = uvs
 
-                    for i in range(1, 100):
-                        if UsdGeom.PrimvarsAPI(prim).HasPrimvar(f"st_{i}"):
-                            uvs_more = np.asarray(
-                                UsdGeom.PrimvarsAPI(prim).GetPrimvar(f"st_{i}").Get(),
-                                dtype=np.float32,
-                            )
-                            subset_uvs[uvs_more.shape[0]] = uvs_more
-                        else:
-                            break
+                        for i in range(1, 100):
+                            if UsdGeom.PrimvarsAPI(prim).HasPrimvar(f"st_{i}"):
+                                uvs_more = np.asarray(
+                                    UsdGeom.PrimvarsAPI(prim).GetPrimvar(f"st_{i}").Get(),
+                                    dtype=np.float32,
+                                )
+                                subset_uvs[uvs_more.shape[0]] = uvs_more
+                            else:
+                                break
 
                 # process GeomSubsets
-                for subset in UsdGeom.Subset.GetAllGeomSubsets(mesh_prim):
-                    # get subset indices
-                    subset_mask = subset.GetIndicesAttr().Get()
-                    subset_indices = indices[subset_mask]
-                    subset_normals = np.array(
-                        [normals[j * num_vert_per_face + i] for i in range(num_vert_per_face) for j in subset_mask]
-                    )
+                with self.timer.start("parse_prim_geometries_mesh_2.2"):
+                    for subset in UsdGeom.Subset.GetAllGeomSubsets(mesh_prim):
+                        # get subset indices
+                        subset_mask = subset.GetIndicesAttr().Get()
+                        subset_indices = indices[subset_mask]
+                        # subset_normals = np.array(
+                        #     [normals[j * num_vert_per_face + i] for i in range(num_vert_per_face) for j in subset_mask]
+                        # )
 
-                    # get subset material
-                    # TODO: handle project_uvw?
-                    subset_mat_info = self.parse_prim_material((subset), indent + 1)
-                    subset_mat = None
-                    if subset_mat_info is not None:
-                        subset_mat = subset_mat_info.sim_mat
-                    elif mat_info is not None:
-                        subset_mat = mat_info.sim_mat
+                        # get subset material
+                        # TODO: handle project_uvw?
+                        subset_mat_info = self.parse_prim_material((subset), indent + 1)
+                        subset_mat = None
+                        if subset_mat_info is not None:
+                            subset_mat = subset_mat_info.sim_mat
+                        elif mat_info is not None:
+                            subset_mat = mat_info.sim_mat
 
+                        mesh_info_list.append(
+                            {
+                                "mesh": MeshData(
+                                    vertex_buf=vertices,
+                                    # normal_buf=subset_normals,
+                                    index_buf=subset_indices,
+                                    uv_buf=subset_uvs.get(
+                                        subset_indices.shape[0] * subset_indices.shape[1],
+                                        None,
+                                    ),
+                                ),
+                                "material": subset_mat,
+                            }
+                        )
+
+            # if the mesh has no GeomSubsets
+            else:
+                with self.timer.start("parse_prim_geometries_mesh_3"):
+                    uvs = None
+                    # get uv: compute projected uv with cube mapping
+                    if mat_info is not None and mat_info.project_uvw:
+                        # [!] this will compute uv per-index, NOT per-vertex
+                        uvs = self.compute_projected_uv(
+                            prim=prim,
+                            vertex_buf=vertices,
+                            index_buf=indices,
+                            use_world_coord=mat_info.use_world_coord,
+                        )
+                    elif UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
+                        uvs = np.asarray(
+                            UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(),
+                            dtype=np.float32,
+                        )
+                        # discard invalid uv buffer
+                        if uvs.shape[0] != indices.shape[0] * indices.shape[1]:
+                            uvs = None
+
+                    # if the mesh
                     mesh_info_list.append(
                         {
                             "mesh": MeshData(
                                 vertex_buf=vertices,
-                                normal_buf=subset_normals,
-                                index_buf=subset_indices,
-                                uv_buf=subset_uvs.get(
-                                    subset_indices.shape[0] * subset_indices.shape[1],
-                                    None,
-                                ),
+                                # normal_buf=normals,
+                                index_buf=indices,
+                                uv_buf=uvs,
                             ),
-                            "material": subset_mat,
+                            "material": mat_info.sim_mat if mat_info is not None else None,
                         }
                     )
 
-            # if the mesh has no GeomSubsets
-            else:
-                uvs = None
-                # get uv: compute projected uv with cube mapping
-                if mat_info is not None and mat_info.project_uvw:
-                    # [!] this will compute uv per-index, NOT per-vertex
-                    uvs = self.compute_projected_uv(
-                        prim=prim,
-                        vertex_buf=vertices,
-                        index_buf=indices,
-                        use_world_coord=mat_info.use_world_coord,
-                    )
-                elif UsdGeom.PrimvarsAPI(prim).HasPrimvar("st"):
-                    uvs = np.asarray(
-                        UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get(),
-                        dtype=np.float32,
-                    )
-                    # discard invalid uv buffer
-                    if uvs.shape[0] != indices.shape[0] * indices.shape[1]:
-                        uvs = None
-
-                # if the mesh
-                mesh_info_list.append(
-                    {
-                        "mesh": MeshData(
-                            vertex_buf=vertices,
-                            normal_buf=normals,
-                            index_buf=indices,
-                            uv_buf=uvs,
-                        ),
-                        "material": mat_info.sim_mat if mat_info is not None else None,
-                    }
-                )
-
             # create SimMesh objects
-
             for mesh_info in mesh_info_list:
                 # [!] here we expect the uvs to be already per-index
-                mesh_data = split_mesh_faces(mesh_info["mesh"])
+                with self.timer.start("parse_prim_geometries_mesh_4"):
+                    mesh_data = split_mesh_faces(mesh_info["mesh"])
                 # mesh_data = mesh_info["mesh"]
 
-                texture_visual = None
-                if mesh_data.uv_buf is not None:
-                    texture_visual = trimesh.visual.TextureVisuals(uv=mesh_data.uv_buf)
+                with self.timer.start("parse_prim_geometries_mesh_5"):
+                    texture_visual = None
+                    if mesh_data.uv_buf is not None:
+                        texture_visual = trimesh.visual.TextureVisuals(uv=mesh_data.uv_buf)
 
-                mesh_obj = trimesh.Trimesh(
-                    vertices=mesh_data.vertex_buf,
-                    # vertex_normals=mesh_data.normal_buf,
-                    faces=mesh_data.index_buf,
-                    visual=texture_visual,
-                    process=True,
-                )
-                mesh_obj.fix_normals()
-                trimesh.repair.fix_winding(mesh_obj)
-                trimesh.repair.fix_inversion(mesh_obj, True)
+                    mesh_obj = trimesh.Trimesh(
+                        vertices=mesh_data.vertex_buf,
+                        # vertex_normals=mesh_data.normal_buf,
+                        faces=mesh_data.index_buf,
+                        visual=texture_visual,
+                        process=True,
+                    )
+                    mesh_obj.fix_normals()
+                    trimesh.repair.fix_winding(mesh_obj)
+                    trimesh.repair.fix_inversion(mesh_obj, True)
 
-                print("\t" * (indent + 1) + "[mesh geometry]")
-                print("\t" * (indent + 1) + f"vertex:   {mesh_obj.vertices.shape}")
-                print("\t" * (indent + 1) + f"normal:   {mesh_obj.vertex_normals.shape}")
-                print("\t" * (indent + 1) + f"index:    {mesh_obj.faces.shape}")
-                if mesh_data.uv_buf is not None:
-                    print("\t" * (indent + 1) + f"uv:       {mesh_obj.visual.uv.shape}")
+                    print("\t" * (indent + 1) + "[mesh geometry]")
+                    print("\t" * (indent + 1) + f"vertex:   {mesh_obj.vertices.shape}")
+                    print("\t" * (indent + 1) + f"normal:   {mesh_obj.vertex_normals.shape}")
+                    print("\t" * (indent + 1) + f"index:    {mesh_obj.faces.shape}")
+                    if mesh_data.uv_buf is not None:
+                        print("\t" * (indent + 1) + f"uv:       {mesh_obj.visual.uv.shape}")
 
                 # # #######################################################################################
                 # # (for debug) export extracted mesh and check
@@ -596,130 +700,137 @@ class IsaacSimStageParser:
 
                 # # #######################################################################################
 
-                sim_mesh = self.build_mesh_buffer(mesh_obj)
+                with self.timer.start("parse_prim_geometries_mesh_6"):
+                    sim_mesh = self.build_mesh_buffer(mesh_obj)
 
-                if mesh_info["material"] is not None:
-                    sim_mesh.material = mesh_info["material"]
-                    print("\t" * (indent + 1) + f"material: {sim_mesh.material}")
+                    if mesh_info["material"] is not None:
+                        sim_mesh.material = mesh_info["material"]
+                        print("\t" * (indent + 1) + f"material: {sim_mesh.material}")
 
-                sim_obj.visuals.append(sim_mesh)
+                    sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cube":
-            rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
-            # only handle scale...
-            # translation: xformOp:translate
-            # rotation: xformOp:orient
-            cube_scale = rt_prim.GetAttribute("xformOp:scale").Get()
+            with self.timer.start("parse_prim_geometries_cube"):
+                rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
+                # only handle scale...
+                # translation: xformOp:translate
+                # rotation: xformOp:orient
+                cube_scale = rt_prim.GetAttribute("xformOp:scale").Get()
 
-            cube_prim = RtGeom.Cube(rt_prim)
-            cube_size = cube_prim.GetSizeAttr().Get()
+                cube_prim = RtGeom.Cube(rt_prim)
+                cube_size = cube_prim.GetSizeAttr().Get()
 
-            sim_cube = SimVisual(
-                name="Visual_Cube",
-                type=VisualType.CUBE,
-                trans=SimTransform(
-                    scale=[
-                        cube_size * cube_scale[1],
-                        cube_size * cube_scale[2],
-                        cube_size * cube_scale[0],
-                    ]
-                ),
-                material=SimMaterial(color=[1.0, 1.0, 1.0, 1.0]),
-            )
+                sim_cube = SimVisual(
+                    name="Visual_Cube",
+                    type=VisualType.CUBE,
+                    trans=SimTransform(
+                        scale=[
+                            cube_size * cube_scale[1],
+                            cube_size * cube_scale[2],
+                            cube_size * cube_scale[0],
+                        ]
+                    ),
+                    material=SimMaterial(color=[1.0, 1.0, 1.0, 1.0]),
+                )
 
-            if mat_info is not None:
-                print("\t" * indent + f"material: {mat_info}")
-                sim_cube.material = mat_info.sim_mat
-            sim_obj.visuals.append(sim_cube)
-            sim_obj.trans.scale = [1.0] * 3
+                if mat_info is not None:
+                    print("\t" * indent + f"material: {mat_info}")
+                    sim_cube.material = mat_info.sim_mat
+                sim_obj.visuals.append(sim_cube)
+                sim_obj.trans.scale = [1.0] * 3
 
         elif prim_type == "Capsule":
-            rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
-            cap_prim = RtGeom.Capsule(rt_prim)
+            with self.timer.start("parse_prim_geometries_capsule"):
+                rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
+                cap_prim = RtGeom.Capsule(rt_prim)
 
-            axis = cap_prim.GetAxisAttr().Get()
-            height = cap_prim.GetHeightAttr().Get()
-            radius = cap_prim.GetRadiusAttr().Get()
+                axis = cap_prim.GetAxisAttr().Get()
+                height = cap_prim.GetHeightAttr().Get()
+                radius = cap_prim.GetRadiusAttr().Get()
 
-            capsule_mesh = trimesh.creation.capsule(height=height, radius=radius)
-            if axis == "Y":
-                capsule_mesh.apply_transform(trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0]))
-            elif axis == "X":
-                capsule_mesh.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
+                capsule_mesh = trimesh.creation.capsule(height=height, radius=radius)
+                if axis == "Y":
+                    capsule_mesh.apply_transform(trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0]))
+                elif axis == "X":
+                    capsule_mesh.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
 
-            # scale/translation/rotation not handled,
-            # since it seems that isaac lab won't modify them...
+                # scale/translation/rotation not handled,
+                # since it seems that isaac lab won't modify them...
 
-            sim_mesh = self.build_mesh_buffer(capsule_mesh)
-            if mat_info is not None:
-                print("\t" * indent + f"material: {mat_info}")
-                sim_mesh.material = mat_info.sim_mat
-            sim_obj.visuals.append(sim_mesh)
+                sim_mesh = self.build_mesh_buffer(capsule_mesh)
+                if mat_info is not None:
+                    print("\t" * indent + f"material: {mat_info}")
+                    sim_mesh.material = mat_info.sim_mat
+                sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cone":
-            rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
-            cap_prim = RtGeom.Cone(rt_prim)
+            with self.timer.start("parse_prim_geometries_cone"):
+                rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
+                cap_prim = RtGeom.Cone(rt_prim)
 
-            axis = cap_prim.GetAxisAttr().Get()
-            height = cap_prim.GetHeightAttr().Get()
-            radius = cap_prim.GetRadiusAttr().Get()
+                axis = cap_prim.GetAxisAttr().Get()
+                height = cap_prim.GetHeightAttr().Get()
+                radius = cap_prim.GetRadiusAttr().Get()
 
-            cone_mesh = trimesh.creation.cone(height=height, radius=radius)
-            cone_mesh.apply_transform(trimesh.transformations.translation_matrix([0, 0, -height * 0.5]))
-            if axis == "Y":
-                cone_mesh.apply_transform(trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0]))
-            elif axis == "X":
-                cone_mesh.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
+                cone_mesh = trimesh.creation.cone(height=height, radius=radius)
+                cone_mesh.apply_transform(trimesh.transformations.translation_matrix([0, 0, -height * 0.5]))
+                if axis == "Y":
+                    cone_mesh.apply_transform(trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0]))
+                elif axis == "X":
+                    cone_mesh.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
 
-            # scale/translation/rotation not handled,
-            # since it seems that isaac lab won't modify them...
+                # scale/translation/rotation not handled,
+                # since it seems that isaac lab won't modify them...
 
-            sim_mesh = self.build_mesh_buffer(cone_mesh)
-            if mat_info is not None:
-                print("\t" * indent + f"material: {mat_info}")
-                sim_mesh.material = mat_info.sim_mat
-            sim_obj.visuals.append(sim_mesh)
+                sim_mesh = self.build_mesh_buffer(cone_mesh)
+                if mat_info is not None:
+                    print("\t" * indent + f"material: {mat_info}")
+                    sim_mesh.material = mat_info.sim_mat
+                sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Cylinder":
-            rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
-            cap_prim = RtGeom.Cylinder(rt_prim)
+            with self.timer.start("parse_prim_geometries_cylinder"):
+                rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
+                cap_prim = RtGeom.Cylinder(rt_prim)
 
-            axis = cap_prim.GetAxisAttr().Get()
-            height = cap_prim.GetHeightAttr().Get()
-            radius = cap_prim.GetRadiusAttr().Get()
+                axis = cap_prim.GetAxisAttr().Get()
+                height = cap_prim.GetHeightAttr().Get()
+                radius = cap_prim.GetRadiusAttr().Get()
 
-            cylinder_mesh = trimesh.creation.cylinder(height=height, radius=radius)
-            if axis == "Y":
-                cylinder_mesh.apply_transform(trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0]))
-            elif axis == "X":
-                cylinder_mesh.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
+                cylinder_mesh = trimesh.creation.cylinder(height=height, radius=radius)
+                if axis == "Y":
+                    cylinder_mesh.apply_transform(trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0]))
+                elif axis == "X":
+                    cylinder_mesh.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
 
-            # scale/translation/rotation not handled,
-            # since it seems that isaac lab won't modify them...
+                # scale/translation/rotation not handled,
+                # since it seems that isaac lab won't modify them...
 
-            sim_mesh = self.build_mesh_buffer(cylinder_mesh)
-            if mat_info is not None:
-                print("\t" * indent + f"material: {mat_info}")
-                sim_mesh.material = mat_info.sim_mat
-            sim_obj.visuals.append(sim_mesh)
+                sim_mesh = self.build_mesh_buffer(cylinder_mesh)
+                if mat_info is not None:
+                    print("\t" * indent + f"material: {mat_info}")
+                    sim_mesh.material = mat_info.sim_mat
+                sim_obj.visuals.append(sim_mesh)
 
         elif prim_type == "Sphere":
-            rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
-            cap_prim = RtGeom.Sphere(rt_prim)
+            with self.timer.start("parse_prim_geometries_sphere"):
+                rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
+                cap_prim = RtGeom.Sphere(rt_prim)
 
-            radius = cap_prim.GetRadiusAttr().Get()
+                radius = cap_prim.GetRadiusAttr().Get()
 
-            sphere_mesh = trimesh.creation.uv_sphere(radius=radius)
+                sphere_mesh = trimesh.creation.uv_sphere(radius=radius)
 
-            # scale/translation/rotation not handled,
-            # since it seems that isaac lab won't modify them...
+                # scale/translation/rotation not handled,
+                # since it seems that isaac lab won't modify them...
 
-            sim_mesh = self.build_mesh_buffer(sphere_mesh)
-            if mat_info is not None:
-                print("\t" * indent + f"material: {mat_info}")
-                sim_mesh.material = mat_info.sim_mat
-            sim_obj.visuals.append(sim_mesh)
+                sim_mesh = self.build_mesh_buffer(sphere_mesh)
+                if mat_info is not None:
+                    print("\t" * indent + f"material: {mat_info}")
+                    sim_mesh.material = mat_info.sim_mat
+                sim_obj.visuals.append(sim_mesh)
 
+    @Timer.time_function("build_mesh_buffer")
     def build_mesh_buffer(self, mesh_obj: trimesh.Trimesh):
         # rotate mesh to match unity coord system
         rot_mat = np.array([[0, 1, 0, 0], [0, 0, 1, 0], [-1, 0, 0, 0], [0, 0, 0, 1]])
