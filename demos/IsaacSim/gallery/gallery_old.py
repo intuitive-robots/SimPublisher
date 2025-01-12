@@ -18,6 +18,7 @@ This script demonstrates different legged robots.
 import argparse
 import math
 import time
+from pathlib import Path
 
 from omni.isaac.lab.app import AppLauncher
 
@@ -301,7 +302,7 @@ def run_simulator(
         # apply default actions to the quadrupedal robots
         for robot in entities.values():
             # generate random joint positions
-            joint_pos_target = robot.data.default_joint_pos + torch.randn_like(robot.data.joint_pos) * 0.1
+            joint_pos_target = robot.data.default_joint_pos  # + torch.randn_like(robot.data.joint_pos) * 0.1
             # apply action to the robot
             robot.set_joint_position_target(joint_pos_target)
             # write data to sim
@@ -329,13 +330,12 @@ def main():
     # Play the simulator
     sim.reset()
 
-    cmd = input("\n\nstart simpub server? [Y/n] ")
-    if cmd.lower().strip() != "n":
-        _ = IsaacSimPublisher(
-            host="127.0.0.1",
-            stage=sim.stage,
-            ignored_prim_paths=["/World/defaultGroundPlane"],
-        )
+    _ = IsaacSimPublisher(
+        host="127.0.0.1",
+        stage=sim.stage,
+        ignored_prim_paths=["/World/defaultGroundPlane"],
+        texture_cache_dir=f"{Path(__file__).parent.as_posix()}/.textures",
+    )
 
     # Now we are ready!
     print("[INFO]: Setup complete...")

@@ -169,3 +169,6 @@ MUJOCO_LOG.TXT
 
 # vscode
 .vscode/
+
+# texture cache for isaacsim
+.textures
