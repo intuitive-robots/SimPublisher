@@ -1,9 +1,13 @@
 from __future__ import annotations
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Optional, Callable, Awaitable
+import abc
+from typing import Dict, Optional, Callable, Awaitable, Union
 import asyncio
 from asyncio import sleep as async_sleep
+import socket
+from socket import AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST
+import struct
 import zmq
 import zmq.asyncio
 import time
@@ -14,8 +18,233 @@ import traceback
 from .log import logger
 from .utils import IPAddress, TopicName, ServiceName, HashIdentifier
 from .utils import NodeInfo, DISCOVERY_PORT, HEARTBEAT_INTERVAL
-from .utils import EchoHeader, MSG, NodeAddress
+from .utils import MSG, NodeAddress
 from .utils import split_byte, get_zmq_socket_port, create_address
+from .utils import AsyncSocket
+
+
+class NetComponent(abc.ABC):
+    def __init__(self):
+        if NodeManager.manager is None:
+            raise ValueError("NodeManager is not initialized")
+        self.manager: NodeManager = NodeManager.manager
+        self.running: bool = False
+        self.host_ip: str = self.manager.local_info["addr"]["ip"]
+        self.local_name: str = self.manager.local_info["name"]
+
+    def shutdown(self) -> None:
+        self.running = False
+        self.on_shutdown()
+
+    @abc.abstractmethod
+    def on_shutdown(self):
+        raise NotImplementedError
+
+
+class Publisher(NetComponent):
+    def __init__(self, topic_name: str, with_local_namespace: bool = False):
+        super().__init__()
+        self.topic_name = topic_name
+        if with_local_namespace:
+            self.topic_name = f"{self.local_name}/{topic_name}"
+        self.socket = self.manager.pub_socket
+        if self.manager.nodes_info_manager.check_topic(topic_name):
+            logger.warning(f"Topic {topic_name} is already registered")
+            raise ValueError(f"Topic {topic_name} is already registered")
+        else:
+            self.manager.register_local_topic(topic_name)
+            logger.info(msg=f'Topic "{self.topic_name}" is ready to publish')
+
+    def publish_bytes(self, data: bytes) -> None:
+        msg = b''.join([f"{self.topic_name}:".encode(), b"|", data])
+        self.manager.submit_task(self.send_bytes_async, msg)
+
+    def publish_dict(self, data: Dict) -> None:
+        self.publish_string(dumps(data))
+
+    def publish_string(self, string: str) -> None:
+        msg = f"{self.topic_name}:{string}"
+        self.manager.submit_task(self.send_bytes_async, msg.encode())
+
+    def on_shutdown(self) -> None:
+        self.manager.remove_local_topic(self.topic_name)
+
+    async def send_bytes_async(self, msg: bytes) -> None:
+        await self.socket.send(msg)
+
+
+class Streamer(Publisher):
+    def __init__(
+        self,
+        topic_name: str,
+        update_func: Callable[[], Optional[Union[str, bytes, Dict]]],
+        fps: int,
+        start_streaming: bool = False,
+    ):
+        super().__init__(topic_name)
+        self.running = False
+        self.dt: float = 1 / fps
+        self.update_func = update_func
+        self.topic_byte = self.topic_name.encode("utf-8")
+        if start_streaming:
+            self.start_streaming()
+
+    def start_streaming(self):
+        self.manager.submit_task(self.update_loop)
+
+    def generate_byte_msg(self) -> bytes:
+        return dumps(
+            {
+                "updateData": self.update_func(),
+                "time": time.monotonic(),
+            }
+        ).encode("utf-8")
+
+    async def update_loop(self):
+        self.running = True
+        last = 0.0
+        while self.running:
+            try:
+                diff = time.monotonic() - last
+                if diff < self.dt:
+                    await async_sleep(self.dt - diff)
+                last = time.monotonic()
+                await self.socket.send(
+                    b"".join([self.topic_byte, b"|", self.generate_byte_msg()])
+                )
+            except Exception as e:
+                logger.error(f"Error when streaming {self.topic_name}: {e}")
+                traceback.print_exc()
+        logger.info(f"Streamer for topic {self.topic_name} is stopped")
+
+
+class ByteStreamer(Streamer):
+    def __init__(
+        self,
+        topic: str,
+        update_func: Callable[[], bytes],
+        fps: int,
+    ):
+        super().__init__(topic, update_func, fps)
+        self.update_func: Callable[[], bytes]
+
+    def generate_byte_msg(self) -> bytes:
+        return self.update_func()
+
+
+class Subscriber(NetComponent):
+    # TODO: test this class
+    def __init__(self, topic_name: str, callback: Callable[[str], None]):
+        super().__init__()
+        self.sub_socket: AsyncSocket = self.manager.create_socket(zmq.SUB)
+        self.topic_name = topic_name
+        self.connected = False
+        self.callback = callback
+        self.remote_addr: Optional[NodeAddress] = None
+        self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, topic_name)
+
+    def change_connection(self, new_addr: NodeAddress) -> None:
+        """Changes the connection to a new IP address."""
+        if self.connected and self.remote_addr is not None:
+            logger.info(f"Disconnecting from {self.remote_addr}")
+            self.sub_socket.disconnect(
+                f"tcp://{self.remote_addr}"
+            )
+        self.sub_socket.connect(f"tcp://{new_addr}")
+        self.remote_addr = new_addr
+        self.connected = True
+
+    async def wait_for_publisher(self) -> None:
+        """Waits for a publisher to be available for the topic."""
+        while self.running:
+            node_info = self.manager.nodes_info_manager.check_topic(
+                self.topic_name
+            )
+            if node_info is not None:
+                logger.info(
+                    f"Connected to new publisher from node "
+                    f"'{node_info['name']}' with topic '{self.topic_name}'"
+                )
+            await async_sleep(0.5)
+
+    async def listen(self) -> None:
+        """Listens for incoming messages on the subscribed topic."""
+        while self.running:
+            try:
+                # Wait for a message
+                msg = await self.sub_socket.recv_string()
+                self.callback(msg)
+                # Invoke the callback
+                self.callback(msg)
+            except Exception as e:
+                logger.error(
+                    f"Error in subscriber for topic '{self.topic_name}': {e}"
+                )
+                traceback.print_exc()
+
+    def on_shutdown(self) -> None:
+        self.running = False
+        self.sub_socket.close()
+
+
+class AbstractService(NetComponent):
+
+    def __init__(
+        self,
+        service_name: str,
+    ) -> None:
+        super().__init__()
+        self.service_name = service_name
+        self.socket = self.manager.service_socket
+        # register service
+        self.manager.local_info["serviceList"].append(service_name)
+        self.manager.service_cbs[service_name.encode()] = self.callback
+        logger.info(f'"{self.service_name}" Service is ready')
+
+    async def callback(self, msg: bytes):
+        result = await asyncio.wait_for(
+            self.manager.loop.run_in_executor(
+                self.manager.executor, self.process_bytes_request, msg
+            ),
+            timeout=5.0,
+        )
+        await self.socket.send(result)
+
+    @abc.abstractmethod
+    def process_bytes_request(self, msg: bytes) -> bytes:
+        raise NotImplementedError
+
+    def on_shutdown(self):
+        self.manager.local_info["serviceList"].remove(self.service_name)
+        logger.info(f'"{self.service_name}" Service is stopped')
+
+
+class StrBytesService(AbstractService):
+
+    def __init__(
+        self,
+        service_name: str,
+        callback_func: Callable[[str], bytes],
+    ) -> None:
+        super().__init__(service_name)
+        self.callback_func = callback_func
+
+    def process_bytes_request(self, msg: bytes) -> bytes:
+        return self.callback_func(msg.decode())
+
+
+class StrService(AbstractService):
+
+    def __init__(
+        self,
+        service_name: str,
+        callback_func: Callable[[str], str],
+    ) -> None:
+        super().__init__(service_name)
+        self.callback_func = callback_func
+
+    def process_bytes_request(self, msg: bytes) -> bytes:
+        return self.callback_func(msg.decode()).encode()
 
 
 class NodesInfoManager:
@@ -45,7 +274,7 @@ class NodesInfoManager:
                 return info
         return None
 
-    def update_node(self, info: NodeInfo):
+    def register_node(self, info: NodeInfo):
         node_id = info["nodeID"]
         if node_id not in self.nodes_info.keys():
             logger.info(
@@ -59,7 +288,7 @@ class NodesInfoManager:
         try:
             if node_id in self.nodes_info.keys():
                 removed_info = self.nodes_info.pop(node_id)
-                logger.info(f"Node {removed_info['name']} has been removed")
+                logger.info(f"Node {removed_info['name']} is offline")
                 self.last_heartbeat.pop(node_id)
         except Exception as e:
             logger.error(f"Error occurred when removing node: {e}")
@@ -74,60 +303,6 @@ class NodesInfoManager:
             if info["name"] == node_name:
                 return info
         return None
-
-
-class MasterEchoUDPProtocol(asyncio.DatagramProtocol):
-
-    def __init__(self, nodes_info_manager: NodesInfoManager):
-        self.nodes_info_manager = nodes_info_manager
-        super().__init__()
-
-    def connection_made(self, transport):
-        self.transport = transport
-        self.handler: Dict[bytes, Callable[[bytes, NodeAddress], bytes]] = {
-            EchoHeader.PING.value: self.handle_ping,
-            EchoHeader.HEARTBEAT.value: self.handle_heartbeat,
-            EchoHeader.NODES.value: self.handle_nodes,
-        }
-        self.addr: NodeAddress = self.nodes_info_manager.local_info["addr"]
-        logger.info(
-            msg=f"Master Node Echo UDP Server started at "
-            f"{self.addr['ip']}:{self.addr['port']}"
-        )
-
-    def datagram_received(self, data, addr):
-        try:
-            ping = data[:1]
-            if ping not in self.handler:
-                logger.error(f"Unknown Echo type: {ping}")
-                return
-            reply = self.handler[ping](data, create_address(*addr))
-            self.transport.sendto(reply, addr)
-        except Exception as e:
-            logger.error(f"Error occurred in UDP received: {e}")
-            traceback.print_exc()
-
-    def handle_ping(self, data: bytes, addr: NodeAddress) -> bytes:
-        return b"".join(
-            [
-                self.nodes_info_manager.get_local_info_msg(),
-                b"|",
-                dumps(addr).encode()
-            ]
-        )
-
-    def handle_heartbeat(self, data: bytes, addr: NodeAddress) -> bytes:
-        self.nodes_info_manager.update_node(loads(data[1:].decode()))
-        return self.nodes_info_manager.get_local_info_msg()
-
-    def handle_nodes(self, data: bytes, addr: NodeAddress) -> bytes:
-        return b"".join(
-            [
-                self.nodes_info_manager.get_local_info_msg(),
-                b"|",
-                self.nodes_info_manager.get_nodes_info_msg()
-            ]
-        )
 
 
 class NodeManager:
@@ -164,8 +339,8 @@ class NodeManager:
             time.sleep(0.01)
         logger.info(f"Node {self.local_info['name']} is initialized")
 
-    def start_node_discover(self):
-        self.submit_task(self.master_node_echo)
+    def start_node_broadcast(self):
+        self.submit_task(self.broadcast_loop)
 
     def create_socket(self, socket_type: int):
         return self.zmq_context.socket(socket_type)
@@ -233,28 +408,49 @@ class NodeManager:
         self.running = True
         asyncio.set_event_loop(self.loop)
         self.submit_task(self.service_loop)
+        self.register_service = StrService(
+            "RegisterNode",
+            self.register_node_callback,
+        )
+        self.node_offline_service = StrService(
+            "NodeOffline",
+            self.node_offline_callback,
+        )
         self.loop.run_forever()
 
-    async def master_node_echo(self):
-        # Create the UDP server
-        loop = asyncio.get_running_loop()
-        transport, _ = await loop.create_datagram_endpoint(
-            lambda: MasterEchoUDPProtocol(self.nodes_info_manager),
-            local_addr=("0.0.0.0", DISCOVERY_PORT),
-        )
-        logger.info("The Master starts to listen to broadcast")
-        # check the heartbeat of nodes
+    async def broadcast_loop(self):
+        logger.info("The server is broadcasting...")
+        # set up udp socket
+        _socket = socket.socket(AF_INET, SOCK_DGRAM)
+        _socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+        # calculate broadcast ip
+        local_info = self.local_info
+        _id = local_info["nodeID"]
+        _ip = local_info["addr"]["ip"]
+        ip_bin = struct.unpack('!I', socket.inet_aton(_ip))[0]
+        netmask_bin = struct.unpack('!I', socket.inet_aton("255.255.255.0"))[0]
+        broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
+        broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
         while self.running:
-            remove_list = []
-            for _id, last in self.nodes_info_manager.last_heartbeat.items():
-                if time.time() - last > 3 * HEARTBEAT_INTERVAL:
-                    remove_list.append(_id)
-            for _id in remove_list:
-                self.nodes_info_manager.remove_node(_id)
-            await async_sleep(HEARTBEAT_INTERVAL)
-        transport.close()
-        self.stop_node()
-        logger.info("Node discover task has been stopped")
+            msg = f"{_id}|{dumps(local_info)}"
+            _socket.sendto(
+                msg.encode(), (broadcast_ip, DISCOVERY_PORT)
+            )
+            await async_sleep(0.1)
+        logger.info("Broadcasting has been stopped")
+
+    def register_node_callback(self, msg: str) -> str:
+        # NOTE: something wrong with sending message, but it solved somehow
+        client_info: NodeInfo = loads(msg)
+        # NOTE: the client info may be updated so the reference cannot be used
+        # NOTE: TypeDict is somehow block if the key is not in the dict
+        self.nodes_info_manager.register_node(client_info)
+        return "The info has been registered"
+
+    def node_offline_callback(self, msg: str) -> str:
+        client_name = msg
+        self.nodes_info_manager.remove_node(client_name)
+        return "The info has been removed"
 
     def register_local_service(self, service_name: ServiceName) -> None:
         if self.nodes_info_manager.check_service(service_name) is not None:
@@ -289,7 +485,7 @@ class NodeManager:
 
 def init_node(
     ip_addr: str,
-    node_name: str = "PythonNode",
+    node_name: str,
 ) -> NodeManager:
     if NodeManager.manager is not None:
         raise RuntimeError("The node has been initialized")
