@@ -34,7 +34,7 @@ def select_file_from_txt(bddl_dataset_name: str, index: int = None) -> str:
 
     if index < 0 or index >= len(bddl_paths):
         raise IndexError("Index is out of file bounds")
-
+    return os.path.join(bddl_base_path, "../../..", bddl_paths[index])
 
 if __name__ == "__main__":
     # Get controller config

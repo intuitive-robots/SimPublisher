@@ -34,10 +34,17 @@ class MQ3CartController:
 
     def get_action(self, obs):
         input_data = self.meta_quest3.get_input_data()
+        input_data = 1
         action = np.zeros(7)
         if input_data is None:
             return action
-        hand = input_data["right"]
+        # hand = input_data["right"]
+        hand = {
+            "pos": np.random.rand(3) * 3,
+            "rot": np.random.rand(4),
+            "hand_trigger": True,
+            "index_trigger": True,
+        }
         if self.last_state is not None and hand["hand_trigger"]:
             desired_pos, desired_quat = hand["pos"], hand["rot"]
             last_pos, last_quat = self.last_state
@@ -48,7 +55,6 @@ class MQ3CartController:
                 action[-1] = 10
             else:
                 action[-1] = -10
-            print(action)
         if not hand["hand_trigger"]:
             self.last_state = None
         else:
@@ -130,6 +136,7 @@ if __name__ == "__main__":
         "controller_configs": controller_config,
     }
     bddl_file = select_file_from_txt(args.datasets, args.task_id)
+    print("Selected task: ", bddl_file)
     assert os.path.exists(bddl_file)
     problem_info = BDDLUtils.get_problem_info(bddl_file)
 
@@ -158,10 +165,11 @@ if __name__ == "__main__":
     env = VisualizationWrapper(env)
     obs = env.reset()
     publisher = RobosuitePublisher(env, args.host)
+
     # initialize device
     if args.device == "meta_quest3":
         virtual_controller = MQ3CartController(
-            MetaQuest3(device_name="IRLMQ3-1")
+            MetaQuest3(device_name="UnityNode")
         )
     elif args.device == "real_robot":
         virtual_controller = RealRobotJointPDController('141.3.53.152')
