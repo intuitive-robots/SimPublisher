@@ -426,13 +426,21 @@ class IsaacSimStageParser:
             with self.timer.start("parse_prim_material_4.2"):
                 if image is not None:
                     image = image.convert("RGB")
+                    image = np.array(image).astype(np.uint8)
+                    image, height, width = SimTexture.compress_image(image, height=image.shape[0], width=image.shape[1])
+                    # sim_mat.texture = SimTexture.create_texture(
+                    #     np.array(image),
+                    #     height=image.height,
+                    #     width=image.width,
+                    #     scene=self.sim_scene,
+                    # )
                     bin_data = image.tobytes()
-                    assert len(bin_data) == image.width * image.height * 3
-                    tex_hash = md5(bin_data).hexdigest()
+                    # assert len(bin_data) == image.width * image.height * 3
+                    tex_hash = SimTexture.generate_hash(bin_data)
                     sim_mat.texture = SimTexture(
                         hash=tex_hash,
-                        width=image.width,
-                        height=image.height,
+                        width=image.shape[1],
+                        height=image.shape[0],
                         textureType="2D",
                         textureScale=(1, 1),
                     )
