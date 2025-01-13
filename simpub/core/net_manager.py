@@ -17,8 +17,8 @@ import traceback
 
 from .log import logger
 from .utils import IPAddress, TopicName, ServiceName, HashIdentifier
-from .utils import NodeInfo, DISCOVERY_PORT, HEARTBEAT_INTERVAL
-from .utils import MSG, NodeAddress
+from .utils import NodeInfo, DISCOVERY_PORT
+from .utils import MSG, NodeAddress, EchoHeader
 from .utils import split_byte, get_zmq_socket_port, create_address
 from .utils import AsyncSocket
 
@@ -256,8 +256,8 @@ class NodesInfoManager:
         self.node_id = local_info["nodeID"]
         self.last_heartbeat: Dict[HashIdentifier, float] = {}
 
-    def get_nodes_info_msg(self) -> bytes:
-        return dumps(self.nodes_info).encode()
+    def get_nodes_info(self) -> Dict[HashIdentifier, NodeInfo]:
+        return self.nodes_info
 
     def get_local_info_msg(self) -> bytes:
         return dumps(self.local_info).encode()
@@ -289,20 +289,82 @@ class NodesInfoManager:
             if node_id in self.nodes_info.keys():
                 removed_info = self.nodes_info.pop(node_id)
                 logger.info(f"Node {removed_info['name']} is offline")
-                self.last_heartbeat.pop(node_id)
         except Exception as e:
             logger.error(f"Error occurred when removing node: {e}")
 
-    def check_heartbeat(self) -> None:
-        for node_id, last in self.last_heartbeat.items():
-            if time.time() - last > 2 * HEARTBEAT_INTERVAL:
-                self.remove_node(node_id)
+    def get_nodes_info_msg(self) -> bytes:
+        return dumps(self.nodes_info).encode()
+
+    def update_node(self, info: NodeInfo):
+        node_id = info["nodeID"]
+        if node_id not in self.nodes_info.keys():
+            logger.info(
+                f"Node {info['name']} from "
+                f"{info['addr']['ip']} has been launched"
+            )
+        self.nodes_info[node_id] = info
+        self.last_heartbeat[node_id] = time.time()
 
     def get_node_info(self, node_name: str) -> Optional[NodeInfo]:
         for info in self.nodes_info.values():
             if info["name"] == node_name:
                 return info
         return None
+
+
+class MasterEchoUDPProtocol(asyncio.DatagramProtocol):
+
+    def __init__(self, nodes_info_manager: NodesInfoManager):
+        self.nodes_info_manager = nodes_info_manager
+        super().__init__()
+
+    def connection_made(self, transport):
+        self.transport = transport
+        self.handler: Dict[bytes, Callable[[bytes, NodeAddress], bytes]] = {
+            EchoHeader.PING.value: self.handle_ping,
+            EchoHeader.HEARTBEAT.value: self.handle_heartbeat,
+            EchoHeader.NODES.value: self.handle_nodes,
+        }
+        self.addr: NodeAddress = self.nodes_info_manager.local_info["addr"]
+        logger.info(
+            msg=f"Master Node Echo UDP Server started at "
+            f"{self.addr['ip']}:{self.addr['port']}"
+        )
+
+    def datagram_received(self, data, addr):
+        try:
+            ping = data[:1]
+            if ping not in self.handler:
+                # logger.error(f"Unknown Echo type: {ping}")
+                # print(data.decode())
+                return
+            reply = self.handler[ping](data, create_address(*addr))
+            self.transport.sendto(reply, addr)
+        except Exception as e:
+            logger.error(f"Error occurred in UDP received: {e}")
+            traceback.print_exc()
+
+    def handle_ping(self, data: bytes, addr: NodeAddress) -> bytes:
+        return b"".join(
+            [
+                self.nodes_info_manager.get_local_info_msg(),
+                b"|",
+                dumps(addr).encode()
+            ]
+        )
+
+    def handle_heartbeat(self, data: bytes, addr: NodeAddress) -> bytes:
+        self.nodes_info_manager.update_node(loads(data[1:].decode()))
+        return self.nodes_info_manager.get_local_info_msg()
+
+    def handle_nodes(self, data: bytes, addr: NodeAddress) -> bytes:
+        return b"".join(
+            [
+                self.nodes_info_manager.get_local_info_msg(),
+                b"|",
+                self.nodes_info_manager.get_nodes_info_msg()
+            ]
+        )
 
 
 class NodeManager:
@@ -330,6 +392,7 @@ class NodeManager:
             "serviceList": [],
             "topicList": [],
         }
+        logger.info(f"Node {node_name} starts at {host_ip}:{DISCOVERY_PORT}")
         self.nodes_info_manager = NodesInfoManager(self.local_info)
         # start the server in a thread pool
         self.executor = ThreadPoolExecutor(max_workers=10)
@@ -416,6 +479,10 @@ class NodeManager:
             "NodeOffline",
             self.node_offline_callback,
         )
+        self.get_nodes_info_service = StrService(
+            "GetNodesInfo",
+            self.get_nodes_info_callback,
+        )
         self.loop.run_forever()
 
     async def broadcast_loop(self):
@@ -425,14 +492,18 @@ class NodeManager:
         _socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
         # calculate broadcast ip
         local_info = self.local_info
-        _id = local_info["nodeID"]
         _ip = local_info["addr"]["ip"]
         ip_bin = struct.unpack('!I', socket.inet_aton(_ip))[0]
         netmask_bin = struct.unpack('!I', socket.inet_aton("255.255.255.0"))[0]
         broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
         broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
+        loop = asyncio.get_running_loop()
+        await loop.create_datagram_endpoint(
+            lambda: MasterEchoUDPProtocol(self.nodes_info_manager),
+            local_addr=("0.0.0.0", DISCOVERY_PORT),
+        )
         while self.running:
-            msg = f"{_id}|{dumps(local_info)}"
+            msg = f"SimPub|{dumps(local_info)}"
             _socket.sendto(
                 msg.encode(), (broadcast_ip, DISCOVERY_PORT)
             )
@@ -451,6 +522,12 @@ class NodeManager:
         client_name = msg
         self.nodes_info_manager.remove_node(client_name)
         return "The info has been removed"
+
+    def get_nodes_info_callback(
+        self,
+        msg: str,
+    ) -> str:
+        return dumps(self.nodes_info_manager.get_nodes_info())
 
     def register_local_service(self, service_name: ServiceName) -> None:
         if self.nodes_info_manager.check_service(service_name) is not None:
