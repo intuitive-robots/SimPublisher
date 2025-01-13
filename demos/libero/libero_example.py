@@ -3,7 +3,7 @@ import numpy as np
 from robosuite.environments.base import MujocoEnv as RobosuiteEnv
 import xml.etree.ElementTree as ET
 import os
-
+import argparse
 from simpub.xr_device.meta_quest3 import MetaQuest3 as MetaQuest3Sim
 from simpub.sim.mj_publisher import MujocoPublisher
 
@@ -16,7 +16,7 @@ from robosuite.robots import ROBOT_CLASS_MAPPING
 
 class RobosuitePublisher(MujocoPublisher):
 
-    def __init__(self, env: RobosuiteEnv, host):
+    def __init__(self, env: RobosuiteEnv, host: str = "127.0.0.1"):
         super().__init__(
             env.sim.model._model,
             env.sim.data._data,
@@ -25,9 +25,13 @@ class RobosuitePublisher(MujocoPublisher):
         )
 
 
-def select_file_from_txt(bddl_dataset_name: str, index: int = None) -> str:
+def select_file_from_txt(bddl_dataset_name: str, index: int = 0) -> str:
 
-    bddl_base_path = os.path.join(libero.__path__[0], "libero", "bddl_files", bddl_dataset_name)
+    bddl_base_path = os.path.join(
+        libero.__path__[0],
+        "libero", "bddl_files",
+        bddl_dataset_name
+    )
     task_info_path = os.path.join(bddl_base_path, "tasks_info.txt")
     with open(task_info_path, "r") as file:
         bddl_paths = [line.strip() for line in file.readlines()]
@@ -36,7 +40,11 @@ def select_file_from_txt(bddl_dataset_name: str, index: int = None) -> str:
         raise IndexError("Index is out of file bounds")
     return os.path.join(bddl_base_path, "../../..", bddl_paths[index])
 
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", type=str, default="127.0.0.1")
+    args = parser.parse_args()
     # Get controller config
     controller_config = load_controller_config(default_controller="JOINT_POSITION")
     # Create argument configuration
@@ -45,7 +53,7 @@ if __name__ == "__main__":
         "controller_configs": controller_config,
     }
 
-    bddl_file = pick_one_bddl_file("libero_spatial")
+    bddl_file = select_file_from_txt("libero_spatial")
     problem_info = BDDLUtils.get_problem_info(bddl_file)
     # Create environment
     problem_name = problem_info["problem_name"]
@@ -68,7 +76,7 @@ if __name__ == "__main__":
 
     # reset the environment
     env.reset()
-    publisher = RobosuitePublisher(env)
+    publisher = RobosuitePublisher(env, args.host)
     while True:
         action = np.random.randn(env.robots[0].dof)  # sample random action
         obs, reward, done, info = env.step(action)  # take action in the environment
