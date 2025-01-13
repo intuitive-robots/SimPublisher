@@ -72,7 +72,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
         prim_path="/World/scene",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
         spawn=UsdFileCfg(
-            usd_path=f"{Path(__file__).parent.as_posix()}/warehouse.usd",
+            usd_path=f"{Path(__file__).parent.as_posix()}/simple_room.usd",
         ),
     )
     scene_asset_cfg.spawn.func(scene_asset_cfg.prim_path, scene_asset_cfg.spawn)
