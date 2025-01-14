@@ -2,7 +2,7 @@ from typing import Optional, TypedDict, Callable, Dict, List
 import json
 from asyncio import sleep as async_sleep
 
-from simpub.core.net_component import Publisher
+from simpub.core.net_manager import Publisher
 from .xr_device import XRDevice
 
 
