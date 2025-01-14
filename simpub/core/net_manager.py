@@ -254,13 +254,9 @@ class NodesInfoManager:
         # local info is the master node info
         self.local_info = local_info
         self.node_id = local_info["nodeID"]
-        self.last_heartbeat: Dict[HashIdentifier, float] = {}
 
     def get_nodes_info(self) -> Dict[HashIdentifier, NodeInfo]:
         return self.nodes_info
-
-    def get_local_info_msg(self) -> bytes:
-        return dumps(self.local_info).encode()
 
     def check_service(self, service_name: ServiceName) -> Optional[NodeInfo]:
         for info in self.nodes_info.values():
@@ -282,7 +278,6 @@ class NodesInfoManager:
                 f"{info['addr']['ip']} has been launched"
             )
         self.nodes_info[node_id] = info
-        self.last_heartbeat[node_id] = time.time()
 
     def remove_node(self, node_id: HashIdentifier):
         try:
@@ -292,79 +287,11 @@ class NodesInfoManager:
         except Exception as e:
             logger.error(f"Error occurred when removing node: {e}")
 
-    def get_nodes_info_msg(self) -> bytes:
-        return dumps(self.nodes_info).encode()
-
-    def update_node(self, info: NodeInfo):
-        node_id = info["nodeID"]
-        if node_id not in self.nodes_info.keys():
-            logger.info(
-                f"Node {info['name']} from "
-                f"{info['addr']['ip']} has been launched"
-            )
-        self.nodes_info[node_id] = info
-        self.last_heartbeat[node_id] = time.time()
-
     def get_node_info(self, node_name: str) -> Optional[NodeInfo]:
         for info in self.nodes_info.values():
             if info["name"] == node_name:
                 return info
         return None
-
-
-class MasterEchoUDPProtocol(asyncio.DatagramProtocol):
-
-    def __init__(self, nodes_info_manager: NodesInfoManager):
-        self.nodes_info_manager = nodes_info_manager
-        super().__init__()
-
-    def connection_made(self, transport):
-        self.transport = transport
-        self.handler: Dict[bytes, Callable[[bytes, NodeAddress], bytes]] = {
-            EchoHeader.PING.value: self.handle_ping,
-            EchoHeader.HEARTBEAT.value: self.handle_heartbeat,
-            EchoHeader.NODES.value: self.handle_nodes,
-        }
-        self.addr: NodeAddress = self.nodes_info_manager.local_info["addr"]
-        logger.info(
-            msg=f"Master Node Echo UDP Server started at "
-            f"{self.addr['ip']}:{self.addr['port']}"
-        )
-
-    def datagram_received(self, data, addr):
-        try:
-            ping = data[:1]
-            if ping not in self.handler:
-                # logger.error(f"Unknown Echo type: {ping}")
-                # print(data.decode())
-                return
-            reply = self.handler[ping](data, create_address(*addr))
-            self.transport.sendto(reply, addr)
-        except Exception as e:
-            logger.error(f"Error occurred in UDP received: {e}")
-            traceback.print_exc()
-
-    def handle_ping(self, data: bytes, addr: NodeAddress) -> bytes:
-        return b"".join(
-            [
-                self.nodes_info_manager.get_local_info_msg(),
-                b"|",
-                dumps(addr).encode()
-            ]
-        )
-
-    def handle_heartbeat(self, data: bytes, addr: NodeAddress) -> bytes:
-        self.nodes_info_manager.update_node(loads(data[1:].decode()))
-        return self.nodes_info_manager.get_local_info_msg()
-
-    def handle_nodes(self, data: bytes, addr: NodeAddress) -> bytes:
-        return b"".join(
-            [
-                self.nodes_info_manager.get_local_info_msg(),
-                b"|",
-                self.nodes_info_manager.get_nodes_info_msg()
-            ]
-        )
 
 
 class NodeManager:
@@ -497,11 +424,6 @@ class NodeManager:
         netmask_bin = struct.unpack('!I', socket.inet_aton("255.255.255.0"))[0]
         broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
         broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
-        loop = asyncio.get_running_loop()
-        await loop.create_datagram_endpoint(
-            lambda: MasterEchoUDPProtocol(self.nodes_info_manager),
-            local_addr=("0.0.0.0", DISCOVERY_PORT),
-        )
         while self.running:
             msg = f"SimPub|{dumps(local_info)}"
             _socket.sendto(
