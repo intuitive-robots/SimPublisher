@@ -383,10 +383,14 @@ class IsaacSimStageParser:
             texture_path = None
             if diffuse_texture.Get() is not None:
                 texture_path = str(diffuse_texture.Get().resolvedPath)
+                if not texture_path:
+                    texture_path = str(diffuse_texture.Get().path)
             else:
                 diffuse_texture = mat_shader.GetInput("AlbedoTexture")
                 if diffuse_texture.Get() is not None:
                     texture_path = str(diffuse_texture.Get().resolvedPath)
+                    if not texture_path:
+                        texture_path = str(diffuse_texture.Get().path)
 
         with self.timer.start("parse_prim_material_3"):
             diffuse_color = [1.0, 1.0, 1.0]
@@ -416,7 +420,7 @@ class IsaacSimStageParser:
                         image = Image.open(texture_path)
 
                     # this is not needed for local textures. but anyway...
-                    if image is not None:
+                    if image is not None and self.texture_cache_dir is not None:
                         ext = os.path.splitext(texture_path)[1]
                         texture_file_name = f"{str(uuid.uuid4())}{ext}"
                         texture_file_path = os.path.join(self.texture_cache_dir, texture_file_name)
