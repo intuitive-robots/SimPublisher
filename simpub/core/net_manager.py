@@ -311,11 +311,11 @@ class NodeManager:
         NodeManager.manager = self
         self.zmq_context = zmq.asyncio.Context()  # type: ignore
         # publisher
-        self.pub_socket = self.create_socket(zmq.PUB)
-        self.pub_socket.bind(f"tcp://{host_ip}:0")
+        # self.pub_socket = self.create_socket(zmq.PUB)
+        # self.pub_socket.bind(f"tcp://{host_ip}:7721")
         # service
         self.service_socket = self.zmq_context.socket(zmq.REP)
-        self.service_socket.bind(f"tcp://{host_ip}:0")
+        self.service_socket.bind(f"tcp://{host_ip}:7723")
         self.service_cbs: Dict[bytes, Callable[[bytes], Awaitable]] = {}
         # message for broadcasting
         self.local_info: NodeInfo = {
@@ -323,8 +323,8 @@ class NodeManager:
             "nodeID": str(uuid.uuid4()),
             "addr": create_address(host_ip, DISCOVERY_PORT),
             "type": "Master",
-            "servicePort": get_zmq_socket_port(self.service_socket),
-            "topicPort": get_zmq_socket_port(self.pub_socket),
+            "servicePort": "7723",
+            "topicPort": "7721",
             "serviceList": [],
             "topicList": [],
         }
@@ -363,13 +363,14 @@ class NodeManager:
                 self.loop.call_soon_threadsafe(self.loop.stop)
         except RuntimeError as e:
             logger.error(f"One error occurred when stop server: {e}")
-        self.executor.shutdown(wait=False)
+        self.executor.shutdown(wait=True)
 
     def spin(self):
         while True:
             try:
                 time.sleep(0.01)
             except KeyboardInterrupt:
+                logger.info("KeyboardInterrupt: stopping the node")
                 break
         self.stop_node()
         logger.info("The node has been stopped")
