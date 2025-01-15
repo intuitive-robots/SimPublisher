@@ -5,7 +5,7 @@ from typing import Optional, Dict, Callable
 from asyncio import sleep as async_sleep
 
 from ..core.log import logger
-from ..core.net_manager import NodeManager, NodeInfo
+from ..core.net_manager import NetManager, NodeInfo
 from ..core.net_manager import TopicName
 # from ..core.net_component import Subscriber
 from ..core.utils import AsyncSocket
@@ -24,9 +24,9 @@ class XRDevice:
         self,
         device_name: str = "UnityClient",
     ) -> None:
-        if NodeManager.manager is None:
-            raise Exception("NodeManager is not initialized")
-        self.manager: NodeManager = NodeManager.manager
+        if NetManager.manager is None:
+            raise Exception("NetManager is not initialized")
+        self.manager: NetManager = NetManager.manager
         self.connected = False
         self.device_name = device_name
         self.device_info: Optional[NodeInfo] = None
@@ -40,7 +40,7 @@ class XRDevice:
     async def wait_for_connection(self):
         logger.info(f"Waiting for connection to {self.device_name}")
         while not self.connected:
-            device_info = self.manager.nodes_info_manager.get_node_info(
+            device_info = self.manager.net_info_manager.get_node_info(
                 self.device_name
             )
             if device_info is not None:

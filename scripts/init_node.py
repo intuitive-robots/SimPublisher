@@ -8,6 +8,6 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default="127.0.0.1")
     args = parser.parse_args()
 
-    node = init_node(args.host, "MasterNode")
-    node.start_node_broadcast()
+    node = init_node("MasterNode")
+    node.
     node.spin()
