@@ -61,38 +61,6 @@ def get_primitive_type_str(sim, primitive_shape_id):
     raise ValueError(f"Unknown primitive type: {primitive_shape_id}")
 
 
-def parse_shape_geom_info(sim, result):
-    # todo, this function is not complete
-    geom_info_dict = {}
-    if result == 1:
-        geom_info_dict["shape"] = "compound"
-        geom_info_dict["convex"] = False
-    elif result == 2:
-        geom_info_dict["shape"] = "compound"
-        geom_info_dict["convex"] = False
-
-
-def map_primitive_type_to_visual_type(primitive_type_str):
-    if primitive_type_str == "none":
-        return None
-    if primitive_type_str == "plane":
-        return VisualType.PLANE  # rare
-    if primitive_type_str == "disc":
-        return None
-    if primitive_type_str == "cuboid":
-        return VisualType.CUBE  #
-    if primitive_type_str == "spheroid":
-        return VisualType.SPHERE
-    if primitive_type_str == "cylinder":
-        return VisualType.CYLINDER
-    if primitive_type_str == "cone":
-        return None
-    if primitive_type_str == "capsule":
-        return VisualType.CAPSULE
-    if primitive_type_str == "heightfield":
-        return None
-
-
 def get_bit_positions(number):
     bit_positions = []
     position = 0
@@ -266,13 +234,8 @@ class CoppeliasSimParser:
         self.sim_scene = sim_scene
 
         # Info dict
-        # info_dict_name_as_key = get_objects_info_dict(cs_sim, name_as_key=True)
         info_dict_id_as_key = get_objects_info_dict(
             cs_sim, self.visual_layer_list, name_as_key=False)
-        total_num_obj = len(info_dict_id_as_key)
-
-        # FIXME, EXCLUDE NON VISUAL OBJECTS
-        # FIXME, HOW TO BUILD A TREE WITH ONLY VISUAL OBJECTS?
 
         # Build the hierarchy tree
         body_hierarchy = {}
