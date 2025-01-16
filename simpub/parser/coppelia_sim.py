@@ -7,7 +7,6 @@ from ..simdata import SimMaterial, SimTexture, SimMesh
 from ..simdata import VisualType
 from ..core.log import logger
 
-
 def get_scene_obj_type_str(sim, obj_type_id: int):
     # TODO, MAKE THIS A DICT
     # Get obj type name from obj type id
@@ -156,6 +155,26 @@ def get_objects_info_dict(sim, visual_layer_list=None,
             auxiliary = sim.getShapeColor(
                 idx, None, sim.colorcomponent_auxiliary)[1]
 
+            texture_id = sim.getShapeTextureId(idx)
+            if texture_id != -1:
+                mesh_id = sim.getProperty(idx, "meshes")[0]
+                texture_width, texture_height = (
+                    sim.getProperty(mesh_id, "textureResolution"))
+                texture_data = sim.readTexture(texture_id, 0)
+                texture_repeat_u = sim.getProperty(mesh_id, "textureRepeatU")
+                texture_repeat_v = sim.getProperty(mesh_id, "textureRepeatV")
+                num_indices = len(indices)
+                texture_coord = sim.getProperty(mesh_id, "textureCoordinates")
+                texture_coord = np.asarray(texture_coord)
+                texture_coord = texture_coord.reshape(num_indices, -1)
+            else:
+                texture_data = None
+                texture_width = None
+                texture_height = None
+                texture_repeat_u = None
+                texture_repeat_v = None
+                texture_coord = None
+
             obj_info_dict[idx_str].update({
                 "shape_result": result,
                 "primitive_type": primitive_type_str,
@@ -169,12 +188,19 @@ def get_objects_info_dict(sim, visual_layer_list=None,
                 "color_emission": emission,
                 "color_transparency": transparency,
                 "color_auxiliary": auxiliary,
+                "texture_data": texture_data,
+                "texture_width": texture_width,
+                "texture_height": texture_height,
+                "texture_repeat_u": texture_repeat_u,
+                "texture_repeat_v": texture_repeat_v,
+                "texture_coord": texture_coord,
             })
 
         # Get Transform info, absolute to world
         if parent_id == "world":
             pos = sim.getObjectPosition(idx, sim.handle_world)
-            quat = sim.getObjectQuaternion(idx, sim.handle_world)  # fixme, use quaternion?
+            quat = sim.getObjectQuaternion(idx,
+                                           sim.handle_world)  # fixme, use quaternion?
         else:
             pos = sim.getObjectPosition(idx, int(parent_id))
             quat = sim.getObjectQuaternion(idx, int(parent_id))
@@ -278,31 +304,48 @@ class CoppeliasSimParser:
         # Geometry info
         obj_type = obj_info["type"]
         obj_visualize = obj_info["visualize"]
-        if obj_type != "shape":
-            # If not a shape, return the object
+
+        if obj_type != "shape" or not obj_visualize:
             return sim_object
-        if not obj_visualize: # FIXME, DOUBLE CHECK THIS IF STATEMENT
-            return sim_object
-        else:
+        else:  # visual shape
+
             # Process Material / Texture, fixme 3dim or 4dim?
             ambient_diffuse = obj_info["color_ambient_diffuse"]
             diffuse = obj_info["color_diffuse"]
             specular = obj_info["color_specular"]
-            emission = obj_info["color_emission"] # todo, not used
+            emission = obj_info["color_emission"]  # todo, not used
             transparency = obj_info["color_transparency"]
             auxiliary = obj_info["color_auxiliary"]
 
+            # Texture
+            texture_data = obj_info["texture_data"]
+            if texture_data is not None:
+                texture_data = np.frombuffer(texture_data, dtype=np.uint8)
+                texture_width = obj_info["texture_width"]
+                texture_height = obj_info["texture_height"]
+                texture_repeat_u = obj_info["texture_repeat_u"]
+                texture_repeat_v = obj_info["texture_repeat_v"]
+                texture_coord = obj_info["texture_coord"]
+                mat_texture = SimTexture.create_texture(
+                    texture_data, texture_height,  # fixme, why height first?
+                    texture_width, self.sim_scene)
+                mat_texture.textureScale = [1, 1]
+                # plt.imshow(texture_data.reshape(texture_height,
+                #                                 texture_width, 3))
+            else:
+                mat_texture = None
+                texture_coord = None
+            # mat_texture = None
+
             # FIXME, THESE COLOR PROPERTIES MISMATCH BETWEEN VREP AND UNITY
+            # FIXME, THE COLOR RENDERING HAS ISSUE, ESPECIALLY FOR THE FLOOR
             # Fixme, Setting transparency and emission are buggy
             material = SimMaterial(color=ambient_diffuse,
                                    emissionColor=[0., 0., 0., 0.],
-                                   # speculPar=0,
                                    # specular=specular,
                                    # shininess=mat_shininess,
                                    # reflectance=mat_reflectance,
-                                   # texture=mat_texture
-                                   )
-
+                                   texture=mat_texture)
 
             # Process Mesh
             vertices = obj_info["shape_vertices"]
@@ -321,10 +364,8 @@ class CoppeliasSimParser:
                 vertices=vertices,
                 faces=indices,
                 # vertex_normals=normals,
-                # mesh_texcoord=mesh_texcoord, # Fixme, texture details?
-                # faces_uv=faces_uv,
+                # mesh_texcoord=texture_coord, # Fixme, texture details?
+                faces_uv=texture_coord,
             )
-
             sim_object.visuals.append(sim_visual)
             return sim_object
-
