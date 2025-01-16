@@ -104,15 +104,50 @@ def get_bit_positions(number):
     return bit_positions
 
 
+def ungroup_compound_objects(sim, visual_layer_list):
+    # Exhaust flag
+    flag = True
+
+    # Get all objects id in a list.
+    objects_id_list = sim.getObjectsInTree(sim.handle_scene, sim.handle_all, 0)
+
+    # Ungroup compound objects
+    for idx in objects_id_list:
+
+        # Check visualization
+        visualize = False
+        if visual_layer_list is not None:
+            obj_layers = get_bit_positions(sim.getIntProperty(idx, "layer"))
+            if bool(set(visual_layer_list) & set(obj_layers)):
+                visualize = True
+
+        # Check object type
+        obj_type_id = sim.getObjectType(idx)
+        is_shape = get_scene_obj_type_str(sim, obj_type_id) == "shape"
+
+        # In case of a visual shape, Check if shape is compound
+        if is_shape and visualize:
+            result = sim.getShapeGeomInfo(idx)[0]
+            is_compound = bool(set(get_bit_positions(result)) & {0})
+            if is_compound:
+                handles = sim.ungroupShape(idx)
+                flag = False
+    if not flag:
+        ungroup_compound_objects(sim, visual_layer_list)
+
+
 def get_objects_info_dict(sim, visual_layer_list=None,
                           name_as_key=False):
+    # Ungroup compound objects
+    ungroup_compound_objects(sim, visual_layer_list)
+
     objects_handle_list = (
         sim.getObjectsInTree(sim.handle_scene, sim.handle_all, 0))
 
     obj_info_dict = {}
 
     # tqdm progress bar
-    for idx in tqdm.tqdm(range(len(objects_handle_list))):
+    for idx in tqdm.tqdm(objects_handle_list):
         obj_name = sim.getObjectAlias(idx)
         visualize = False
         if visual_layer_list is not None:
