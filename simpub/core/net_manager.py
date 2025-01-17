@@ -182,7 +182,6 @@ class Subscriber(NetComponent):
             try:
                 # Wait for a message
                 msg = await self.sub_socket.recv_string()
-                self.callback(msg)
                 # Invoke the callback
                 self.callback(msg)
             except Exception as e:
@@ -311,8 +310,8 @@ class NodeManager:
         NodeManager.manager = self
         self.zmq_context = zmq.asyncio.Context()  # type: ignore
         # publisher
-        self.pub_socket = self.create_socket(zmq.PUB)
-        self.pub_socket.bind(f"tcp://{host_ip}:0")
+        # self.pub_socket = self.create_socket(zmq.PUB)
+        # self.pub_socket.bind(f"tcp://{host_ip}:0")
         # service
         self.service_socket = self.zmq_context.socket(zmq.REP)
         self.service_socket.bind(f"tcp://{host_ip}:0")
@@ -324,7 +323,8 @@ class NodeManager:
             "addr": create_address(host_ip, DISCOVERY_PORT),
             "type": "Master",
             "servicePort": get_zmq_socket_port(self.service_socket),
-            "topicPort": get_zmq_socket_port(self.pub_socket),
+            # "topicPort": get_zmq_socket_port(self.pub_socket),
+            "topicPort": 7721,
             "serviceList": [],
             "topicList": [],
         }
