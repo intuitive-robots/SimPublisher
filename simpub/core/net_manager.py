@@ -310,8 +310,8 @@ class NodeManager:
         NodeManager.manager = self
         self.zmq_context = zmq.asyncio.Context()  # type: ignore
         # publisher
-        # self.pub_socket = self.create_socket(zmq.PUB)
-        # self.pub_socket.bind(f"tcp://{host_ip}:0")
+        self.pub_socket = self.create_socket(zmq.PUB)
+        self.pub_socket.bind(f"tcp://{host_ip}:0")
         # service
         self.service_socket = self.zmq_context.socket(zmq.REP)
         self.service_socket.bind(f"tcp://{host_ip}:0")
