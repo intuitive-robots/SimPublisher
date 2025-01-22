@@ -21,7 +21,8 @@ class RobosuitePublisher(MujocoPublisher):
             env.sim.model._model,
             env.sim.data._data,
             host,
-            visible_geoms_groups=[1, 2, 3, 4]
+            visible_geoms_groups=[1, 2, 3, 4],
+            no_rendered_objects=["world"],
         )
 
 
