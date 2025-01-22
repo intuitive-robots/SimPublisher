@@ -185,7 +185,6 @@ class SimMesh(SimAsset):
                 f"number of vertices ({num_vertices})"
             )
             uv_layout = SimMesh.write_to_buffer(bin_buffer, uvs)
-            print(f"UV layout: {uv_layout}")
         bin_data = bin_buffer.getvalue()
         hash = SimMesh.generate_hash(bin_data)
         scene.raw_data[hash] = bin_data
