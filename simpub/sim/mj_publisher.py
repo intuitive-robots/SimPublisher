@@ -23,7 +23,7 @@ class MujocoPublisher(SimPublisher):
         # default setting for visible geoms groups
         if visible_geoms_groups is None:
             visible_geoms_groups = list(range(5))
-        self.parser = MjModelParser(mj_model, visible_geoms_groups)
+        self.parser = MjModelParser(mj_model, visible_geoms_groups, no_rendered_objects)
         sim_scene = self.parser.parse()
         self.tracked_obj_trans: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
         super().__init__(

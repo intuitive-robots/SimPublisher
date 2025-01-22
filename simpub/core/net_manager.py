@@ -173,7 +173,6 @@ class Subscriber(NetComponent):
             try:
                 # Wait for a message
                 msg = await self.sub_socket.recv_string()
-                self.callback(msg)
                 # Invoke the callback
                 self.callback(msg)
             except Exception as e:
