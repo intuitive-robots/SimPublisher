@@ -1,3 +1,12 @@
+import numpy as np
+
+from ..parser.coppelia_sim import CoppeliasSimParser
+from ..simdata import SimObject, SimScene, SimTransform, SimVisual
+from ..simdata import SimMaterial, SimTexture, SimMesh
+from ..simdata import VisualType
+from ..core.log import logger
+
+
 from mujoco import mj_name2id, mjtObj
 from typing import List, Dict, Tuple, Optional
 import numpy as np
@@ -7,24 +16,21 @@ from ..parser.mj import MjModelParser
 from ..simdata import SimObject
 
 
-class MujocoPublisher(SimPublisher):
+class CoppeliaSimPublisher(SimPublisher):
 
     def __init__(
-        self,
-        mj_model,
-        mj_data,
+        self, sim,
         host: str = "127.0.0.1",
         no_rendered_objects: Optional[List[str]] = None,
         no_tracked_objects: Optional[List[str]] = None,
-        visible_geoms_groups: Optional[List[int]] = None,
+        visual_layer_list: Optional[List[int]] = None,
     ) -> None:
-        self.mj_model = mj_model
-        self.mj_data = mj_data
-        # default setting for visible geoms groups
-        if visible_geoms_groups is None:
-            visible_geoms_groups = list(range(5))
-        self.parser = MjModelParser(mj_model, visible_geoms_groups, no_rendered_objects)
+        # self.mj_model = mj_model
+        # self.mj_data = mj_data
+        self.sim = sim
+        self.parser = CoppeliasSimParser(sim, visual_layer_list)
         sim_scene = self.parser.parse()
+
         self.tracked_obj_trans: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
         super().__init__(
             sim_scene,
@@ -32,16 +38,17 @@ class MujocoPublisher(SimPublisher):
             no_rendered_objects,
             no_tracked_objects,
         )
-        self.set_update_objects(self.sim_scene.root)
+        # self.set_update_objects(self.sim_scene.root)
 
     def set_update_objects(self, obj: Optional[SimObject]):
         if obj is None:
             return
         if obj.name in self.no_tracked_objects:
             return
-        body_id = mj_name2id(self.mj_model, mjtObj.mjOBJ_BODY, obj.name)
-        pos = self.mj_data.xpos[body_id]
-        rot = self.mj_data.xquat[body_id]
+        body_id = str(obj.name)
+        pos = self.sim.getObjectPosition(body_id, self.sim.handle_world)
+        rot = self.sim.getObjectQuaternion(body_id, self.sim.handle_world)
+
         trans: Tuple[np.ndarray, np.ndarray] = (pos, rot)
         self.tracked_obj_trans[obj.name] = trans
         for child in obj.children:
