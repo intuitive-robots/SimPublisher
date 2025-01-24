@@ -67,6 +67,11 @@ class SimAsset(SimData):
         bin_buffer: io.BytesIO,
         data: np.ndarray,
     ) -> Tuple[int, int]:
+        # change all float nparray to float32 and all int nparray to int32
+        if data.dtype == np.float64:
+            data = data.astype(np.float32)
+        elif data.dtype == np.int64:
+            data = data.astype(np.int32)
         byte_data = data.tobytes()
         layout = bin_buffer.tell(), len(byte_data)
         bin_buffer.write(byte_data)
@@ -109,6 +114,9 @@ class SimMesh(SimAsset):
                 f"to number of vertices ({vertices.shape[0]})"
             )
             uvs = vertex_uvs.flatten()
+        elif faces_uv is not None and mesh_texcoord is None:
+            vertices, faces = SimMesh.generate_vertex_by_faces(vertices, faces)
+            uvs = faces_uv.flatten()
         elif mesh_texcoord is not None and faces_uv is not None:
             if mesh_texcoord.shape[0] == vertices.shape[0]:
                 uvs = mesh_texcoord
@@ -187,6 +195,18 @@ class SimMesh(SimAsset):
             normalsLayout=normals_layout,
             uvLayout=uv_layout,
         )
+
+    @staticmethod
+    def generate_vertex_by_faces(
+        vertices: np.ndarray,
+        faces: np.ndarray,
+    ):
+        new_vertices = []
+        for face in faces:
+            new_vertices.append(vertices[face])
+        new_vertices = np.concatenate(new_vertices)
+        new_faces = np.arange(new_vertices.shape[0]).reshape(-1, 3)
+        return new_vertices, new_faces
 
     @staticmethod
     def generate_vertex_uv_from_face_uv(
