@@ -323,8 +323,7 @@ class NodeManager:
             "addr": create_address(host_ip, DISCOVERY_PORT),
             "type": "Master",
             "servicePort": get_zmq_socket_port(self.service_socket),
-            # "topicPort": get_zmq_socket_port(self.pub_socket),
-            "topicPort": 7721,
+            "topicPort": get_zmq_socket_port(self.pub_socket),
             "serviceList": [],
             "topicList": [],
         }
