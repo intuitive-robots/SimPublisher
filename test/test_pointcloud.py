@@ -2,6 +2,7 @@ import zmq
 import time
 import numpy as np
 
+
 class PointCloudPublisher:
 
     def __init__(self, ip_addr: str, topic_name: str = "PointCloud"):
@@ -16,7 +17,9 @@ class PointCloudPublisher:
 
 
 def generate_point() -> bytes:
-    return np.random.rand(6).astype(np.float32).tobytes()
+    point = np.random.rand(7)
+    point[-1] = 0.005
+    return point.astype(np.float32).tobytes()
 
 
 def generate_point_cloud(point_num: int = 10000) -> bytes:
@@ -27,7 +30,6 @@ def generate_point_cloud(point_num: int = 10000) -> bytes:
 
 
 if __name__ == "__main__":
-
 
     publisher = PointCloudPublisher("192.168.0.134")
     try:
