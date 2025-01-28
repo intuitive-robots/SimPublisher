@@ -44,7 +44,7 @@ class SimPublisher(ServerBase):
         ip_addr: str = "127.0.0.1",
         no_rendered_objects: Optional[List[str]] = None,
         no_tracked_objects: Optional[List[str]] = None,
-        fps: int = 60
+        fps: int = 30,
     ) -> None:
         self.sim_scene = sim_scene
         self.fps = fps
