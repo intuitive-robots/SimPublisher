@@ -5,8 +5,7 @@ from asyncio import sleep as asyncio_sleep
 import traceback
 
 from ..simdata import SimScene
-from .net_manager import NodeManager, init_node
-from .net_component import Streamer, StrBytesService
+from .net_manager import NodeManager, Streamer, StrBytesService, init_node
 from .log import logger
 from .utils import send_request, HashIdentifier
 
@@ -17,7 +16,7 @@ class ServerBase(abc.ABC):
         self.ip_addr: str = ip_addr
         self.net_manager = init_node(ip_addr, node_name)
         self.initialize()
-        self.net_manager.start_node_discover()
+        self.net_manager.start_node_broadcast()
 
     def spin(self):
         self.net_manager.spin()
