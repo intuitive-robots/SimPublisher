@@ -2,7 +2,7 @@ import zmq
 import zmq.asyncio
 import struct
 import socket
-from typing import List, Tuple, TypedDict, Optional
+from typing import List, TypedDict
 import enum
 from traceback import print_exc
 
@@ -27,12 +27,6 @@ class NodeAddress(TypedDict):
 
 def create_address(ip: IPAddress, port: Port) -> NodeAddress:
     return {"ip": ip, "port": port}
-
-
-class EchoHeader(enum.Enum):
-    PING = b'\x00'
-    HEARTBEAT = b'\x01'
-    NODES = b'\x02'
 
 
 class MSG(enum.Enum):
@@ -70,11 +64,11 @@ async def send_request(
     return result
 
 
-def calculate_broadcast_addr(ip_addr: IPAddress) -> IPAddress:
-    ip_bin = struct.unpack("!I", socket.inet_aton(ip_addr))[0]
-    netmask_bin = struct.unpack("!I", socket.inet_aton("255.255.255.0"))[0]
-    broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
-    return socket.inet_ntoa(struct.pack("!I", broadcast_bin))
+# def calculate_broadcast_addr(ip_addr: IPAddress) -> IPAddress:
+#     ip_bin = struct.unpack("!I", socket.inet_aton(ip_addr))[0]
+#     netmask_bin = struct.unpack("!I", socket.inet_aton("255.255.255.0"))[0]
+#     broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
+#     return socket.inet_ntoa(struct.pack("!I", broadcast_bin))
 
 
 def create_udp_socket() -> socket.socket:
@@ -98,34 +92,34 @@ def split_str(str_msg: str) -> List[str]:
     return str_msg.split("|", 1)
 
 
-def search_for_master_node(
-    local_ip: Optional[IPAddress] = None,
-    search_time: int = 5,
-    time_out: float = 0.1
-) -> Optional[Tuple[IPAddress, str]]:
-    if local_ip is not None:
-        broadcast_ip = calculate_broadcast_addr(local_ip)
-    else:
-        broadcast_ip = "255.255.255.255"
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as _socket:
-        # wait for response
-        _socket.bind(("0.0.0.0", 0))
-        _socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        for _ in range(search_time):
-            _socket.sendto(
-                EchoHeader.PING.value, (broadcast_ip, DISCOVERY_PORT)
-            )
-            _socket.settimeout(time_out)
-            try:
-                data, addr = _socket.recvfrom(1024)
-                logger.info(f"Find a master node at {addr[0]}:{addr[1]}")
-                return addr[0], data.decode()
-            except socket.timeout:
-                continue
-            except KeyboardInterrupt:
-                break
-            except Exception as e:
-                logger.error(f"Error when searching for master node: {e}")
-                print_exc()
-    logger.info("No master node found, start as master node")
-    return None
+# def search_for_master_node(
+#     local_ip: Optional[IPAddress] = None,
+#     search_time: int = 5,
+#     time_out: float = 0.1
+# ) -> Optional[Tuple[IPAddress, str]]:
+#     if local_ip is not None:
+#         broadcast_ip = calculate_broadcast_addr(local_ip)
+#     else:
+#         broadcast_ip = "255.255.255.255"
+#     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as _socket:
+#         # wait for response
+#         _socket.bind(("0.0.0.0", 0))
+#         _socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+#         for _ in range(search_time):
+#             _socket.sendto(
+#                 EchoHeader.PING.value, (broadcast_ip, DISCOVERY_PORT)
+#             )
+#             _socket.settimeout(time_out)
+#             try:
+#                 data, addr = _socket.recvfrom(1024)
+#                 logger.info(f"Find a master node at {addr[0]}:{addr[1]}")
+#                 return addr[0], data.decode()
+#             except socket.timeout:
+#                 continue
+#             except KeyboardInterrupt:
+#                 break
+#             except Exception as e:
+#                 logger.error(f"Error when searching for master node: {e}")
+#                 print_exc()
+#     logger.info("No master node found, start as master node")
+#     return None
