@@ -361,7 +361,7 @@ def main():
 
     # start publisher
     # make sure you have a correct host address
-    _ = IsaacSimPublisher(host="127.0.0.1", stage=sim.stage)
+    _ = IsaacSimPublisher(host="192.168.0.134", stage=sim.stage)
 
     # Run the simulator
     run_simulator(sim, scene_entities, scene_origins)

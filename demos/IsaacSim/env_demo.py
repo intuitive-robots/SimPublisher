@@ -6,7 +6,7 @@
 import argparse
 import numpy as np
 import torch
-import carb
+# import carb
 from scipy.spatial.transform import Rotation
 
 from omni.isaac.lab.app import AppLauncher
