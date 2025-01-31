@@ -66,7 +66,7 @@ def main():
         host=args.host,
         visible_geoms_groups=list(range(3))
     )
-    controller = MQ3CartController(MetaQuest3("ALRMQ3-2"))
+    controller = MQ3CartController(MetaQuest3("IRLMQ3-1"))
 
     # Main Loop
     env.reset()
