@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Set
 import numpy as np
 import taichi as ti
 
@@ -6,9 +6,10 @@ from genesis.engine.scene import Scene as GSScene
 from genesis.engine.entities import RigidEntity
 from genesis.engine.entities.rigid_entity import RigidLink, RigidGeom
 
-from ..parser.gs import GenesisSceneParser
+from ..parser.gs import GenesisSceneParser, gs2unity_pos, gs2unity_quat
 from ..core.simpub_server import SimPublisher
-
+from ..core.net_manager import NodeManager, Streamer, StrBytesService
+from ..core.utils import send_request, HashIdentifier
 
 @ti.data_oriented
 class GenesisPublisher(SimPublisher):
@@ -32,25 +33,38 @@ class GenesisPublisher(SimPublisher):
             fps=60,
         )
 
+    def initialize(self) -> None:
+        self.scene_update_streamer = Streamer(
+            # topic_name="RelatedUpdate",
+            topic_name="SceneUpdate",
+            update_func=self.get_update,
+            fps=self.fps,
+            start_streaming=True)
+        self.asset_service = StrBytesService("Asset", self._on_asset_request)
+        self.xr_device_set: Set[HashIdentifier] = set()
+        self.net_manager.submit_task(self.search_xr_device, self.net_manager)
+
     def get_update(self) -> Dict[str, List[float]]:
         # TODO: Fix the problem with taiqi kernel issue
-        return {}
+        # return {}
         if not self.parser.gs_scene.is_built:
             return {}
         state = {}
-        for name, item in self.update_dict.items():
-            if name in self.no_tracked_objects:
-                continue
-            if isinstance(item, RigidEntity):
-                pos = item.get_pos().tolist()
-                print(pos, item.get_quat())
-                quat = item.get_quat().tolist()
-            elif isinstance(item, RigidLink):
-                pos = item.get_pos().tolist()
-                quat = item.get_quat().tolist()
-            else:
-                continue
-            state[name] = [
-                pos[0], pos[1], pos[2], quat[0], quat[1], quat[2], quat[3]
-            ]
+        try:
+            for name, item in self.update_dict.items():
+                if name in self.no_tracked_objects:
+                    continue
+                if isinstance(item, RigidEntity):
+                    pos = gs2unity_pos(item.get_pos().tolist())
+                    quat = gs2unity_quat(item.get_quat().tolist())
+                elif isinstance(item, RigidLink):
+                    pos = gs2unity_pos(item.get_pos().tolist())
+                    quat = gs2unity_quat(item.get_quat().tolist())
+                else:
+                    continue
+                state[name] = [
+                    pos[0], pos[1], pos[2], quat[0], quat[1], quat[2], quat[3]
+                ]
+        except Exception:
+            return {}
         return state

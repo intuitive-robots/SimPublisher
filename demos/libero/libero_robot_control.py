@@ -109,7 +109,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--device", type=str, default="meta_quest3")
-    parser.add_argument("--task-id", type=int, default=1)
+    parser.add_argument("--task-id", type=int, default=3)
     parser.add_argument("--datasets", type=str, default="libero_10")
     parser.add_argument("--vendor-id", type=int, default=1133)
     parser.add_argument("--product-id", type=int, default=50726)
@@ -130,6 +130,7 @@ if __name__ == "__main__":
         "controller_configs": controller_config,
     }
     bddl_file = select_file_from_txt(args.datasets, args.task_id)
+    print("Selected task: ", bddl_file)
     assert os.path.exists(bddl_file)
     problem_info = BDDLUtils.get_problem_info(bddl_file)
 

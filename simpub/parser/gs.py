@@ -2,6 +2,8 @@ from typing import Tuple, List, Union, Dict
 import genesis as gs
 from genesis.engine.entities import RigidEntity
 from genesis.engine.entities.rigid_entity import RigidLink, RigidGeom
+import numpy as np
+
 
 from ..simdata import SimScene, SimObject, SimTransform, SimVisual, VisualType, SimMaterial, SimMesh
 
@@ -17,9 +19,9 @@ def gs2unity_quat(quat: List[float]) -> List[float]:
 class GenesisSceneParser:
     def __init__(self, gs_scene: gs.Scene):
         self.gs_scene = gs_scene
-        self.sim_scene, self.update_dict = self.parse_gs_scene(gs_scene)
+        self.sim_scene, self.update_dict = self.parse_gs_scene(gs_scene, ["plane_baselink"])
 
-    def parse_gs_scene(self, gs_scene: gs.Scene) -> Tuple[SimScene, Dict[str, Union[RigidEntity, RigidLink]]]:
+    def parse_gs_scene(self, gs_scene: gs.Scene, no_rendered_objects) -> Tuple[SimScene, Dict[str, Union[RigidEntity, RigidLink]]]:
         sim_scene = SimScene()
         update_dict: Dict[str, Union[RigidEntity, RigidLink]] = {}
         body_hierarchy = {}
@@ -71,11 +73,13 @@ class GenesisSceneParser:
     def process_link(
         self, gs_link: RigidLink, sim_scene: SimScene
     ) -> Tuple[SimObject, int, int]:
-        sim_object = SimObject(name=gs_link.name)
+        sim_object = SimObject(name=gs_link.name + f"{np.random.rand()}")
         sim_object.trans = SimTransform(
             gs2unity_pos(gs_link.pos),
             gs2unity_quat(gs_link.quat),
         )
+        if gs_link.name in ["plane_baselink"]:
+            return sim_object, gs_link.parent_idx, gs_link.idx
         for gs_geom in gs_link.vgeoms:
             sim_visual = self.process_vgeom(gs_geom, sim_scene)
             sim_object.visuals.append(sim_visual)
@@ -93,9 +97,10 @@ class GenesisSceneParser:
             ),
         )
         sim_visual.mesh = self.process_mesh(gs_vgeom, sim_scene)
-        sim_visual.material = SimMaterial(
-            color=[1.0, 1.0, 1.0, 1.0],
-        )
+        # sim_visual.material = SimMaterial(
+        #     color=[1.0, 1.0, 1.0, 1.0],
+        # )
+        sim_visual.material = self.parse_material(gs_vgeom)
         return sim_visual
 
     def process_mesh(
@@ -109,8 +114,12 @@ class GenesisSceneParser:
         )
 
     # TODO: Implement the material and texture from trimesh
-    # def parse_material(self, gs_material: gs.Material):
-    #     pass
+    def parse_material(self, gs_vgeom: RigidGeom):
+        gs_trimesh_obj = gs_vgeom.get_trimesh()
+        if isinstance(gs_trimesh_obj.visual, gs.ext.trimesh.visual.color.ColorVisuals):
+            return SimMaterial(color=list(gs_trimesh_obj.visual.face_colors[0] / 255.0))
+        else:
+            return SimMaterial(color=[0.0, 0.0, 0.0, 1.0])
     
     # def parse_mesh(self, gs_mesh: gs.Mesh):
     #     pass
