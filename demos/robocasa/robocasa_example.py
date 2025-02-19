@@ -13,9 +13,9 @@ from simpub.sim.robocasa_publisher import RobocasaPublisher
 if __name__ == "__main__":
     # Arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", type=str, default="127.0.0.1")
-    parser.add_argument("--layout", type=int, default=2)
-    parser.add_argument("--style", type=int, default=2)
+    parser.add_argument("--host", type=str, default="192.168.0.134")
+    parser.add_argument("--layout", type=int, default=5)
+    parser.add_argument("--style", type=int, default=5)
     parser.add_argument("--robot", type=str, default="PandaOmron")
     args = parser.parse_args()
 
