@@ -48,7 +48,7 @@ class MQ3CartController:
                 action[-1] = 10
             else:
                 action[-1] = -10
-            print(action)
+            # print(action)
         if not hand["hand_trigger"]:
             self.last_state = None
         else:
@@ -109,8 +109,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--device", type=str, default="meta_quest3")
-    parser.add_argument("--task-id", type=int, default=3)
-    parser.add_argument("--datasets", type=str, default="libero_10")
+    parser.add_argument("--task-id", type=int, default=19)
+    parser.add_argument("--datasets", type=str, default="libero_90")
     parser.add_argument("--vendor-id", type=int, default=1133)
     parser.add_argument("--product-id", type=int, default=50726)
 
