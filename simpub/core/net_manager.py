@@ -18,7 +18,7 @@ import traceback
 from .log import logger
 from .utils import IPAddress, TopicName, ServiceName, HashIdentifier
 from .utils import NodeInfo, DISCOVERY_PORT
-from .utils import MSG, NodeAddress, EchoHeader
+from .utils import MSG, NodeAddress
 from .utils import split_byte, get_zmq_socket_port, create_address
 from .utils import AsyncSocket
 
@@ -93,16 +93,25 @@ class Streamer(Publisher):
         self.manager.submit_task(self.update_loop)
 
     def generate_byte_msg(self) -> bytes:
-        return dumps(
-            {
-                "updateData": self.update_func(),
-                "time": time.monotonic(),
-            }
-        ).encode("utf-8")
+        update_msg = self.update_func()
+        if isinstance(update_msg, str):
+            return update_msg.encode("utf-8")
+        elif isinstance(update_msg, bytes):
+            return update_msg
+        elif isinstance(update_msg, dict):
+            # return dumps(update_msg).encode("utf-8")
+            return dumps(
+                {
+                    "updateData": self.update_func(),
+                    "time": time.monotonic(),
+                }
+            ).encode("utf-8")
+        raise ValueError("Update function should return str, bytes or dict")
 
     async def update_loop(self):
         self.running = True
         last = 0.0
+        logger.info(f"Topic {self.topic_name} starts streaming")
         while self.running:
             try:
                 diff = time.monotonic() - last
@@ -173,7 +182,6 @@ class Subscriber(NetComponent):
             try:
                 # Wait for a message
                 msg = await self.sub_socket.recv_string()
-                self.callback(msg)
                 # Invoke the callback
                 self.callback(msg)
             except Exception as e:
@@ -336,14 +344,18 @@ class NodeManager:
         return self.zmq_context.socket(socket_type)
 
     def thread_task(self):
+        logger.info("The node is running...")
         try:
             self.start_event_loop()
         except KeyboardInterrupt:
             self.stop_node()
+        except Exception as e:
+            logger.error(f"Unexpected error in thread_task: {e}")
         finally:
             logger.info("The node has been stopped")
 
     def stop_node(self):
+        logger.info("Start to stop the node")
         self.running = False
         try:
             if self.loop.is_running():
