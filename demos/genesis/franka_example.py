@@ -19,9 +19,9 @@ if __name__ == "__main__":
         ),
         show_viewer=False,
     )
-    plane = scene.add_entity(
-        gs.morphs.Plane(),
-    )
+    # plane = scene.add_entity(
+    #     gs.morphs.Plane(),
+    # )
     franka = scene.add_entity(
         gs.morphs.MJCF(file="xml/franka_emika_panda/panda.xml"),
     )
@@ -68,7 +68,7 @@ if __name__ == "__main__":
         scene.step()
 
     # PD control
-    for i in range(1250):
+    for i in range(12500):
         if i == 0:
             franka.control_dofs_position(
                 np.array([1, 1, 0, 0, 0, 0, 0, 0.04, 0.04]),

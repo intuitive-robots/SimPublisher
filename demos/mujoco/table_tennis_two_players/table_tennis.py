@@ -21,8 +21,8 @@ def reset_ball(mj_model, mj_data):
     target_ball_id = mj_name2id(model, mjtObj.mjOBJ_BODY, "target_ball")
     body_jnt_addr = mj_model.body_jntadr[target_ball_id]
     qposadr = mj_model.jnt_qposadr[body_jnt_addr]
-    mj_data.qpos[qposadr:qposadr + 3] = np.array([0, 0, -0.5])
-    mj_data.qvel[qposadr:qposadr + 3] = np.array([1.5, 0, 0])
+    mj_data.qpos[qposadr:qposadr + 3] = np.array([0, 0, 2])
+    mj_data.qvel[qposadr:qposadr + 3] = np.array([0, 0, 0])
 
 
 def update_bat(mj_model, mj_data, player1: MetaQuest3, player2: Optional[MetaQuest3] = None):
@@ -54,19 +54,18 @@ if __name__ == '__main__':
     model = mujoco.MjModel.from_xml_path(xml_path)
     data = mujoco.MjData(model)
     last_time = time.time()
-    reset_ball(model, data)
     publisher = MujocoPublisher(model, data, args.host)
-    player1 = MetaQuest3("IRLMQ3-1")
-    # player2 = MetaQuest3("ALRMQ3-1")
-    # player2 = MetaQuest3("ALR2")
+    player1 = MetaQuest3("ALRMQ3-2")
+    # player1 = MetaQuest3("UnityNode")
+    # # player2 = MetaQuest3("ALR2")
     # while not player1.connected:
     #     time.sleep(0.01)
     count = 0
     while True:
         try:
             mujoco.mj_step(model, data)
-            if time.time() - last_time < 0.002:
-                time.sleep(0.002 - (time.time() - last_time))
+            if time.time() - last_time < 0.001:
+                time.sleep(0.001 - (time.time() - last_time))
             last_time = time.time()
             update_bat(model, data, player1)
             if count % 10 == 0:
