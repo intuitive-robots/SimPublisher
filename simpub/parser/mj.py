@@ -77,7 +77,11 @@ def mj2unity_quat(quat: List[float]) -> List[float]:
 
 
 class MjModelParser:
-    def __init__(self, mj_model, visible_geoms_groups):
+    def __init__(self, mj_model, visible_geoms_groups, no_rendered_objects=None):
+        if no_rendered_objects is None:
+            self.no_rendered_objects = []
+        else:
+            self.no_rendered_objects = no_rendered_objects
         self.visible_geoms_groups = visible_geoms_groups
         self.parse_model(mj_model)
         self.sim_scene.process_sim_obj(self.sim_scene.root)
@@ -94,6 +98,8 @@ class MjModelParser:
             sim_object, parent_id = self.process_body(
                 mj_model, body_id
             )
+            if sim_object is None:
+                continue
             # update the body hierarchy dictionary
             body_hierarchy[body_id] = {
                 "parent_id": parent_id,
@@ -114,6 +120,8 @@ class MjModelParser:
         body_name = mujoco.mj_id2name(
             mj_model, mujoco.mjtObj.mjOBJ_BODY, body_id
         )
+        # if body_name in self.no_rendered_objects:
+        #     return None, -1
         parent_id = mj_model.body_parentid[body_id]
         sim_object = SimObject(name=body_name)
         if parent_id == body_id:
@@ -124,7 +132,7 @@ class MjModelParser:
         trans.pos = mj2unity_pos(mj_model.body_pos[body_id].tolist())
         trans.rot = mj2unity_quat(mj_model.body_quat[body_id].tolist())
         # if the body does not have any geom, return the object
-        if mj_model.body_geomadr[body_id] == -1:
+        if mj_model.body_geomadr[body_id] == -1 or body_name in self.no_rendered_objects:
             return sim_object, parent_id
         # process the geoms attached to the body
         num_geoms = mj_model.body_geomnum[body_id]

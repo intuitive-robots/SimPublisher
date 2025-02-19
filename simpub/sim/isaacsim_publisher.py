@@ -16,8 +16,13 @@ class IsaacSimPublisher(SimPublisher):
         host: str,
         stage: Usd.Stage,
         ignored_prim_paths: list[str] = [],
+        texture_cache_dir: str = None,
     ) -> None:
-        self.parser = IsaacSimStageParser(stage=stage, ignored_prim_paths=ignored_prim_paths)
+        self.parser = IsaacSimStageParser(
+            stage=stage,
+            ignored_prim_paths=ignored_prim_paths,
+            texture_cache_dir=texture_cache_dir,
+        )
         self.sim_scene = self.parser.parse_scene()
 
         # set usdrt stage and tracked prims
