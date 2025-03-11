@@ -24,5 +24,6 @@
         <include file="include_table.xml" />
         <include file="include_target_ball.xml" />
         <include file="bats.xml" />
+        <!-- <geom name="ground" type="plane" pos="0 0 0" size="10 10 0.1" material="floor_plane" /> -->
     </worldbody>
 </mujoco>
