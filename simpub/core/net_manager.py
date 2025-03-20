@@ -359,10 +359,23 @@ class NodeManager:
         self.running = False
         try:
             if self.loop.is_running():
-                self.loop.call_soon_threadsafe(self.loop.stop)
+                self.loop.call_soon_threadsafe(self.stop_tasks)
+                time.sleep(0.1)
+                self.loop.stop()
         except RuntimeError as e:
             logger.error(f"One error occurred when stop server: {e}")
+        logger.info("Start to shutdown the executor")
         self.executor.shutdown(wait=False)
+        logger.info("The executor has been shutdown")
+        NodeManager.manager = None
+
+    def stop_tasks(self):
+        # Cancel all running tasks
+        for task in asyncio.all_tasks():
+            if task is asyncio.current_task():
+                continue
+            task.cancel()
+        logger.info("All tasks have been cancelled")
 
     def spin(self):
         while True:
