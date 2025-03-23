@@ -34,7 +34,7 @@ class IsaacSimPublisher(SimPublisher):
         super().__init__(self.sim_scene, host)
 
         # add deformable update streamer
-        self.deform_update_streamer = ByteStreamer("DeformUpdate", self.get_deform_update)
+        self.deform_update_streamer = ByteStreamer("DeformUpdate", self.get_deform_update, start_streaming=True)
 
     def get_update(self) -> dict[str, list[float]]:
         state = {}
@@ -59,20 +59,17 @@ class IsaacSimPublisher(SimPublisher):
         return state
 
     def get_deform_update(self) -> bytes:
-        #
-        # this does not work (need code from timo's repo)
-        #
-
-        # Write binary data to send as update
-        # Structure:
-        #
-        #   L: Length of update string containing all deform meshes [ 4 bytes ]
-        #   S: Update string, semicolon seperated list of prims contained in thisupdate [ ? bytes ]
-        #   N: Number of verticies for each mesh in update string [ num_meshes x 4 bytes]
-        #   V: Verticies for each mesh [ ? bytes for each mesh ]
-        #
-        #       | L | S ... S | N ... N | V ... V |
-        #
+        ###################################################
+        ## Write binary data to send as update
+        ## Structure:
+        ##
+        ##   L: Length of update string containing all deformable meshes [ 4 bytes ]
+        ##   S: Update string, semicolon seperated list of meshes contained in this update [ ? bytes ]
+        ##   N: Number of verticies for each mesh [ num_meshes x 4 bytes]
+        ##   V: Verticies for each mesh [ ? bytes for each mesh ]
+        ##
+        ##       | L | S ... S | N ... N | V ... V |
+        #####################################################
 
         state = {}
         mesh_vert_len = np.ndarray(len(self.tracked_deform_prims), dtype=np.uint32)  # N
