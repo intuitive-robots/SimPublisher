@@ -9,7 +9,7 @@ import torch
 # import carb
 from scipy.spatial.transform import Rotation
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 import gymnasium as gym
 
 # add argparse arguments
@@ -29,23 +29,23 @@ simulation_app = app_launcher.app
 
 from pxr import Usd
 
-import omni.isaac.core.utils.prims as prim_utils
+import isaacsim.core.utils.prims as prim_utils
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation, RigidObjectCfg
-from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from omni.isaac.lab.sim.spawners.shapes.shapes_cfg import CapsuleCfg
-from omni.isaac.lab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+import isaaclab.sim as sim_utils
+from isaaclab.assets import Articulation, RigidObjectCfg
+from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.sim.spawners.shapes.shapes_cfg import CapsuleCfg
+from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 # from omni.isaac.lab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 # from omni.isaac.lab.envs.mdp.actions.actions_cfg import (
 #     DifferentialInverseKinematicsActionCfg,
 # )
 
-from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
+from isaaclab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
 
-import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.utils import parse_env_cfg
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils import parse_env_cfg
 
 from simpub.sim.isaacsim_publisher import IsaacSimPublisher
 # from simpub.xr_device.meta_quest3 import MetaQuest3
@@ -137,7 +137,7 @@ def main():
     env_cfg.terminations.time_out = None
 
     # create environment
-    env = gym.make(task, cfg=env_cfg)
+    env = gym.make(task, cfg=env_cfg).unwrapped
     # print(env.sim)
 
     # check environment name (for reach , we don't allow the gripper)
