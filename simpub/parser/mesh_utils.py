@@ -43,6 +43,9 @@ class Mesh:
 
 
 def split_mesh_faces(input_mesh: Mesh) -> Mesh:
+    # TODO: FIX!
+    # Don't use untill it is fixed. Right now it creates vertices that are not supposed to exist
+
     # # no need to process if each vertex has only one normal
     # if input_mesh.vertex_buf.shape[0] == input_mesh.normal_buf.shape[0]:
     #     return input_mesh
