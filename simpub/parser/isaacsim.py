@@ -15,8 +15,8 @@ import omni.usd
 import requests
 import trimesh
 import trimesh.visual
-from omni.isaac.core.prims import XFormPrim
-from omni.isaac.core.utils.rotations import quat_to_rot_matrix
+from isaacsim.core.prims import SingleXFormPrim
+from isaacsim.core.utils.rotations import quat_to_rot_matrix
 from PIL import Image
 from pxr import Gf, Usd, UsdGeom, UsdShade, UsdUtils
 from tabulate import tabulate
@@ -336,7 +336,7 @@ class IsaacSimStageParser:
     def compute_world_trans(self, prim: Usd.Prim) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
         # TODO: use isaacsim api instead of usd api for getting transformations
 
-        prim = XFormPrim(str(prim.GetPath()))
+        prim = SingleXFormPrim(str(prim.GetPath()))
         assert prim.is_valid()
 
         pos, quat = prim.get_world_pose()
