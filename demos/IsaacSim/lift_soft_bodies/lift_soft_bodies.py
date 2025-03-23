@@ -23,7 +23,7 @@ import math
 from pathlib import Path
 
 import numpy as np
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Pick and lift a teddy bear with a robotic arm.")
@@ -43,21 +43,23 @@ from collections.abc import Callable
 from dataclasses import MISSING
 
 import gymnasium as gym
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.lab.sim as sim_utils
+import isaacsim.core.utils.prims as prim_utils
+import isaaclab.sim as sim_utils
 import torch
 import trimesh
-from omni.isaac.lab.assets import DeformableObjectCfg
-from omni.isaac.lab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from omni.isaac.lab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from omni.isaac.lab.sim.spawners.meshes import meshes
-from omni.isaac.lab.sim.spawners.meshes.meshes_cfg import MeshCfg
-from omni.isaac.lab.sim.utils import clone
-from omni.isaac.lab.utils import configclass
-from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
-from omni.isaac.lab_tasks.manager_based.manipulation.lift.config.franka.ik_abs_env_cfg import FrankaTeddyBearLiftEnvCfg
-from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
-from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab.assets import DeformableObjectCfg
+from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab.sim.spawners.meshes import meshes
+from isaaclab.sim.spawners.meshes.meshes_cfg import MeshCfg
+from isaaclab.sim.utils import clone
+from isaaclab.utils import configclass
+from isaaclab_tasks.manager_based.manipulation.lift import mdp
+from isaaclab_tasks.manager_based.manipulation.lift.config.franka.ik_abs_env_cfg import FrankaTeddyBearLiftEnvCfg
+from isaaclab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
+from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+from simpub.sim.isaacsim_publisher import IsaacSimPublisher
 
 
 @clone
@@ -191,7 +193,7 @@ class FrankaSoftBasketLiftEnvCfg(FrankaTeddyBearLiftEnvCfg):
 
 gym.register(
     id="Isaac-Lift-Soft-Basket-Franka-IK-Abs-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}:FrankaSoftBasketLiftEnvCfg",
     },
@@ -210,18 +212,18 @@ def main():
     env_cfg.viewer.eye = (2.1, 1.0, 1.3)
 
     # create environment
-    env = gym.make("Isaac-Lift-Soft-Basket-Franka-IK-Abs-v0", cfg=env_cfg)
+    env = gym.make("Isaac-Lift-Soft-Basket-Franka-IK-Abs-v0", cfg=env_cfg).unwrapped
     # reset environment at start
     env.reset()
 
     # start simpub server
-    if env.unwrapped.sim is not None and env.unwrapped.sim.stage is not None:
+    if env.sim is not None and env.sim.stage is not None:
         print("parsing usd stage...")
         # publisher = IsaacSimPublisher(host="127.0.0.1", stage=env.unwrapped.sim.stage)
-        # publisher = IsaacSimPublisher(host="127.0.0.1", stage=env.sim.stage)
+        publisher = IsaacSimPublisher(host="127.0.0.1", stage=env.sim.stage)
 
     # create action buffers (position + quaternion)
-    actions = torch.zeros(env.unwrapped.action_space.shape, device=env.unwrapped.device)
+    actions = torch.zeros(env.action_space.shape, device=env.device)
 
     # fmt: off
     ee_poses = torch.tensor(
