@@ -15,13 +15,20 @@ import omni.usd
 import requests
 import trimesh
 import trimesh.visual
-from isaacsim.core.prims import SingleXFormPrim
-from isaacsim.core.utils.rotations import quat_to_rot_matrix, euler_angles_to_quat
 from PIL import Image
 from pxr import Usd, UsdGeom, UsdShade, UsdUtils
 from tabulate import tabulate
 from usdrt import Usd as RtUsd
 from usdrt import UsdGeom as RtGeom
+
+# support for IsaacSim versions < 4.5
+from importlib.metadata import version
+if version("isaacsim") < "4.5":
+    from omni.isaac.core.prims import XFormPrim as SingleXFormPrim
+    from omni.isaac.core.utils.rotations import quat_to_rot_matrix, euler_angles_to_quat
+else:
+    from isaacsim.core.prims import SingleXFormPrim
+    from isaacsim.core.utils.rotations import quat_to_rot_matrix, euler_angles_to_quat
 
 from ..parser.mesh_utils import Mesh as MeshData
 from ..parser.mesh_utils import split_mesh_faces
