@@ -75,50 +75,16 @@ class MetaQuest3(XRDevice):
         for button, callbacks in self.button_press_event.items():
             if self.input_data[button] and not self.last_input_data[button]:
                 [callback() for callback in callbacks]
-        # hand controller info with order in unity coordinates (left handed):
-        # pos: z, -x, y & rot: -z, x, -y, w
         left_hand = self.input_data["left"]
         last_left_hand = self.last_input_data["left"]
-        # to isaac sim pos
-        # x := -z, y:= x, z:= y
-        left_hand["pos"] = [
-            -left_hand["pos"][0],
-            -left_hand["pos"][1],
-            left_hand["pos"][2],
-        ]
-        # to isaac sim rot:
-        # w:= w, x:= z, y:= -x, z:= -y
-        left_hand["rot"] = [
-            left_hand["rot"][3],
-            -left_hand["rot"][0],
-            -left_hand["rot"][1],
-            left_hand["rot"][2],
-        ]        
         for trigger, callbacks in self.left_trigger_press_event.items():
             if left_hand[trigger] and not last_left_hand[trigger]:
                 [callback() for callback in callbacks]
         for trigger, callbacks in self.left_trigger_release_event.items():
             if not left_hand[trigger] and last_left_hand[trigger]:
                 [callback() for callback in callbacks]
-        # hand controller info with order in unity coordinates (left handed):
-        # pos: z, -x, y & rot: -z, x, -y, w        
         right_hand = self.input_data["right"]
         last_right_hand = self.last_input_data["right"]
-        # to isaac sim pos:
-        # x := -z, y:= x, z:= y
-        right_hand["pos"] = [
-            -right_hand["pos"][0],
-            -right_hand["pos"][1],
-            right_hand["pos"][2],
-        ]
-        # to isaac sim rot:
-        # w:= w, x:= z, y:= -x, z:= -y
-        right_hand["rot"] = [
-            right_hand["rot"][3],
-            -right_hand["rot"][0],
-            -right_hand["rot"][1],
-            right_hand["rot"][2],
-        ]        
         for trigger, callbacks in self.right_trigger_press_event.items():
             if right_hand[trigger] and not last_right_hand[trigger]:
                 [callback() for callback in callbacks]
