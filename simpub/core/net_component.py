@@ -108,15 +108,6 @@ class Streamer(Publisher):
 
 
 class ByteStreamer(Streamer):
-    def __init__(
-        self,
-        topic: str,
-        update_func: Callable[[], bytes],
-        fps: int = 45,
-    ):
-        super().__init__(topic, update_func, fps)
-        self.update_func: Callable[[], bytes]
-
     def generate_byte_msg(self) -> bytes:
         return self.update_func()
 
