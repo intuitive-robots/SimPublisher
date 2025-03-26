@@ -15,13 +15,20 @@ import omni.usd
 import requests
 import trimesh
 import trimesh.visual
-from omni.isaac.core.prims import XFormPrim
-from omni.isaac.core.utils.rotations import quat_to_rot_matrix
 from PIL import Image
-from pxr import Gf, Usd, UsdGeom, UsdShade, UsdUtils
+from pxr import Usd, UsdGeom, UsdShade, UsdUtils
 from tabulate import tabulate
 from usdrt import Usd as RtUsd
 from usdrt import UsdGeom as RtGeom
+
+# support for IsaacSim versions < 4.5
+from importlib.metadata import version
+if version("isaacsim") < "4.5":
+    from omni.isaac.core.prims import XFormPrim as SingleXFormPrim
+    from omni.isaac.core.utils.rotations import quat_to_rot_matrix, euler_angles_to_quat
+else:
+    from isaacsim.core.prims import SingleXFormPrim
+    from isaacsim.core.utils.rotations import quat_to_rot_matrix, euler_angles_to_quat
 
 from ..parser.mesh_utils import Mesh as MeshData
 from ..parser.mesh_utils import split_mesh_faces
@@ -290,34 +297,13 @@ class IsaacSimStageParser:
 
         return sim_object
 
-    def deg_euler_to_quad(self, v1, v2, v3):
-        v1 = math.radians(v1)
-        v2 = math.radians(v2)
-        v3 = math.radians(v3)
-
-        cr = math.cos(v1 * 0.5)
-        sr = math.sin(v1 * 0.5)
-        cp = math.cos(v2 * 0.5)
-        sp = math.sin(v2 * 0.5)
-        cy = math.cos(v3 * 0.5)
-        sy = math.sin(v3 * 0.5)
-
-        qw = cr * cp * cy + sr * sp * sy
-        qx = sr * cp * cy - cr * sp * sy
-        qy = cr * sp * cy + sr * cp * sy
-        qz = cr * cp * sy - sr * sp * cy
-
-        return Gf.Quatd(qw, Gf.Vec3d(qx, qy, qz))
-
     def compute_local_trans(self, prim: Usd.Prim):
         # not really necessary...
         timeline = omni.timeline.get_timeline_interface()
         timecode = timeline.get_current_time() * timeline.get_time_codes_per_seconds()
 
         # extract local transformation
-        # [BUG] omni.usd.get_local_transform_matrix returns wrong rotation, use get_local_transform_SRT instead
-        # trans_mat = omni.usd.get_local_transform_matrix(prim, timecode)
-        sc, ro, roo, tr = omni.usd.get_local_transform_SRT(prim, timecode)
+        sc, rt, rto, tr = omni.usd.get_local_transform_SRT(prim, timecode)
 
         # reorder scale for unity coord system
         scale = [sc[1], sc[2], sc[0]]
@@ -326,17 +312,17 @@ class IsaacSimStageParser:
         translate = [tr[1], tr[2], -tr[0]]
 
         # convert rot to quad
-        rtq = self.deg_euler_to_quad(ro[roo[0]], ro[roo[1]], ro[roo[2]])
+        # result order: (w, x, y, z)
+        rtq = euler_angles_to_quat([rt[rto[0]], rt[rto[1]], rt[rto[2]]], True)
         # reorder rot for unity coord system
-        imag = rtq.GetImaginary()
-        rot = [-imag[1], -imag[2], imag[0], rtq.GetReal()]
+        rot = [-rtq[2], -rtq[3], rtq[1], rtq[0]]
 
         return translate, rot, scale
 
     def compute_world_trans(self, prim: Usd.Prim) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
         # TODO: use isaacsim api instead of usd api for getting transformations
 
-        prim = XFormPrim(str(prim.GetPath()))
+        prim = SingleXFormPrim(str(prim.GetPath()))
         assert prim.is_valid()
 
         pos, quat = prim.get_world_pose()
@@ -651,9 +637,13 @@ class IsaacSimStageParser:
             # create SimMesh objects
             for mesh_info in mesh_info_list:
                 # [!] here we expect the uvs to be already per-index
-                with self.timer.start("parse_prim_geometries_mesh_4"):
-                    mesh_data = split_mesh_faces(mesh_info["mesh"])
-                # mesh_data = mesh_info["mesh"]
+
+                # TODO: Fix whatever this is supposed to do so it doenst create ghost vertices
+                # with self.timer.start("parse_prim_geometries_mesh_4"):
+                #     mesh_data = split_mesh_faces(mesh_info["mesh"])
+                
+                # after split_mesh_faces is fixed this can be removed
+                mesh_data = mesh_info["mesh"]
 
                 with self.timer.start("parse_prim_geometries_mesh_5"):
                     texture_visual = None
@@ -665,7 +655,9 @@ class IsaacSimStageParser:
                         # vertex_normals=mesh_data.normal_buf,
                         faces=mesh_data.index_buf,
                         visual=texture_visual,
-                        process=True,
+                        # can' process, otherwise deformable object meshes have to be processed every time they
+                        # are transmitted. 
+                        process=False,
                     )
                     mesh_obj.fix_normals()
                     trimesh.repair.fix_winding(mesh_obj)

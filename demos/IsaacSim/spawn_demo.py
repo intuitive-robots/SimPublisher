@@ -6,7 +6,7 @@
 import argparse
 import numpy as np
 import torch
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 
 # add argparse arguments
@@ -29,11 +29,11 @@ import gymnasium as gym
 
 from pxr import Usd
 
-import omni.isaac.core.utils.prims as prim_utils
+import isaacsim.core.utils.prims as prim_utils
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+import isaaclab.sim as sim_utils
+from isaaclab.assets import Articulation
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from simpub.sim.isaacsim_publisher import IsaacSimPublisher
 
@@ -43,7 +43,7 @@ print(ISAACLAB_NUCLEUS_DIR)
 # Pre-defined configs
 ##
 # isort: off
-from omni.isaac.lab_assets import (
+from isaaclab_assets import (
     FRANKA_PANDA_CFG,
     UR10_CFG,
     KINOVA_JACO2_N7S300_CFG,
