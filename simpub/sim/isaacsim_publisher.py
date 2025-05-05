@@ -15,6 +15,7 @@ class IsaacSimPublisher(SimPublisher):
         self,
         host: str,
         stage: Usd.Stage,
+        fps=30,
         ignored_prim_paths: list[str] = [],
         texture_cache_dir: str = None,
     ) -> None:
@@ -31,10 +32,12 @@ class IsaacSimPublisher(SimPublisher):
 
         self.sim_scene.process_sim_obj(self.sim_scene.root)
 
-        super().__init__(self.sim_scene, host)
+        super().__init__(self.sim_scene, host, fps=fps)
 
         # add deformable update streamer
-        self.deform_update_streamer = ByteStreamer("DeformUpdate", self.get_deform_update, start_streaming=True)
+        self.deform_update_streamer = ByteStreamer(
+            "DeformUpdate", self.get_deform_update, fps=self.fps, start_streaming=True
+        )
 
     def get_update(self) -> dict[str, list[float]]:
         state = {}
@@ -79,8 +82,13 @@ class IsaacSimPublisher(SimPublisher):
             mesh_name = tracked_prim["name"]
             prim_path = tracked_prim["prim_path"]
 
-            vertices = np.asarray(
-                self.rt_stage.GetPrimAtPath(prim_path).GetAttribute(RtGeom.Tokens.points).Get(),
+            vertices = np.array(
+                # https://forums.developer.nvidia.com/t/with-fabric-enabled-particle-cloth-position-reading-causes-reset/315290/6
+                list(
+                    self.rt_stage.GetPrimAtPath(prim_path)
+                    .GetAttribute(RtGeom.Tokens.points)
+                    .Get()
+                ),
                 dtype=np.float32,
             )
             vertices = vertices[:, [1, 2, 0]]
