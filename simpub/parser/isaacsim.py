@@ -261,12 +261,25 @@ class IsaacSimStageParser:
         # track prims with rigid objects attached
         if (attr := root.GetAttribute("physics:rigidBodyEnabled")) and attr.Get():
             print("\t" * indent + f"tracking {prim_path}")
-            self.tracked_prims.append({"name": sim_object.name, "prim": root, "prim_path": prim_path})
+            self.tracked_prims.append(
+                {"name": sim_object.name, "prim": root, "prim_path": prim_path}
+            )
 
         # track prims with deformable enabled
-        if (attr := root.GetAttribute("physxDeformable:deformableEnabled")) and attr.Get():
+        if (
+            attr := root.GetAttribute("physxDeformable:deformableEnabled")
+        ) and attr.Get():
             print("\t" * indent + f"tracking deform {prim_path}")
-            self.tracked_deform_prims.append({"name": sim_object.name, "prim": root, "prim_path": prim_path})
+            self.tracked_deform_prims.append(
+                {"name": sim_object.name, "prim": root, "prim_path": prim_path}
+            )
+
+        # track prims with particle sim enabled
+        if (attr := root.GetAttribute("physxParticle:particleEnabled")) and attr.Get():
+            print("\t" * indent + f"tracking particle sim {prim_path}")
+            self.tracked_deform_prims.append(
+                {"name": sim_object.name, "prim": root, "prim_path": prim_path}
+            )
 
         child: Usd.Prim
         if root.IsInstance():
