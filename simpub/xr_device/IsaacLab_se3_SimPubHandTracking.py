@@ -110,19 +110,22 @@ class Se3SimPubHandTracking(DeviceBase):
 
 
 class Se3SimPubHandTrackingRel(Se3SimPubHandTracking):
+    # factor of 13 is close to 1:1 tracking for decimation = 1
+    DELTA_POS_SCALE_FACTOR = 13
+    DELTA_ROT_SCALE_FACTOR = 13
+
     def __init__(
         self,
         device_name="ALRMetaQuest3",
         hand="right",
-        # factor of 10 corresponds to 1:1 tracking
-        delta_pos_scale_factor=10,
-        delta_rot_scale_factor=10,
+        pos_sensitivity=1,
+        rot_sensitivity=1,
     ):
         super().__init__(device_name, hand)
         self._pos = np.zeros(3)
         self._rot = np.zeros(3)
-        self._delta_pos_scale_factor = delta_pos_scale_factor
-        self._delta_rot_scale_factor = delta_rot_scale_factor
+        self._delta_pos_scale_factor = pos_sensitivity * self.DELTA_POS_SCALE_FACTOR
+        self._delta_rot_scale_factor = rot_sensitivity * self.DELTA_ROT_SCALE_FACTOR
 
     def advance(self) -> tuple[np.ndarray, bool]:
         """Provides the joystick event state.
