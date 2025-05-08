@@ -56,14 +56,14 @@ class Publisher(NetComponent):
             logger.info(msg=f'Topic "{self.topic_name}" is ready to publish')
 
     def publish_bytes(self, data: bytes) -> None:
-        msg = b''.join([f"{self.topic_name}:".encode(), b"|", data])
+        msg = b''.join([f"{self.topic_name}".encode(), b"|", data])
         self.manager.submit_task(self.send_bytes_async, msg)
 
     def publish_dict(self, data: Dict) -> None:
         self.publish_string(dumps(data))
 
     def publish_string(self, string: str) -> None:
-        msg = f"{self.topic_name}:{string}"
+        msg = f"{self.topic_name}|{string}"
         self.manager.submit_task(self.send_bytes_async, msg.encode())
 
     def on_shutdown(self) -> None:
