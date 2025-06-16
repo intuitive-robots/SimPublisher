@@ -34,7 +34,25 @@ class MSG(enum.Enum):
     SERVICE_TIMEOUT = b'\x11'
 
 
-class NodeInfo(TypedDict):
+# class NodeInfo(TypedDict):
+#     name: str
+#     nodeID: str  # hash code since bytes is not JSON serializable
+#     addr: NodeAddress
+#     type: str
+#     servicePort: int
+#     topicPort: int
+#     serviceList: List[ServiceName]
+#     topicList: List[TopicName]
+
+class ClientNodeInfo(TypedDict):
+    name: str
+    nodeID: str  # hash code since bytes is not JSON serializable
+    addr: NodeAddress
+    type: str
+    topicPort: int
+    topicList: List[TopicName]
+
+class ServerNodeInfo(TypedDict):
     name: str
     nodeID: str  # hash code since bytes is not JSON serializable
     addr: NodeAddress

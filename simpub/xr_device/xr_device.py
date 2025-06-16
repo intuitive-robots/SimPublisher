@@ -5,7 +5,7 @@ from typing import Optional, Dict, Callable
 from asyncio import sleep as async_sleep
 
 from ..core.log import logger
-from ..core.net_manager import NodeManager, NodeInfo
+from ..core.net_manager import NodeManager, ServerNodeInfo
 from ..core.net_manager import TopicName
 # from ..core.net_component import Subscriber
 from ..core.utils import AsyncSocket
@@ -29,7 +29,7 @@ class XRDevice:
         self.manager: NodeManager = NodeManager.manager
         self.connected = False
         self.device_name = device_name
-        self.device_info: Optional[NodeInfo] = None
+        self.device_info: Optional[ServerNodeInfo] = None
         self.req_socket: AsyncSocket = self.manager.create_socket(zmq.REQ)
         self.sub_socket: AsyncSocket = self.manager.create_socket(zmq.SUB)
         # subscriber
@@ -53,7 +53,7 @@ class XRDevice:
             return
         self.connect_to_client(self.device_info)
 
-    def connect_to_client(self, info: NodeInfo):
+    def connect_to_client(self, info: ServerNodeInfo):
         self.req_socket.connect(
             f"tcp://{info['addr']['ip']}:{info['servicePort']}"
         )
