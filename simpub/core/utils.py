@@ -18,6 +18,7 @@ HashIdentifier = str
 BROADCAST_INTERVAL = 0.5
 HEARTBEAT_INTERVAL = 0.2
 DISCOVERY_PORT = int(7720)
+MCAST_GRP = "239.192.1.1"
 
 
 class NodeAddress(TypedDict):

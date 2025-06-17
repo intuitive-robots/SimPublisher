@@ -16,7 +16,7 @@ from json import dumps, loads
 import traceback
 
 from .log import logger
-from .utils import ClientNodeInfo, IPAddress, ServerNodeInfo, TopicName, ServiceName, HashIdentifier
+from .utils import MCAST_GRP, ClientNodeInfo, IPAddress, ServerNodeInfo, TopicName, ServiceName, HashIdentifier
 from .utils import DISCOVERY_PORT
 from .utils import MSG, NodeAddress
 from .utils import split_byte, get_zmq_socket_port, create_address
@@ -446,25 +446,50 @@ class NodeManager:
 
         # TODO: rewrite to receive the local info from the server
         # also use self.nodes_info_manager.register_server_node(server_info)
-
-        logger.info("The server is broadcasting...")
-        # set up udp socket
-        _socket = socket.socket(AF_INET, SOCK_DGRAM)
-        _socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
-        # calculate broadcast ip
-        local_info = self.local_info
-        _ip = local_info["addr"]["ip"]
-        ip_bin = struct.unpack('!I', socket.inet_aton(_ip))[0]
-        netmask_bin = struct.unpack('!I', socket.inet_aton("255.255.255.0"))[0]
-        broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
-        broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
+        
+        logger.info("Is listening for server nodes...")
+        _socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        _socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # on this port, listen ONLY to MCAST_GRP
+        _socket.bind((MCAST_GRP, DISCOVERY_PORT))
+        mreq = struct.pack("4sl", socket.inet_aton(MCAST_GRP), socket.INADDR_ANY)
+        _socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         while self.running:
-            msg = f"SimPub|{dumps(local_info)}"
-            _socket.sendto(
-                msg.encode(), (broadcast_ip, DISCOVERY_PORT)
-            )
-            await async_sleep(0.1)
-        logger.info("Broadcasting has been stopped")
+            message = _socket.recv(1024).decode("utf-8")
+            topic, msg = message.split("|", 1)
+            if topic == "IRIS":
+                try:
+                    server_info: ServerNodeInfo = loads(msg)
+                    # register the server node info
+                    self.nodes_info_manager.register_server_node(server_info)
+                    logger.info(
+                        "Server node %s has been registered",
+                        server_info['name']
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Error occurred when processing the server info: %s", e
+                    )
+    
+
+        # logger.info("The server is broadcasting...")
+        # # set up udp socket
+        # _socket = socket.socket(AF_INET, SOCK_DGRAM)
+        # _socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+        # # calculate broadcast ip
+        # local_info = self.local_info
+        # _ip = local_info["addr"]["ip"]
+        # ip_bin = struct.unpack('!I', socket.inet_aton(_ip))[0]
+        # netmask_bin = struct.unpack('!I', socket.inet_aton("255.255.255.0"))[0]
+        # broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
+        # broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
+        # while self.running:
+        #     msg = f"SimPub|{dumps(local_info)}"
+        #     _socket.sendto(
+        #         msg.encode(), (broadcast_ip, DISCOVERY_PORT)
+        #     )
+        #     await async_sleep(0.1)
+        # logger.info("Broadcasting has been stopped")
 
     # def register_node_callback(self, msg: str) -> str:
     #     # NOTE: something wrong with sending message, but it solved somehow
