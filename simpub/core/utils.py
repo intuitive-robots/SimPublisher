@@ -18,6 +18,7 @@ HashIdentifier = str
 BROADCAST_INTERVAL = 0.5
 HEARTBEAT_INTERVAL = 0.2
 DISCOVERY_PORT = int(7720)
+MCAST_GRP = "239.192.1.1"
 
 
 class NodeAddress(TypedDict):
@@ -34,7 +35,25 @@ class MSG(enum.Enum):
     SERVICE_TIMEOUT = b'\x11'
 
 
-class NodeInfo(TypedDict):
+# class NodeInfo(TypedDict):
+#     name: str
+#     nodeID: str  # hash code since bytes is not JSON serializable
+#     addr: NodeAddress
+#     type: str
+#     servicePort: int
+#     topicPort: int
+#     serviceList: List[ServiceName]
+#     topicList: List[TopicName]
+
+class ClientNodeInfo(TypedDict):
+    name: str
+    nodeID: str  # hash code since bytes is not JSON serializable
+    addr: NodeAddress
+    type: str
+    topicPort: int
+    topicList: List[TopicName]
+
+class ServerNodeInfo(TypedDict):
     name: str
     nodeID: str  # hash code since bytes is not JSON serializable
     addr: NodeAddress
