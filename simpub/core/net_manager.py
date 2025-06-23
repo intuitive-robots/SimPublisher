@@ -16,8 +16,8 @@ from json import dumps, loads
 import traceback
 
 from .log import logger
-from .utils import IPAddress, TopicName, ServiceName, HashIdentifier
-from .utils import NodeInfo, DISCOVERY_PORT
+from .utils import MCAST_GRP, ClientNodeInfo, IPAddress, ServerNodeInfo, TopicName, ServiceName, HashIdentifier
+from .utils import DISCOVERY_PORT
 from .utils import MSG, NodeAddress
 from .utils import split_byte, get_zmq_socket_port, create_address
 from .utils import AsyncSocket
@@ -194,109 +194,112 @@ class Subscriber(NetComponent):
         self.running = False
         self.sub_socket.close()
 
+# region SERVER_CODE
 
-class AbstractService(NetComponent):
+# class AbstractService(NetComponent):
 
-    def __init__(
-        self,
-        service_name: str,
-    ) -> None:
-        super().__init__()
-        self.service_name = service_name
-        self.socket = self.manager.service_socket
-        # register service
-        self.manager.local_info["serviceList"].append(service_name)
-        self.manager.service_cbs[service_name.encode()] = self.callback
-        logger.info(f'"{self.service_name}" Service is ready')
+#     def __init__(
+#         self,
+#         service_name: str,
+#     ) -> None:
+#         super().__init__()
+#         self.service_name = service_name
+#         self.socket = self.manager.service_socket
+#         # register service
+#         self.manager.local_info["serviceList"].append(service_name)
+#         self.manager.service_cbs[service_name.encode()] = self.callback
+#         logger.info(f'"{self.service_name}" Service is ready')
 
-    async def callback(self, msg: bytes):
-        result = await asyncio.wait_for(
-            self.manager.loop.run_in_executor(
-                self.manager.executor, self.process_bytes_request, msg
-            ),
-            timeout=5.0,
-        )
-        await self.socket.send(result)
+#     async def callback(self, msg: bytes):
+#         result = await asyncio.wait_for(
+#             self.manager.loop.run_in_executor(
+#                 self.manager.executor, self.process_bytes_request, msg
+#             ),
+#             timeout=5.0,
+#         )
+#         await self.socket.send(result)
 
-    @abc.abstractmethod
-    def process_bytes_request(self, msg: bytes) -> bytes:
-        raise NotImplementedError
+#     @abc.abstractmethod
+#     def process_bytes_request(self, msg: bytes) -> bytes:
+#         raise NotImplementedError
 
-    def on_shutdown(self):
-        self.manager.local_info["serviceList"].remove(self.service_name)
-        logger.info(f'"{self.service_name}" Service is stopped')
-
-
-class StrBytesService(AbstractService):
-
-    def __init__(
-        self,
-        service_name: str,
-        callback_func: Callable[[str], bytes],
-    ) -> None:
-        super().__init__(service_name)
-        self.callback_func = callback_func
-
-    def process_bytes_request(self, msg: bytes) -> bytes:
-        return self.callback_func(msg.decode())
+#     def on_shutdown(self):
+#         self.manager.local_info["serviceList"].remove(self.service_name)
+#         logger.info(f'"{self.service_name}" Service is stopped')
 
 
-class StrService(AbstractService):
+# class StrBytesService(AbstractService):
 
-    def __init__(
-        self,
-        service_name: str,
-        callback_func: Callable[[str], str],
-    ) -> None:
-        super().__init__(service_name)
-        self.callback_func = callback_func
+#     def __init__(
+#         self,
+#         service_name: str,
+#         callback_func: Callable[[str], bytes],
+#     ) -> None:
+#         super().__init__(service_name)
+#         self.callback_func = callback_func
 
-    def process_bytes_request(self, msg: bytes) -> bytes:
-        return self.callback_func(msg.decode()).encode()
+#     def process_bytes_request(self, msg: bytes) -> bytes:
+#         return self.callback_func(msg.decode())
 
 
-class NodesInfoManager:
+# class StrService(AbstractService):
 
-    def __init__(self, local_info: NodeInfo) -> None:
-        self.nodes_info: Dict[HashIdentifier, NodeInfo] = {}
+#     def __init__(
+#         self,
+#         service_name: str,
+#         callback_func: Callable[[str], str],
+#     ) -> None:
+#         super().__init__(service_name)
+#         self.callback_func = callback_func
+
+#     def process_bytes_request(self, msg: bytes) -> bytes:
+#        return self.callback_func(msg.decode()).encode()
+
+# endregion
+
+class NodeInfoManager:
+
+    def __init__(self, local_info: ClientNodeInfo) -> None:
+        self.server_nodes_info: Dict[HashIdentifier, ServerNodeInfo] = {}
         # local info is the master node info
         self.local_info = local_info
         self.node_id = local_info["nodeID"]
 
-    def get_nodes_info(self) -> Dict[HashIdentifier, NodeInfo]:
-        return self.nodes_info
+    
+    def get_server_nodes_info(self) -> Dict[HashIdentifier, ServerNodeInfo]:
+        return self.server_nodes_info
 
-    def check_service(self, service_name: ServiceName) -> Optional[NodeInfo]:
-        for info in self.nodes_info.values():
+    def check_service(self, service_name: ServiceName) -> Optional[ServerNodeInfo]:
+        for info in self.server_nodes_info.values():
             if service_name in info["serviceList"]:
                 return info
         return None
 
-    def check_topic(self, topic_name: TopicName) -> Optional[NodeInfo]:
-        for info in self.nodes_info.values():
+    def check_topic(self, topic_name: TopicName) -> Optional[ServerNodeInfo]:
+        for info in self.server_nodes_info.values():
             if topic_name in info["topicList"]:
                 return info
         return None
 
-    def register_node(self, info: NodeInfo):
+    def register_server_node(self, info: ServerNodeInfo):
         node_id = info["nodeID"]
-        if node_id not in self.nodes_info.keys():
+        if node_id not in self.server_nodes_info.keys():
             logger.info(
                 f"Node {info['name']} from "
                 f"{info['addr']['ip']} has been launched"
             )
-        self.nodes_info[node_id] = info
+        self.server_nodes_info[node_id] = info
 
-    def remove_node(self, node_id: HashIdentifier):
+    def remove_server_node(self, node_id: HashIdentifier):
         try:
-            if node_id in self.nodes_info.keys():
-                removed_info = self.nodes_info.pop(node_id)
+            if node_id in self.server_nodes_info.keys():
+                removed_info = self.server_nodes_info.pop(node_id)
                 logger.info(f"Node {removed_info['name']} is offline")
         except Exception as e:
             logger.error(f"Error occurred when removing node: {e}")
 
-    def get_node_info(self, node_name: str) -> Optional[NodeInfo]:
-        for info in self.nodes_info.values():
+    def get_node_info(self, node_name: str) -> Optional[ServerNodeInfo]:
+        for info in self.server_nodes_info.values():
             if info["name"] == node_name:
                 return info
         return None
@@ -317,18 +320,18 @@ class NodeManager:
         self.service_socket.bind(f"tcp://{host_ip}:0")
         self.service_cbs: Dict[bytes, Callable[[bytes], Awaitable]] = {}
         # message for broadcasting
-        self.local_info: NodeInfo = {
+        self.local_info: ClientNodeInfo = {
             "name": node_name,
             "nodeID": str(uuid.uuid4()),
             "addr": create_address(host_ip, DISCOVERY_PORT),
             "type": "Master",
-            "servicePort": get_zmq_socket_port(self.service_socket),
+            # "servicePort": get_zmq_socket_port(self.service_socket),
             "topicPort": get_zmq_socket_port(self.pub_socket),
-            "serviceList": [],
+            # "serviceList": [],
             "topicList": [],
         }
         logger.info(f"Node {node_name} starts at {host_ip}:{DISCOVERY_PORT}")
-        self.nodes_info_manager = NodesInfoManager(self.local_info)
+        self.nodes_info_manager = NodeInfoManager(self.local_info)
         # start the server in a thread pool
         self.executor = ThreadPoolExecutor(max_workers=10)
         self.server_future = self.executor.submit(self.thread_task)
@@ -395,97 +398,128 @@ class NodeManager:
             raise RuntimeError("The event loop is not running")
         return asyncio.run_coroutine_threadsafe(task(*args), self.loop)
 
-    async def service_loop(self):
-        logger.info("The service loop is running...")
-        service_socket = self.service_socket
-        while self.running:
-            bytes_msg = await service_socket.recv_multipart()
-            service_name, request = split_byte(b"".join(bytes_msg))
-            # the zmq service socket is blocked and only run one at a time
-            if service_name in self.service_cbs.keys():
-                try:
-                    await self.service_cbs[service_name](request)
-                except asyncio.TimeoutError:
-                    logger.error("Timeout: callback function took too long")
-                    await service_socket.send(MSG.SERVICE_TIMEOUT.value)
-                except Exception as e:
-                    logger.error(
-                        f"One error occurred when processing the Service "
-                        f'"{service_name}": {e}'
-                    )
-                    traceback.print_exc()
-                    await service_socket.send(MSG.SERVICE_ERROR.value)
-            await async_sleep(0.01)
-        logger.info("Service loop has been stopped")
+    # async def service_loop(self):
+    #     logger.info("The service loop is running...")
+    #     service_socket = self.service_socket
+    #     while self.running:
+    #         bytes_msg = await service_socket.recv_multipart()
+    #         service_name, request = split_byte(b"".join(bytes_msg))
+    #         # the zmq service socket is blocked and only run one at a time
+    #         if service_name in self.service_cbs.keys():
+    #             try:
+    #                 await self.service_cbs[service_name](request)
+    #             except asyncio.TimeoutError:
+    #                 logger.error("Timeout: callback function took too long")
+    #                 await service_socket.send(MSG.SERVICE_TIMEOUT.value)
+    #             except Exception as e:
+    #                 logger.error(
+    #                     f"One error occurred when processing the Service "
+    #                     f'"{service_name}": {e}'
+    #                 )
+    #                 traceback.print_exc()
+    #                 await service_socket.send(MSG.SERVICE_ERROR.value)
+    #         await async_sleep(0.01)
+    #     logger.info("Service loop has been stopped")
 
     def start_event_loop(self):
+        # TODO: remove services
+
         self.loop = asyncio.new_event_loop()
         self.running = True
         asyncio.set_event_loop(self.loop)
-        self.submit_task(self.service_loop)
-        self.register_service = StrService(
-            "RegisterNode",
-            self.register_node_callback,
-        )
-        self.node_offline_service = StrService(
-            "NodeOffline",
-            self.node_offline_callback,
-        )
-        self.get_nodes_info_service = StrService(
-            "GetNodesInfo",
-            self.get_nodes_info_callback,
-        )
+        # self.submit_task(self.service_loop)
+        # self.register_service = StrService(
+        #     "RegisterNode",
+        #     self.register_node_callback,
+        # )
+        # self.node_offline_service = StrService(
+        #     "NodeOffline",
+        #     self.node_offline_callback,
+        # )
+        # self.get_nodes_info_service = StrService(
+        #     "GetNodesInfo",
+        #     self.get_nodes_info_callback,
+        # )
         self.loop.run_forever()
 
     async def broadcast_loop(self):
-        logger.info("The server is broadcasting...")
-        # set up udp socket
-        _socket = socket.socket(AF_INET, SOCK_DGRAM)
-        _socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
-        # calculate broadcast ip
-        local_info = self.local_info
-        _ip = local_info["addr"]["ip"]
-        ip_bin = struct.unpack('!I', socket.inet_aton(_ip))[0]
-        netmask_bin = struct.unpack('!I', socket.inet_aton("255.255.255.0"))[0]
-        broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
-        broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
-        while self.running:
-            msg = f"SimPub|{dumps(local_info)}"
-            _socket.sendto(
-                msg.encode(), (broadcast_ip, DISCOVERY_PORT)
-            )
-            await async_sleep(0.1)
-        logger.info("Broadcasting has been stopped")
 
-    def register_node_callback(self, msg: str) -> str:
-        # NOTE: something wrong with sending message, but it solved somehow
-        client_info: NodeInfo = loads(msg)
-        # NOTE: the client info may be updated so the reference cannot be used
-        # NOTE: TypeDict is somehow block if the key is not in the dict
-        self.nodes_info_manager.register_node(client_info)
-        return "The info has been registered"
+        # TODO: rewrite to receive the local info from the server
+        # also use self.nodes_info_manager.register_server_node(server_info)
+        
+        logger.info("Is listening for server nodes...")
+        _socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        _socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # on this port, listen ONLY to MCAST_GRP
+        _socket.bind((MCAST_GRP, DISCOVERY_PORT))
+        mreq = struct.pack("4sl", socket.inet_aton(MCAST_GRP), socket.INADDR_ANY)
+        _socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        while self.running:
+            message = _socket.recv(1024).decode("utf-8")
+            topic, msg = message.split("|", 1)
+            if topic == "IRIS":
+                try:
+                    server_info: ServerNodeInfo = loads(msg)
+                    # register the server node info
+                    self.nodes_info_manager.register_server_node(server_info)
+                    logger.info(
+                        "Server node %s has been registered",
+                        server_info['name']
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Error occurred when processing the server info: %s", e
+                    )
+    
+
+        # logger.info("The server is broadcasting...")
+        # # set up udp socket
+        # _socket = socket.socket(AF_INET, SOCK_DGRAM)
+        # _socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+        # # calculate broadcast ip
+        # local_info = self.local_info
+        # _ip = local_info["addr"]["ip"]
+        # ip_bin = struct.unpack('!I', socket.inet_aton(_ip))[0]
+        # netmask_bin = struct.unpack('!I', socket.inet_aton("255.255.255.0"))[0]
+        # broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
+        # broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
+        # while self.running:
+        #     msg = f"SimPub|{dumps(local_info)}"
+        #     _socket.sendto(
+        #         msg.encode(), (broadcast_ip, DISCOVERY_PORT)
+        #     )
+        #     await async_sleep(0.1)
+        # logger.info("Broadcasting has been stopped")
+
+    # def register_node_callback(self, msg: str) -> str:
+    #     # NOTE: something wrong with sending message, but it solved somehow
+    #     client_info: NodeInfo = loads(msg)
+    #     # NOTE: the client info may be updated so the reference cannot be used
+    #     # NOTE: TypeDict is somehow block if the key is not in the dict
+    #     self.nodes_info_manager.register_node(client_info)
+    #     return "The info has been registered"
 
     def node_offline_callback(self, msg: str) -> str:
         client_name = msg
-        self.nodes_info_manager.remove_node(client_name)
+        self.nodes_info_manager.remove_server_node(client_name)
         return "The info has been removed"
 
-    def get_nodes_info_callback(
+    def get_server_nodes_info_callback(
         self,
         msg: str,
     ) -> str:
-        return dumps(self.nodes_info_manager.get_nodes_info())
+        return dumps(self.nodes_info_manager.get_server_nodes_info())
 
-    def register_local_service(self, service_name: ServiceName) -> None:
-        if self.nodes_info_manager.check_service(service_name) is not None:
-            logger.warning(
-                f"Service {service_name} has been registered, "
-                f"cannot register again"
-            )
-            raise RuntimeError("Service has been registered")
-        if service_name in self.local_info["serviceList"]:
-            raise RuntimeError("Service has been registered")
-        self.local_info["serviceList"].append(service_name)
+    # def register_local_service(self, service_name: ServiceName) -> None:
+    #     if self.nodes_info_manager.check_service(service_name) is not None:
+    #         logger.warning(
+    #             f"Service {service_name} has been registered, "
+    #             f"cannot register again"
+    #         )
+    #         raise RuntimeError("Service has been registered")
+    #     if service_name in self.local_info["serviceList"]:
+    #         raise RuntimeError("Service has been registered")
+    #     self.local_info["serviceList"].append(service_name)
 
     def register_local_topic(self, topic_name: TopicName) -> None:
         if self.nodes_info_manager.check_topic(topic_name) is not None:
@@ -498,9 +532,9 @@ class NodeManager:
             raise RuntimeError("Topic has been registered")
         self.local_info["topicList"].append(topic_name)
 
-    def remove_local_service(self, service_name: ServiceName) -> None:
-        if service_name in self.local_info["serviceList"]:
-            self.local_info["serviceList"].remove(service_name)
+    # def remove_local_service(self, service_name: ServiceName) -> None:
+    #     if service_name in self.local_info["serviceList"]:
+    #         self.local_info["serviceList"].remove(service_name)
 
     def remove_local_topic(self, topic_name: TopicName) -> None:
         if topic_name in self.local_info["topicList"]:
