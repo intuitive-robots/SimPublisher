@@ -1,1 +1,1 @@
-from .net_manager import init_node
+from .net_manager import init_xr_node_manager

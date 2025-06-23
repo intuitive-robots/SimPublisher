@@ -53,7 +53,8 @@ class ClientNodeInfo(TypedDict):
     topicPort: int
     topicList: List[TopicName]
 
-class ServerNodeInfo(TypedDict):
+
+class XRNodeInfo(TypedDict):
     name: str
     nodeID: str  # hash code since bytes is not JSON serializable
     addr: NodeAddress
@@ -64,24 +65,28 @@ class ServerNodeInfo(TypedDict):
     topicList: List[TopicName]
 
 
-async def send_request(
-    msg: str,
-    addr: str,
-    context: zmq.asyncio.Context
-) -> str:
-    req_socket = context.socket(zmq.REQ)
+def send_raw_request(messages: List[bytes], addr: str) -> bytes:
+    req_socket = zmq.Context().socket(zmq.REQ)
     req_socket.connect(addr)
     try:
-        await req_socket.send_string(msg)
+        print(f"Sending message to {addr}: {messages}")
+        req_socket.send_multipart(messages, copy=False)
     except Exception as e:
         logger.error(
             f"Error when sending message from send_message function in "
             f"simpub.core.utils: {e}"
         )
-    result = await req_socket.recv_string()
+    result = req_socket.recv()
     req_socket.close()
     return result
 
+
+def send_request(service_name: str, message: bytes, addr: str) -> bytes:
+    return send_raw_request([service_name.encode(), message], addr)
+
+
+def send_string_request(service_name: str, message: str, addr: str) -> bytes:
+    return send_raw_request([service_name.encode(), message.encode()], addr)
 
 # def calculate_broadcast_addr(ip_addr: IPAddress) -> IPAddress:
 #     ip_bin = struct.unpack("!I", socket.inet_aton(ip_addr))[0]

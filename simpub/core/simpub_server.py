@@ -5,7 +5,7 @@ from asyncio import sleep as asyncio_sleep
 import traceback
 
 from ..simdata import SimScene
-from .net_manager import NodeManager, Streamer, init_node
+from .net_manager import XRNodeManager, Streamer, init_node
 from .log import logger
 from .utils import send_request, HashIdentifier
 
@@ -67,7 +67,7 @@ class SimPublisher(ServerBase):
         self.xr_device_set: Set[HashIdentifier] = set()
         self.net_manager.submit_task(self.search_xr_device, self.net_manager)
 
-    async def search_xr_device(self, node: NodeManager):
+    async def search_xr_device(self, node: XRNodeManager):
         while node.running:
             for xr_info in node.nodes_info_manager.server_nodes_info.values():
                 if xr_info["nodeID"] in self.xr_device_set:
@@ -128,7 +128,7 @@ class SimPublisherClient(ServerBase):
         self.xr_device_set: Set[HashIdentifier] = set()
         self.net_manager.submit_task(self.search_xr_device, self.net_manager)
 
-    async def search_xr_device(self, node: NodeManager):
+    async def search_xr_device(self, node: XRNodeManager):
         while node.running:
             for xr_info in node.nodes_info_manager.server_nodes_info.values():
                 if xr_info["nodeID"] in self.xr_device_set:

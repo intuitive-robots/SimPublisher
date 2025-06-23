@@ -5,7 +5,7 @@ from typing import Optional, Dict, Callable
 from asyncio import sleep as async_sleep
 
 from ..core.log import logger
-from ..core.net_manager import NodeManager, ServerNodeInfo
+from ..core.net_manager import XRNodeManager, XRNodeInfo
 from ..core.net_manager import TopicName
 # from ..core.net_component import Subscriber
 from ..core.utils import AsyncSocket
@@ -24,12 +24,12 @@ class XRDevice:
         self,
         device_name: str = "UnityClient",
     ) -> None:
-        if NodeManager.manager is None:
-            raise Exception("NodeManager is not initialized")
-        self.manager: NodeManager = NodeManager.manager
+        if XRNodeManager.manager is None:
+            raise Exception("XRNodeManager is not initialized")
+        self.manager: XRNodeManager = XRNodeManager.manager
         self.connected = False
         self.device_name = device_name
-        self.device_info: Optional[ServerNodeInfo] = None
+        self.device_info: Optional[XRNodeInfo] = None
         self.req_socket: AsyncSocket = self.manager.create_socket(zmq.REQ)
         self.sub_socket: AsyncSocket = self.manager.create_socket(zmq.SUB)
         # subscriber
@@ -53,7 +53,7 @@ class XRDevice:
             return
         self.connect_to_client(self.device_info)
 
-    def connect_to_client(self, info: ServerNodeInfo):
+    def connect_to_client(self, info: XRNodeInfo):
         self.req_socket.connect(
             f"tcp://{info['addr']['ip']}:{info['servicePort']}"
         )
