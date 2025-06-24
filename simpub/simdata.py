@@ -319,6 +319,16 @@ class SimVisual(SimData):
     #     if self.material is not None:
     #         self.material = self
 
+    def to_string(self, sim_scene: SimScene, sim_object: SimObject) -> str:
+        dict_data = {
+            "name": self.name,
+            "type": self.type.value,
+            "objName": sim_object.name,
+            "sceneName": sim_scene.name,
+            "trans": self.trans.to_dict(),
+        }
+        return json.dumps(dict_data)
+
 
 @dataclass
 class SimObject(SimData):
@@ -327,19 +337,29 @@ class SimObject(SimData):
     visuals: List[SimVisual] = field(default_factory=list)
     children: List[SimObject] = field(default_factory=list)
 
+    def to_string(self, sim_scene: SimScene, parent: Optional[SimObject]) -> str:
+        # visuals_data = [visual.to_dict() for visual in self.visuals]
+        # children_data = [child.to_dict() for child in self.children]
+        dict_data = {
+            "name": self.name,
+            "parentName": parent.name if parent else "",
+            "sceneName": sim_scene.name,
+            "trans": self.trans.to_dict(),
+        }
+        return json.dumps(dict_data)
+
 
 class SimScene:
     def __init__(self) -> None:
         self.root: Optional[SimObject] = None
-        self.id: str = str(random.randint(int(1e9), int(1e10 - 1)))
+        self.name: str = "DefaultSceneName"
         self.raw_data: Dict[str, bytes] = dict()
 
     def to_string(self) -> str:
         if self.root is None:
             raise ValueError("Root object is not set")
         dict_data = {
-            "root": asdict(self.root),
-            "id": self.id,
+            "name": self.name,
         }
         return json.dumps(dict_data)
 

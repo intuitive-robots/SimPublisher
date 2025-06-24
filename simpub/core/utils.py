@@ -57,7 +57,7 @@ class ClientNodeInfo(TypedDict):
 class XRNodeInfo(TypedDict):
     name: str
     nodeID: str  # hash code since bytes is not JSON serializable
-    addr: NodeAddress
+    ip: IPAddress
     type: str
     servicePort: int
     topicPort: int

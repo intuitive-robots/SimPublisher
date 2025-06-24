@@ -91,6 +91,7 @@ class MjModelParser:
 
     def parse_model(self, mj_model):
         sim_scene = SimScene()
+        sim_scene.name = "MujocoScene"
         self.sim_scene = sim_scene
         # create a dictionary to store the body hierarchy
         body_hierarchy = {}
