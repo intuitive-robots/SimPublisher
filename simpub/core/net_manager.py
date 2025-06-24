@@ -314,24 +314,28 @@ class XRNodeManager:
                 node_ip = address[0]
                 # Decode and print the message from the allowed IP
                 message = data.decode('utf-8')
-                node_id, node_port = message[:36], message[36:]
+                node_id, node_service_port = message[:36], message[36:]
                 if node_id not in self.xr_nodes_info:
-                    node_address = f"tcp://{node_ip}:{node_port}"
-                    self.register_node_info(node_id, node_address)
+                    self.register_node_info(node_id, node_ip, node_service_port)
         except KeyboardInterrupt:
             print("Stopping multicast receiver...")
         finally:
             # Close the socket when done
             sock.close()
 
-    def register_node_info(self, node_id: str, node_address: str) -> None:
+    def register_node_info(
+        self, node_id: str, node_ip: str, node_service_port: str
+    ) -> None:
         """
         Register a new XR node info.
         If the node info already exists, it will be updated.
         """
-        node_info_bytes = send_string_request("GetNodeInfo", "", node_address)
+        node_info_bytes = send_string_request(
+            "GetNodeInfo", "", f"tcp://{node_ip}:{node_service_port}"
+        )
         self.xr_nodes_info[node_id] = loads(node_info_bytes.decode('utf-8'))
-        print(f"Registering node info: {node_id} at {node_address}")
+        self.xr_nodes_info[node_id]["ip"] = node_ip
+        print(f"Registering node info: {node_id} at {node_ip}:{node_service_port}")
 
 
 def init_xr_node_manager(ip_addr: str) -> XRNodeManager:
