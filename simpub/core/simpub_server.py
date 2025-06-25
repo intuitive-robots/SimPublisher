@@ -7,7 +7,7 @@ import traceback
 from ..simdata import SimScene, SimObject, SimVisual
 from .net_manager import XRNodeManager, init_xr_node_manager
 from .log import logger
-from .utils import send_string_request, HashIdentifier, XRNodeInfo
+from .utils import send_string_request, send_raw_request, HashIdentifier, XRNodeInfo
 
 
 class ServerBase(abc.ABC):
@@ -134,12 +134,20 @@ class SimPublisher(ServerBase):
         sim_visual: SimVisual,
         sim_object: SimObject,
     ):
-        send_string_request(
-            "CreateVisual",
-            sim_visual.to_string(sim_scene, sim_object),
+        mesh_raw_data, texture_raw_data = b'0', b'0'
+        if sim_visual.mesh is not None:
+            mesh_raw_data = sim_scene.raw_data[sim_visual.mesh.hash]
+        if sim_visual.material is not None and sim_visual.material.texture is not None:
+            texture_raw_data = sim_scene.raw_data[sim_visual.material.texture.hash]
+        send_raw_request(
+            [
+                "CreateVisual".encode(),
+                sim_visual.to_string(sim_scene, sim_object).encode(),
+                mesh_raw_data,
+                texture_raw_data,
+            ],
             f"tcp://{xr_info['ip']}:{xr_info['servicePort']}"
         )
-
 
     def _on_asset_request(self, req: str) -> bytes:
         return self.sim_scene.raw_data[req]

@@ -312,8 +312,8 @@ class SimVisual(SimData):
     name: str
     type: VisualType
     trans: SimTransform
-    material: Optional[SimMaterial] = None
     mesh: Optional[SimMesh] = None
+    material: Optional[SimMaterial] = None
     # TODO： easily set up transparency
     # def setup_transparency(self):
     #     if self.material is not None:
@@ -326,6 +326,8 @@ class SimVisual(SimData):
             "objName": sim_object.name,
             "sceneName": sim_scene.name,
             "trans": self.trans.to_dict(),
+            "mesh": self.mesh.to_dict() if self.mesh else None,
+            "material": self.material.to_dict() if self.material else None,
         }
         return json.dumps(dict_data)
 
