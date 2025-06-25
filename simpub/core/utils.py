@@ -69,7 +69,7 @@ def send_raw_request(messages: List[bytes], addr: str) -> bytes:
     req_socket = zmq.Context().socket(zmq.REQ)
     req_socket.connect(addr)
     try:
-        print(f"Sending message to {addr}: {messages}")
+        print(f"Sending message to {addr}: {messages[0].decode()}")
         req_socket.send_multipart(messages, copy=False)
     except Exception as e:
         logger.error(
