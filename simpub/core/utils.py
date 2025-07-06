@@ -5,6 +5,7 @@ import socket
 from typing import List, TypedDict
 import enum
 from traceback import print_exc
+import time
 
 from .log import logger
 
@@ -69,14 +70,16 @@ def send_raw_request(messages: List[bytes], addr: str) -> bytes:
     req_socket = zmq.Context().socket(zmq.REQ)
     req_socket.connect(addr)
     try:
-        print(f"Sending message to {addr}: {messages[0].decode()}")
+        start = time.time()
         req_socket.send_multipart(messages, copy=False)
     except Exception as e:
         logger.error(
             f"Error when sending message from send_message function in "
             f"simpub.core.utils: {e}"
         )
+    start2 = time.time()
     result = req_socket.recv()
+    print(f"Message sent in {time.time() - start:.6f} seconds, {time.time() - start2:.6f} seconds to receive response")
     req_socket.close()
     return result
 
@@ -102,6 +105,11 @@ def create_udp_socket() -> socket.socket:
 def get_zmq_socket_port(socket: zmq.asyncio.Socket) -> int:
     endpoint: bytes = socket.getsockopt(zmq.LAST_ENDPOINT)  # type: ignore
     return int(endpoint.decode().split(":")[-1])
+
+
+def get_zmq_socket_url(socket: zmq.asyncio.Socket) -> str:
+    endpoint: bytes = socket.getsockopt(zmq.LAST_ENDPOINT)  # type: ignore
+    return endpoint.decode()
 
 
 def split_byte(bytes_msg: bytes) -> List[bytes]:

@@ -3,11 +3,12 @@ import abc
 from typing import Dict, List, Optional, Set
 from asyncio import sleep as asyncio_sleep
 import traceback
+import zmq
 
 from ..simdata import SimScene, SimObject, SimVisual
-from .net_manager import XRNodeManager, init_xr_node_manager
+from .net_manager import XRNodeManager, init_xr_node_manager, Streamer
 from .log import logger
-from .utils import send_string_request, send_raw_request, HashIdentifier, XRNodeInfo
+from .utils import send_string_request, send_raw_request, HashIdentifier, XRNodeInfo, get_zmq_socket_url
 
 
 class ServerBase(abc.ABC):
@@ -58,11 +59,11 @@ class SimPublisher(ServerBase):
         super().__init__(ip_addr)
 
     def initialize(self) -> None:
-        # self.scene_update_streamer = Streamer(
-        #     topic_name="SceneUpdate",
-        #     update_func=self.get_update,
-        #     fps=self.fps,
-        #     start_streaming=True)
+        self.scene_update_streamer = Streamer(
+            topic_name="RigidObjectUpdate",
+            update_func=self.get_update,
+            fps=self.fps,
+            start_streaming=True)
         # self.asset_service = StrBytesService("Asset", self._on_asset_request)
         self.xr_device_set: Set[HashIdentifier] = set()
         self.node_manager.submit_asyncio_task(
@@ -79,15 +80,6 @@ class SimPublisher(ServerBase):
                     self.send_scene_to_xr_device(
                         node_manager.xr_nodes_info[xr_node_id]
                     )
-                    # scene_string = f"LoadSimScene|{self.sim_scene.to_string()}"
-                    # ip, port = xr_info["addr"]["ip"], xr_info["servicePort"]
-                    # self.net_manager.submit_task(
-                    #     send_request,
-                    #     scene_string,
-                    #     f"tcp://{ip}:{port}",
-                    #     self.net_manager.zmq_context
-                    # )
-                    # logger.info(f"The Scene is sent to {xr_info['name']}")
                 except Exception as e:
                     logger.error(f"Error when sending scene to xr device: {e}")
                     traceback.print_exc()
@@ -102,6 +94,9 @@ class SimPublisher(ServerBase):
         if self.sim_scene.root is None:
             logger.warning("The SimScene root is None, nothing to send.")
             return
+        self.send_rigid_body_streamer(
+            xr_info, self.sim_scene,
+        )
         self.send_object_to_xr_device(
             xr_info, self.sim_scene.root, self.sim_scene,
         )
@@ -113,10 +108,14 @@ class SimPublisher(ServerBase):
         sim_scene: SimScene,
         parent: Optional[SimObject] = None
     ):
-        send_string_request(
-            "CreateSimObject",
-            sim_object.to_string(sim_scene, parent),
-            f"tcp://{xr_info['ip']}:{xr_info['servicePort']}"
+        send_raw_request(
+            [
+                "CreateSimObject".encode(),
+                sim_scene.name.encode(),
+                parent.name.encode() if parent else "".encode(),
+                sim_object.to_string(sim_scene, parent).encode(),
+            ],
+            f"tcp://{xr_info['ip']}:{xr_info['servicePort']}",
         )
         for child in sim_object.visuals:
             self.send_visual_to_xr_device(
@@ -142,11 +141,29 @@ class SimPublisher(ServerBase):
         send_raw_request(
             [
                 "CreateVisual".encode(),
-                sim_visual.to_string(sim_scene, sim_object).encode(),
+                sim_scene.name.encode(),
+                sim_object.name.encode(),
+                sim_visual.to_string().encode(),
                 mesh_raw_data,
                 texture_raw_data,
             ],
             f"tcp://{xr_info['ip']}:{xr_info['servicePort']}"
+        )
+
+    def send_rigid_body_streamer(
+        self,
+        xr_info: XRNodeInfo,
+        sim_scene: SimScene,
+    ):
+        url = get_zmq_socket_url(self.node_manager.pub_socket)
+        send_raw_request(
+            [
+                "SubscribeRigidObjectsController".encode(),
+                sim_scene.name.encode(),
+                url.encode(),
+                "RigidObjectUpdate".encode(),
+            ],
+            f"tcp://{xr_info['ip']}:{xr_info['servicePort']}",
         )
 
     def _on_asset_request(self, req: str) -> bytes:

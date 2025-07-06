@@ -2,7 +2,7 @@ from __future__ import annotations
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 import abc
-from typing import Dict, Optional, Callable, Awaitable, Union
+from typing import Dict, Optional, Callable, List, Union
 import asyncio
 from asyncio import sleep as async_sleep
 import socket
@@ -23,122 +23,108 @@ from .utils import split_byte, get_zmq_socket_port, create_address
 from .utils import send_string_request
 
 
-# class NetComponent(abc.ABC):
-#     def __init__(self):
-#         if XRNodeManager.manager is None:
-#             raise ValueError("XRNodeManager is not initialized")
-#         self.manager: XRNodeManager = XRNodeManager.manager
-#         self.running: bool = False
-#         self.host_ip: str = self.manager.local_info["addr"]["ip"]
-#         self.local_name: str = self.manager.local_info["name"]
+class NetComponent(abc.ABC):
+    def __init__(self):
+        if XRNodeManager.manager is None:
+            raise ValueError("XRNodeManager is not initialized")
+        self.manager: XRNodeManager = XRNodeManager.manager
+        self.running: bool = False
 
-#     def shutdown(self) -> None:
-#         self.running = False
-#         self.on_shutdown()
+    def shutdown(self) -> None:
+        self.running = False
+        self.on_shutdown()
 
-#     @abc.abstractmethod
-#     def on_shutdown(self):
-#         raise NotImplementedError
+    @abc.abstractmethod
+    def on_shutdown(self):
+        raise NotImplementedError
 
 
-# class Publisher(NetComponent):
-#     def __init__(self, topic_name: str, with_local_namespace: bool = False):
-#         super().__init__()
-#         self.topic_name = topic_name
-#         if with_local_namespace:
-#             self.topic_name = f"{self.local_name}/{topic_name}"
-#         self.socket = self.manager.pub_socket
-#         if self.manager.nodes_info_manager.check_topic(topic_name):
-#             logger.warning(f"Topic {topic_name} is already registered")
-#             raise ValueError(f"Topic {topic_name} is already registered")
-#         else:
-#             self.manager.register_local_topic(topic_name)
-#             logger.info(msg=f'Topic "{self.topic_name}" is ready to publish')
+class Publisher(NetComponent):
+    def __init__(self, topic_name: str):
+        super().__init__()
+        self.topic_name = topic_name
+        self.socket = self.manager.pub_socket
 
-#     def publish_bytes(self, data: bytes) -> None:
-#         msg = b''.join([f"{self.topic_name}".encode(), b"|", data])
-#         self.manager.submit_task(self.send_bytes_async, msg)
+    def publish_bytes(self, msg: bytes) -> None:
+        self.manager.submit_asyncio_task(self.send_bytes_async, msg)
 
-#     def publish_dict(self, data: Dict) -> None:
-#         self.publish_string(dumps(data))
+    def publish_dict(self, msg: Dict) -> None:
+        self.publish_string(dumps(msg))
 
-#     def publish_string(self, string: str) -> None:
-#         msg = f"{self.topic_name}|{string}"
-#         self.manager.submit_task(self.send_bytes_async, msg.encode())
+    def publish_string(self, msg: str) -> None:
+        self.manager.submit_asyncio_task(self.send_bytes_async, msg.encode())
 
-#     def on_shutdown(self) -> None:
-#         self.manager.remove_local_topic(self.topic_name)
+    async def send_bytes_async(self, msg: bytes) -> None:
+        await self.socket.send_multipart([self.topic_name.encode(), msg])
 
-#     async def send_bytes_async(self, msg: bytes) -> None:
-#         await self.socket.send(msg)
+    def on_shutdown(self):
+        pass
 
 
-# class Streamer(Publisher):
-#     def __init__(
-#         self,
-#         topic_name: str,
-#         update_func: Callable[[], Optional[Union[str, bytes, Dict]]],
-#         fps: int,
-#         start_streaming: bool = False,
-#     ):
-#         super().__init__(topic_name)
-#         self.running = False
-#         self.dt: float = 1 / fps
-#         self.update_func = update_func
-#         self.topic_byte = self.topic_name.encode("utf-8")
-#         if start_streaming:
-#             self.start_streaming()
+class Streamer(Publisher):
+    def __init__(
+        self,
+        topic_name: str,
+        update_func: Callable[[], Optional[Union[str, bytes, Dict]]],
+        fps: int,
+        start_streaming: bool = False,
+    ):
+        super().__init__(topic_name)
+        self.running = False
+        self.dt: float = 1 / fps
+        self.update_func = update_func
+        self.topic_byte = self.topic_name.encode("utf-8")
+        if start_streaming:
+            self.start_streaming()
 
-#     def start_streaming(self):
-#         self.manager.submit_task(self.update_loop)
+    def start_streaming(self):
+        self.manager.submit_asyncio_task(self.update_loop)
 
-#     def generate_byte_msg(self) -> bytes:
-#         update_msg = self.update_func()
-#         if isinstance(update_msg, str):
-#             return update_msg.encode("utf-8")
-#         elif isinstance(update_msg, bytes):
-#             return update_msg
-#         elif isinstance(update_msg, dict):
-#             # return dumps(update_msg).encode("utf-8")
-#             return dumps(
-#                 {
-#                     "updateData": self.update_func(),
-#                     "time": time.monotonic(),
-#                 }
-#             ).encode("utf-8")
-#         raise ValueError("Update function should return str, bytes or dict")
+    def generate_byte_msg(self) -> bytes:
+        update_msg = self.update_func()
+        if isinstance(update_msg, str):
+            return update_msg.encode("utf-8")
+        elif isinstance(update_msg, bytes):
+            return update_msg
+        elif isinstance(update_msg, dict):
+            # return dumps(update_msg).encode("utf-8")
+            return dumps(
+                {
+                    "updateData": self.update_func(),
+                    "time": time.monotonic(),
+                }
+            ).encode("utf-8")
+        raise ValueError("Update function should return str, bytes or dict")
 
-#     async def update_loop(self):
-#         self.running = True
-#         last = 0.0
-#         logger.info(f"Topic {self.topic_name} starts streaming")
-#         while self.running:
-#             try:
-#                 diff = time.monotonic() - last
-#                 if diff < self.dt:
-#                     await async_sleep(self.dt - diff)
-#                 last = time.monotonic()
-#                 await self.socket.send(
-#                     b"".join([self.topic_byte, b"|", self.generate_byte_msg()])
-#                 )
-#             except Exception as e:
-#                 logger.error(f"Error when streaming {self.topic_name}: {e}")
-#                 traceback.print_exc()
-#         logger.info(f"Streamer for topic {self.topic_name} is stopped")
+    async def update_loop(self):
+        self.running = True
+        last = 0.0
+        logger.info(f"Topic {self.topic_name} starts streaming")
+        while self.running:
+            try:
+                diff = time.monotonic() - last
+                if diff < self.dt:
+                    await async_sleep(self.dt - diff)
+                last = time.monotonic()
+                await self.send_bytes_async(self.generate_byte_msg())
+            except Exception as e:
+                logger.error(f"Error when streaming {self.topic_name}: {e}")
+                traceback.print_exc()
+        logger.info(f"Streamer for topic {self.topic_name} is stopped")
 
 
-# class ByteStreamer(Streamer):
-#     def __init__(
-#         self,
-#         topic: str,
-#         update_func: Callable[[], bytes],
-#         fps: int,
-#     ):
-#         super().__init__(topic, update_func, fps)
-#         self.update_func: Callable[[], bytes]
+class ByteStreamer(Streamer):
+    def __init__(
+        self,
+        topic: str,
+        update_func: Callable[[], bytes],
+        fps: int,
+    ):
+        super().__init__(topic, update_func, fps)
+        self.update_func: Callable[[], bytes]
 
-#     def generate_byte_msg(self) -> bytes:
-#         return self.update_func()
+    def generate_byte_msg(self) -> bytes:
+        return self.update_func()
 
 
 # class Subscriber(NetComponent):
@@ -195,7 +181,6 @@ from .utils import send_string_request
 #         self.sub_socket.close()
 
 
-
 class XRNodeManager:
 
     manager = None
@@ -203,9 +188,9 @@ class XRNodeManager:
     def __init__(self, host_ip: IPAddress) -> None:
         XRNodeManager.manager = self
         self.zmq_context = zmq.asyncio.Context()  # type: ignore
-        # # publisher
-        # self.pub_socket = self.create_socket(zmq.PUB)
-        # self.pub_socket.bind(f"tcp://{host_ip}:0")
+        # publisher
+        self.pub_socket = self.create_socket(zmq.PUB)
+        self.pub_socket.bind(f"tcp://{host_ip}:0")
         # # service
         # self.service_socket = self.zmq_context.socket(zmq.REP)
         # self.service_socket.bind(f"tcp://{host_ip}:0")
@@ -314,9 +299,9 @@ class XRNodeManager:
                 node_ip = address[0]
                 # Decode and print the message from the allowed IP
                 message = data.decode('utf-8')
-                node_id, node_service_port = message[:36], message[36:]
+                node_id, service_port = message[:36], message[36:]
                 if node_id not in self.xr_nodes_info:
-                    self.register_node_info(node_id, node_ip, node_service_port)
+                    self.register_node_info(node_id, node_ip, service_port)
         except KeyboardInterrupt:
             print("Stopping multicast receiver...")
         finally:
@@ -324,18 +309,18 @@ class XRNodeManager:
             sock.close()
 
     def register_node_info(
-        self, node_id: str, node_ip: str, node_service_port: str
+        self, node_id: str, node_ip: str, service_port: str
     ) -> None:
         """
         Register a new XR node info.
         If the node info already exists, it will be updated.
         """
         node_info_bytes = send_string_request(
-            "GetNodeInfo", "", f"tcp://{node_ip}:{node_service_port}"
+            "GetNodeInfo", "", f"tcp://{node_ip}:{service_port}"
         )
         self.xr_nodes_info[node_id] = loads(node_info_bytes.decode('utf-8'))
         self.xr_nodes_info[node_id]["ip"] = node_ip
-        print(f"Registering node info: {node_id} at {node_ip}:{node_service_port}")
+        print(f"Registering node info: {node_id} at {node_ip}:{service_port}")
 
 
 def init_xr_node_manager(ip_addr: str) -> XRNodeManager:
