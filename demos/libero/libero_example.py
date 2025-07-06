@@ -4,7 +4,6 @@ from robosuite.environments.base import MujocoEnv as RobosuiteEnv
 import xml.etree.ElementTree as ET
 import os
 
-from simpub.xr_device.meta_quest3 import MetaQuest3 as MetaQuest3Sim
 from simpub.sim.mj_publisher import MujocoPublisher
 
 import libero

@@ -44,6 +44,12 @@ class SimMaterial(SimData):
     reflectance: float = 0.0
     texture: Optional[SimTexture] = None
 
+    def to_dict(self):
+        data = super().to_dict()
+        if self.texture is not None:
+            data["texture"] = self.texture.to_dict()
+        return data
+
 
 @dataclass
 class SimAsset(SimData):
@@ -319,12 +325,10 @@ class SimVisual(SimData):
     #     if self.material is not None:
     #         self.material = self
 
-    def to_string(self, sim_scene: SimScene, sim_object: SimObject) -> str:
+    def to_string(self) -> str:
         dict_data = {
             "name": self.name,
             "type": self.type.value,
-            "objName": sim_object.name,
-            "sceneName": sim_scene.name,
             "trans": self.trans.to_dict(),
             "mesh": self.mesh.to_dict() if self.mesh else None,
             "material": self.material.to_dict() if self.material else None,
