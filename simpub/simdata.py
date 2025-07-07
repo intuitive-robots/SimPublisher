@@ -348,8 +348,6 @@ class SimObject(SimData):
         # children_data = [child.to_dict() for child in self.children]
         dict_data = {
             "name": self.name,
-            "parentName": parent.name if parent else "",
-            "sceneName": sim_scene.name,
             "trans": self.trans.to_dict(),
         }
         return json.dumps(dict_data)

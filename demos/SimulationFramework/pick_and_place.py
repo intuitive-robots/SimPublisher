@@ -68,7 +68,7 @@ if __name__ == "__main__":
 
     assert host is not None, "Please specify the host"
     publisher = SFPublisher(
-        scene,
+        scene,  # type: ignore
         host, no_tracked_objects=["table_plane", "table0"],
     )
 

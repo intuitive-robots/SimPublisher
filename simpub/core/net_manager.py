@@ -2,24 +2,19 @@ from __future__ import annotations
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 import abc
-from typing import Dict, Optional, Callable, List, Union
+from typing import Dict, Optional, Callable, Union
 import asyncio
 from asyncio import sleep as async_sleep
 import socket
-from socket import AF_INET, SOCK_DGRAM, SOL_SOCKET, SO_BROADCAST
 import struct
 import zmq
 import zmq.asyncio
 import time
-import uuid
 from json import dumps, loads
 import traceback
 
 from .log import logger
-from .utils import MCAST_GRP, XRNodeInfo, IPAddress, XRNodeInfo, TopicName, ServiceName, HashIdentifier
-from .utils import DISCOVERY_PORT
-from .utils import MSG, NodeAddress
-from .utils import split_byte, get_zmq_socket_port, create_address
+from .utils import XRNodeInfo, IPAddress, XRNodeInfo, HashIdentifier
 from .utils import send_string_request
 
 
@@ -43,7 +38,8 @@ class Publisher(NetComponent):
     def __init__(self, topic_name: str):
         super().__init__()
         self.topic_name = topic_name
-        self.socket = self.manager.pub_socket
+        self.socket = self.manager.create_socket(zmq.PUB)
+        self.socket.bind(f"tcp://{self.manager.host_ip}:0")
 
     def publish_bytes(self, msg: bytes) -> None:
         self.manager.submit_asyncio_task(self.send_bytes_async, msg)
@@ -55,7 +51,7 @@ class Publisher(NetComponent):
         self.manager.submit_asyncio_task(self.send_bytes_async, msg.encode())
 
     async def send_bytes_async(self, msg: bytes) -> None:
-        await self.socket.send_multipart([self.topic_name.encode(), msg])
+        await self.socket.send(msg)
 
     def on_shutdown(self):
         pass
@@ -87,13 +83,7 @@ class Streamer(Publisher):
         elif isinstance(update_msg, bytes):
             return update_msg
         elif isinstance(update_msg, dict):
-            # return dumps(update_msg).encode("utf-8")
-            return dumps(
-                {
-                    "updateData": self.update_func(),
-                    "time": time.monotonic(),
-                }
-            ).encode("utf-8")
+            return dumps(update_msg).encode("utf-8")
         raise ValueError("Update function should return str, bytes or dict")
 
     async def update_loop(self):
@@ -188,9 +178,7 @@ class XRNodeManager:
     def __init__(self, host_ip: IPAddress) -> None:
         XRNodeManager.manager = self
         self.zmq_context = zmq.asyncio.Context()  # type: ignore
-        # publisher
-        self.pub_socket = self.create_socket(zmq.PUB)
-        self.pub_socket.bind(f"tcp://{host_ip}:0")
+        self.host_ip: IPAddress = host_ip
         # # service
         # self.service_socket = self.zmq_context.socket(zmq.REP)
         # self.service_socket.bind(f"tcp://{host_ip}:0")

@@ -91,6 +91,26 @@ def send_request(service_name: str, message: bytes, addr: str) -> bytes:
 def send_string_request(service_name: str, message: str, addr: str) -> bytes:
     return send_raw_request([service_name.encode(), message.encode()], addr)
 
+
+async def send_raw_request_async(messages: List[bytes], addr: str) -> bytes:
+    req_socket = zmq.asyncio.Context().socket(zmq.REQ)  # type: ignore
+    req_socket.connect(addr)
+    try:
+        start = time.time()
+        await req_socket.send_multipart(messages, copy=False)
+    except Exception as e:
+        logger.error(
+            f"Error when sending message from send_message function in "
+            f"simpub.core.utils: {e}"
+        )
+    start2 = time.time()
+    result = await req_socket.recv()
+    print(f"Message sent in {time.time() - start:.6f} seconds, {time.time() - start2:.6f} seconds to receive response")
+    req_socket.close()
+    return result
+
+
+
 # def calculate_broadcast_addr(ip_addr: IPAddress) -> IPAddress:
 #     ip_bin = struct.unpack("!I", socket.inet_aton(ip_addr))[0]
 #     netmask_bin = struct.unpack("!I", socket.inet_aton("255.255.255.0"))[0]
