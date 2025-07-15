@@ -5,7 +5,7 @@ from genesis.engine.entities.rigid_entity import RigidLink, RigidGeom
 import numpy as np
 
 
-from ..simdata import SimScene, SimObject, SimTransform, SimVisual, VisualType, SimMaterial, SimMesh
+from .simdata import SimScene, SimObject, SimTransform, SimVisual, VisualType, SimMaterial, SimMesh
 
 
 def gs2unity_pos(pos: List[float]) -> List[float]:

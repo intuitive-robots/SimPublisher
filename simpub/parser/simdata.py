@@ -3,7 +3,6 @@ from dataclasses import dataclass, field, fields, asdict
 from typing import Optional, Tuple, List, Dict
 from enum import Enum
 import numpy as np
-import random
 import json
 import trimesh
 import io

@@ -1,9 +1,9 @@
 import numpy as np
 
 from ..parser.coppelia_sim import CoppeliasSimParser
-from ..simdata import SimObject, SimScene, SimTransform, SimVisual
-from ..simdata import SimMaterial, SimTexture, SimMesh
-from ..simdata import VisualType
+from ..parser.simdata import SimObject, SimScene, SimTransform, SimVisual
+from ..parser.simdata import SimMaterial, SimTexture, SimMesh
+from ..parser.simdata import VisualType
 from ..core.log import logger
 
 
@@ -13,7 +13,7 @@ import numpy as np
 
 from ..core.simpub_server import SimPublisher
 from ..parser.mj import MjModelParser
-from ..simdata import SimObject
+from ..parser.simdata import SimObject
 
 
 class CoppeliaSimPublisher(SimPublisher):

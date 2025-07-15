@@ -14,7 +14,7 @@ from json import dumps, loads
 import traceback
 
 from .log import logger
-from .utils import XRNodeInfo, IPAddress, XRNodeInfo, HashIdentifier
+from .utils import XRNodeInfo, IPAddress, HashIdentifier
 from .utils import send_string_request
 
 
@@ -283,11 +283,13 @@ class XRNodeManager:
             while True:
                 # Receive data from the socket (2048 is buffer size)
                 data, address = sock.recvfrom(2048)
+                print(f"Received message from {address[0]}:{address[1]}")
                 # Filter by sender IP address
                 node_ip = address[0]
                 # Decode and print the message from the allowed IP
                 message = data.decode('utf-8')
                 node_id, service_port = message[:36], message[36:]
+                print(f"Node ID: {node_id}, Service Port: {service_port}")
                 if node_id not in self.xr_nodes_info:
                     self.register_node_info(node_id, node_ip, service_port)
         except KeyboardInterrupt:
@@ -303,11 +305,22 @@ class XRNodeManager:
         Register a new XR node info.
         If the node info already exists, it will be updated.
         """
+        print(f"Start Registering node info: {node_id} at {node_ip}:{service_port}")
         node_info_bytes = send_string_request(
             "GetNodeInfo", "", f"tcp://{node_ip}:{service_port}"
         )
-        self.xr_nodes_info[node_id] = loads(node_info_bytes.decode('utf-8'))
-        self.xr_nodes_info[node_id]["ip"] = node_ip
+        print("here")
+        print(f"Node info bytes: {node_info_bytes}")
+        if node_info_bytes is None:
+            logger.error(f"Failed to get node info from {node_ip}:{service_port}")
+            return
+        try:
+            self.xr_nodes_info[node_id] = loads(node_info_bytes.decode('utf-8'))
+            self.xr_nodes_info[node_id]["ip"] = node_ip
+        except Exception as e:
+            logger.error(f"Error when parsing node info: {e}")
+            traceback.print_exc()
+            return
         print(f"Registering node info: {node_id} at {node_ip}:{service_port}")
 
 
