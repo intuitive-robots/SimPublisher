@@ -14,7 +14,7 @@ from simpub.xr_device.meta_quest3 import MetaQuest3
 from scipy.spatial.transform import Rotation as R
 
 # Function to apply Z-axis rotation to a quaternion
-def apply_z_rotation(quat, z_angle = np.pi / 2):
+def apply_z_rotation(quat, z_angle=np.pi / 2):
     """
     Apply a rotation around the Z-axis to a given quaternion.
 
@@ -29,14 +29,15 @@ def apply_z_rotation(quat, z_angle = np.pi / 2):
     rotation = R.from_quat(quat)
 
     # Create a rotation around the Z-axis
-    z_rotation = R.from_euler('z', z_angle)
+    z_rotation = R.from_euler("z", z_angle)
 
     # Combine the rotations
-    new_rotation = rotation * z_rotation  # Order matters: z_rotation is applied first
+    new_rotation = (
+        rotation * z_rotation
+    )  # Order matters: z_rotation is applied first
 
     # Convert back to quaternion
     return new_rotation.as_quat()
-
 
 
 _HERE = Path(__file__).parent
@@ -126,10 +127,18 @@ if __name__ == "__main__":
     ]
 
     # Enable collision avoidance between the following geoms.
-    l_wrist_geoms = mink.get_subtree_geom_ids(model, model.body("left/wrist_link").id)
-    r_wrist_geoms = mink.get_subtree_geom_ids(model, model.body("right/wrist_link").id)
-    l_geoms = mink.get_subtree_geom_ids(model, model.body("left/upper_arm_link").id)
-    r_geoms = mink.get_subtree_geom_ids(model, model.body("right/upper_arm_link").id)
+    l_wrist_geoms = mink.get_subtree_geom_ids(
+        model, model.body("left/wrist_link").id
+    )
+    r_wrist_geoms = mink.get_subtree_geom_ids(
+        model, model.body("right/wrist_link").id
+    )
+    l_geoms = mink.get_subtree_geom_ids(
+        model, model.body("left/upper_arm_link").id
+    )
+    r_geoms = mink.get_subtree_geom_ids(
+        model, model.body("right/upper_arm_link").id
+    )
     frame_geoms = mink.get_body_geom_ids(model, model.body("metal_frame").id)
     collision_pairs = [
         (l_wrist_geoms, r_wrist_geoms),
@@ -154,11 +163,9 @@ if __name__ == "__main__":
     pos_threshold = 5e-3
     ori_threshold = 5e-3
     max_iters = 5
-    
+
     left_gripper_actuator = model.actuator("left/gripper").id
     right_gripper_actuator = model.actuator("right/gripper").id
-    
-
 
     with mujoco.viewer.launch_passive(
         model=model, data=data, show_left_ui=False, show_right_ui=False
@@ -172,14 +179,22 @@ if __name__ == "__main__":
         posture_task.set_target_from_configuration(configuration)
 
         # Initialize mocap targets at the end-effector site.
-        mink.move_mocap_to_frame(model, data, "left/target", "left/gripper", "site")
-        mink.move_mocap_to_frame(model, data, "right/target", "right/gripper", "site")
+        mink.move_mocap_to_frame(
+            model, data, "left/target", "left/gripper", "site"
+        )
+        mink.move_mocap_to_frame(
+            model, data, "right/target", "right/gripper", "site"
+        )
 
         rate = RateLimiter(frequency=200.0, warn=False)
         while viewer.is_running():
             # Update task targets.
-            l_ee_task.set_target(mink.SE3.from_mocap_name(model, data, "left/target"))
-            r_ee_task.set_target(mink.SE3.from_mocap_name(model, data, "right/target"))
+            l_ee_task.set_target(
+                mink.SE3.from_mocap_name(model, data, "left/target")
+            )
+            r_ee_task.set_target(
+                mink.SE3.from_mocap_name(model, data, "right/target")
+            )
 
             # Update posture task target.
             input_data = mq3.get_input_data()
@@ -191,8 +206,10 @@ if __name__ == "__main__":
                     pos[0] = pos[0] + 0.1
                     data.mocap_pos[model.body("left/target").mocapid[0]] = pos
                     rot = input_data["left"]["rot"]
-                    rot = apply_z_rotation(rot, z_angle = - np.pi / 2)
-                    data.mocap_quat[model.body("left/target").mocapid[0]] = np.array([rot[3], rot[0], rot[1], rot[2]])
+                    rot = apply_z_rotation(rot, z_angle=-np.pi / 2)
+                    data.mocap_quat[
+                        model.body("left/target").mocapid[0]
+                    ] = np.array([rot[3], rot[0], rot[1], rot[2]])
                     if left_hand["index_trigger"]:
                         data.ctrl[left_gripper_actuator] = 0.002
                     else:
@@ -202,8 +219,10 @@ if __name__ == "__main__":
                     pos[0] = pos[0] - 0.1
                     data.mocap_pos[model.body("right/target").mocapid[0]] = pos
                     rot = input_data["right"]["rot"]
-                    rot = apply_z_rotation(rot, z_angle = np.pi / 2)
-                    data.mocap_quat[model.body("right/target").mocapid[0]] = np.array([rot[3], rot[0], rot[1], rot[2]])
+                    rot = apply_z_rotation(rot, z_angle=np.pi / 2)
+                    data.mocap_quat[
+                        model.body("right/target").mocapid[0]
+                    ] = np.array([rot[3], rot[0], rot[1], rot[2]])
                     if right_hand["index_trigger"]:
                         data.ctrl[right_gripper_actuator] = 0.002
                     else:
@@ -236,7 +255,9 @@ if __name__ == "__main__":
                     break
 
             data.ctrl[actuator_ids] = configuration.q[dof_ids]
-            compensate_gravity(model, data, [left_subtree_id, right_subtree_id])
+            compensate_gravity(
+                model, data, [left_subtree_id, right_subtree_id]
+            )
             mujoco.mj_step(model, data)
 
             # Visualize at fixed FPS.

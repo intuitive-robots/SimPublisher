@@ -5,7 +5,6 @@ from .mj_publisher import MujocoPublisher
 
 
 class FancyGymPublisher(MujocoPublisher):
-
     def __init__(
         self,
         mj_env: MujocoEnv,

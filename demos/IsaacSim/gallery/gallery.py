@@ -23,7 +23,9 @@ from pathlib import Path
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates different legged robots.")
+parser = argparse.ArgumentParser(
+    description="This script demonstrates different legged robots."
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -52,7 +54,11 @@ from isaaclab_assets import (
     SAWYER_CFG,
     UR10_CFG,
 )
-from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG
+from isaaclab_assets.robots.anymal import (
+    ANYMAL_B_CFG,
+    ANYMAL_C_CFG,
+    ANYMAL_D_CFG,
+)
 from isaaclab_assets.robots.spot import SPOT_CFG
 from isaaclab_assets.robots.unitree import (
     UNITREE_A1_CFG,
@@ -68,12 +74,16 @@ def design_scene():
 
     scene_asset_cfg = AssetBaseCfg(
         prim_path="/World/scene",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]
+        ),
         spawn=UsdFileCfg(
             usd_path=f"{Path(__file__).parent.as_posix()}/gallery.usd",
         ),
     )
-    scene_asset_cfg.spawn.func(scene_asset_cfg.prim_path, scene_asset_cfg.spawn)
+    scene_asset_cfg.spawn.func(
+        scene_asset_cfg.prim_path, scene_asset_cfg.spawn
+    )
 
     anymal_b_cfg = ANYMAL_B_CFG
     anymal_b_cfg.prim_path = "/World/scene/anymal_b"
@@ -166,7 +176,9 @@ def run_simulator(
         # apply default actions to the quadrupedal robots
         for robot in entities.values():
             # generate random joint positions
-            joint_pos_target = robot.data.default_joint_pos  # + torch.randn_like(robot.data.joint_pos) * 0.1
+            joint_pos_target = (
+                robot.data.default_joint_pos
+            )  # + torch.randn_like(robot.data.joint_pos) * 0.1
             # apply action to the robot
             robot.set_joint_position_target(joint_pos_target)
             # write data to sim

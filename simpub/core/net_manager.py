@@ -14,8 +14,12 @@ from json import dumps, loads
 import traceback
 
 from .log import logger
-from .utils import XRNodeInfo, IPAddress, HashIdentifier
-from .utils import send_string_request
+from .utils import (
+    send_string_request_async,
+    MULTICAST_GRP,
+    DISCOVERY_PORT,
+    XRNodeInfo,
+)
 
 
 class NetComponent(abc.ABC):
@@ -170,31 +174,77 @@ class ByteStreamer(Streamer):
 #         self.running = False
 #         self.sub_socket.close()
 
+# NOTE: asyncio.loop.sock_recvfrom can only be used after Python 3.11
+# So we create a custom DatagramProtocol for multicast discovery
+class MulticastDiscoveryProtocol(asyncio.DatagramProtocol):
+    """DatagramProtocol for handling multicast discovery messages"""
+
+    def __init__(self, node_manager: XRNodeManager):
+        self.node_manager = node_manager
+        self.transport = None
+
+    def connection_made(self, transport):
+        self.transport = transport
+        logger.info("Multicast discovery connection established")
+
+    def datagram_received(self, data, addr):
+        """Handle incoming multicast discovery messages"""
+        try:
+            # Filter by sender IP address
+            node_ip = addr[0]
+            # Decode and print the message from the allowed IP
+            message = data.decode("utf-8")
+            node_id, service_port = message[:36], message[36:]
+            if node_id not in self.node_manager.xr_nodes_info:
+                # Schedule the async registration
+                self.node_manager.submit_asyncio_task(
+                    self.node_manager.async_register_node_info,
+                    node_id,
+                    node_ip,
+                    service_port,
+                )
+
+        except Exception as e:
+            logger.error(f"Error processing datagram: {e}")
+            traceback.print_exc()
+
+    def error_received(self, exc):
+        logger.error(f"Multicast protocol error: {exc}")
+
+    def connection_lost(self, exc):
+        if exc:
+            logger.error(f"Multicast connection lost: {exc}")
+        else:
+            logger.error("Multicast discovery connection closed")
+
 
 class XRNodeManager:
-
     manager = None
 
-    def __init__(self, host_ip: IPAddress) -> None:
+    def __init__(self, host_ip: str) -> None:
         XRNodeManager.manager = self
-        self.zmq_context = zmq.asyncio.Context()  # type: ignore
-        self.host_ip: IPAddress = host_ip
-        # # service
-        # self.service_socket = self.zmq_context.socket(zmq.REP)
-        # self.service_socket.bind(f"tcp://{host_ip}:0")
-        # self.service_cbs: Dict[bytes, Callable[[bytes], Awaitable]] = {}
-        self.xr_nodes_info: Dict[HashIdentifier, XRNodeInfo] = {}
-        # self.nodes_info_manager = NodeInfoManager(self.local_info)
-        # start the server in a thread pool
+        self.zmq_context = zmq.asyncio.Context.instance()
+        self.host_ip: str = host_ip
+        self.xr_nodes_info: Dict[str, XRNodeInfo] = {}
         self.executor = ThreadPoolExecutor(max_workers=10)
         self.server_future = self.executor.submit(self.thread_task)
-        # wait for the loop
+        self.discovery_task = None  # Track the discovery task
+        self.discovery_transport = None  # Track the transport for cleanup
+        # Wait for the loop
         while not hasattr(self, "loop"):
             time.sleep(0.01)
-        # logger.info(f"Node {self.local_info['name']} is initialized")
 
     def start_discover_node_loop(self):
-        self.executor.submit(self.xr_node_discover_loop)
+        """Start the async discovery loop in the event loop"""
+        if self.loop and self.loop.is_running():
+            # Submit the async task to the event loop
+            self.discovery_task = self.submit_asyncio_task(
+                self.xr_node_discover_loop
+            )
+        else:
+            logger.error(
+                "Event loop is not running, cannot start discovery loop"
+            )
 
     def create_socket(self, socket_type: int):
         return self.zmq_context.socket(socket_type)
@@ -226,7 +276,11 @@ class XRNodeManager:
         XRNodeManager.manager = None
 
     def stop_tasks(self):
-        # Cancel all running tasks
+        # Close discovery transport if it exists
+        if self.discovery_transport:
+            self.discovery_transport.close()
+
+        # Cancel all running tasks including discovery
         for task in asyncio.all_tasks():
             if task is asyncio.current_task():
                 continue
@@ -252,76 +306,76 @@ class XRNodeManager:
         return asyncio.run_coroutine_threadsafe(task(*args), self.loop)
 
     def start_event_loop(self):
-        # TODO: remove services
-
         self.loop = asyncio.new_event_loop()
         self.running = True
         asyncio.set_event_loop(self.loop)
         self.loop.run_forever()
 
-    def xr_node_discover_loop(self):
-        # Define multicast group details
-        multicast_group = '239.255.10.10'
-        port = 7720
-        # Create UDP socket
+    async def xr_node_discover_loop(self):
+        # Create multicast socket
         sock = socket.socket(
-            socket.AF_INET,
-            socket.SOCK_DGRAM,
-            socket.IPPROTO_UDP
+            socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
         )
         # Allow reuse of address
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # Bind to the port
-        sock.bind(('', port))
-        # Tell the operating system to add the socket to the multicast group
-        # on all interfaces
-        group = socket.inet_aton(multicast_group)
-        mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+        sock.bind(("", DISCOVERY_PORT))
+        mreq = struct.pack(
+            "4s4s",
+            socket.inet_aton(MULTICAST_GRP),
+            socket.inet_aton(self.host_ip),
+        )
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-        print(f"Listening for multicast messages on {multicast_group}:{port}")
-        try:
-            while True:
-                # Receive data from the socket (2048 is buffer size)
-                data, address = sock.recvfrom(2048)
-                print(f"Received message from {address[0]}:{address[1]}")
-                # Filter by sender IP address
-                node_ip = address[0]
-                # Decode and print the message from the allowed IP
-                message = data.decode('utf-8')
-                node_id, service_port = message[:36], message[36:]
-                print(f"Node ID: {node_id}, Service Port: {service_port}")
-                if node_id not in self.xr_nodes_info:
-                    self.register_node_info(node_id, node_ip, service_port)
-        except KeyboardInterrupt:
-            print("Stopping multicast receiver...")
-        finally:
-            # Close the socket when done
-            sock.close()
+        logger.info(
+            f"Listening for multicast on {MULTICAST_GRP}:{DISCOVERY_PORT}"
+        )
+        # Get event loop and create datagram endpoint
+        loop = asyncio.get_event_loop()
 
-    def register_node_info(
+        try:
+            # Create the datagram endpoint with the protocol
+            transport, _ = await loop.create_datagram_endpoint(
+                lambda: MulticastDiscoveryProtocol(self), sock=sock
+            )
+            # Store transport for cleanup
+            self.discovery_transport = transport
+            # Keep the loop running until stopped
+            while self.running:
+                await asyncio.sleep(1)  # Keep the coroutine alive
+        except asyncio.CancelledError:
+            logger.info("Discovery loop cancelled...")
+        except Exception as e:
+            logger.error(f"Error in discovery loop: {e}")
+            traceback.print_exc()
+        finally:
+            # Clean up
+            if "transport" in locals():
+                transport.close()
+            sock.close()
+            logger.info("Multicast discovery loop stopped")
+
+    async def async_register_node_info(
         self, node_id: str, node_ip: str, service_port: str
     ) -> None:
-        """
-        Register a new XR node info.
-        If the node info already exists, it will be updated.
-        """
-        print(f"Start Registering node info: {node_id} at {node_ip}:{service_port}")
-        node_info_bytes = send_string_request(
-            "GetNodeInfo", "", f"tcp://{node_ip}:{service_port}"
-        )
-        print("here")
-        print(f"Node info bytes: {node_info_bytes}")
-        if node_info_bytes is None:
-            logger.error(f"Failed to get node info from {node_ip}:{service_port}")
-            return
         try:
-            self.xr_nodes_info[node_id] = loads(node_info_bytes.decode('utf-8'))
+            node_info_bytes = await send_string_request_async(
+                ["GetNodeInfo", ""], f"tcp://{node_ip}:{service_port}"
+            )
+            if node_info_bytes is None:
+                logger.error(
+                    f"Failed to get node info from {node_ip}:{service_port}"
+                )
+                return
+            self.xr_nodes_info[node_id] = loads(
+                node_info_bytes.decode("utf-8")
+            )
             self.xr_nodes_info[node_id]["ip"] = node_ip
+            logger.info(
+                f"Registering node info: {node_id} at {node_ip}:{service_port}"
+            )
         except Exception as e:
-            logger.error(f"Error when parsing node info: {e}")
+            logger.error(f"Error in async_register_node_info: {e}")
             traceback.print_exc()
-            return
-        print(f"Registering node info: {node_id} at {node_ip}:{service_port}")
 
 
 def init_xr_node_manager(ip_addr: str) -> XRNodeManager:

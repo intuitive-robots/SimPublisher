@@ -23,7 +23,9 @@ if __name__ == "__main__":
     config = {
         "env_name": "PnPCounterToCab",
         "robots": "PandaOmron",
-        "controller_configs": load_composite_controller_config(robot=args.robot),
+        "controller_configs": load_composite_controller_config(
+            robot=args.robot
+        ),
         "translucent_robot": False,
     }
     print(colored("Initializing environment...", "yellow"))

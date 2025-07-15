@@ -33,9 +33,9 @@ class RealRobotVTController(JointPDController):
         if self.data is None:
             return super().getControl(robot)
         self.setSetPoint(
-            desired_pos=self.data['q'], desired_vel=self.data['dq']
+            desired_pos=self.data["q"], desired_vel=self.data["dq"]
         )
-        if self.data['gripper_width'][0] < 0.9 * self.data['gripper_width'][1]:
+        if self.data["gripper_width"][0] < 0.9 * self.data["gripper_width"][1]:
             robot.set_gripper_cmd_type = 2  # Move
         else:
             robot.set_gripper_cmd_type = 1  # Grasp
@@ -71,14 +71,10 @@ if __name__ == "__main__":
     # Setting the dt to 0.0005 to reduce jittering of the gripper due to more difficult Physics Simulation
     scene = sim_factory.create_scene(object_list=object_list, dt=0.001)
     robot1 = sim_factory.create_robot(
-        scene,
-        dt=0.001,
-        base_position=[0.0, 0.5, 0.0]
+        scene, dt=0.001, base_position=[0.0, 0.5, 0.0]
     )
     robot2 = sim_factory.create_robot(
-        scene,
-        dt=0.001,
-        base_position=[0.0, -0.5, 0.0]
+        scene, dt=0.001, base_position=[0.0, -0.5, 0.0]
     )
     controller1 = RealRobotVTController("")
     controller2 = RealRobotVTController("")
