@@ -128,7 +128,9 @@ class MetaQuest3(XRDevice):
         if not self.on_vibration[hand]:
             self.on_vibration[hand] = True
             self.manager.submit_task(
-                self.start_vibration_async, hand, duration,
+                self.start_vibration_async,
+                hand,
+                duration,
             )
 
     async def start_vibration_async(self, hand: str = "right", duration=0.5):

@@ -5,7 +5,15 @@ from genesis.engine.entities.rigid_entity import RigidLink, RigidGeom
 import numpy as np
 
 
-from .simdata import SimScene, SimObject, SimTransform, SimVisual, VisualType, SimMaterial, SimMesh
+from .simdata import (
+    SimScene,
+    SimObject,
+    SimTransform,
+    SimVisual,
+    VisualType,
+    SimMaterial,
+    SimMesh,
+)
 
 
 def gs2unity_pos(pos: List[float]) -> List[float]:
@@ -19,9 +27,13 @@ def gs2unity_quat(quat: List[float]) -> List[float]:
 class GenesisSceneParser:
     def __init__(self, gs_scene: gs.Scene):
         self.gs_scene = gs_scene
-        self.sim_scene, self.update_dict = self.parse_gs_scene(gs_scene, ["plane_baselink"])
+        self.sim_scene, self.update_dict = self.parse_gs_scene(
+            gs_scene, ["plane_baselink"]
+        )
 
-    def parse_gs_scene(self, gs_scene: gs.Scene, no_rendered_objects) -> Tuple[SimScene, Dict[str, Union[RigidEntity, RigidLink]]]:
+    def parse_gs_scene(
+        self, gs_scene: gs.Scene, no_rendered_objects
+    ) -> Tuple[SimScene, Dict[str, Union[RigidEntity, RigidLink]]]:
         sim_scene = SimScene()
         update_dict: Dict[str, Union[RigidEntity, RigidLink]] = {}
         body_hierarchy = {}
@@ -34,9 +46,7 @@ class GenesisSceneParser:
             }
             update_dict[sim_object.name] = gs_entity
             for link in gs_entity.links:
-                sim_object, parent_id, idx = self.process_link(
-                    link, sim_scene
-                )
+                sim_object, parent_id, idx = self.process_link(link, sim_scene)
                 # update the body hierarchy dictionary
                 body_hierarchy[idx] = {
                     "parent_id": parent_id,
@@ -116,11 +126,14 @@ class GenesisSceneParser:
     # TODO: Implement the material and texture from trimesh
     def parse_material(self, gs_vgeom: RigidGeom):
         gs_trimesh_obj = gs_vgeom.get_trimesh()
-        if isinstance(gs_trimesh_obj.visual, gs.ext.trimesh.visual.color.ColorVisuals):
-            return SimMaterial(color=list(gs_trimesh_obj.visual.face_colors[0] / 255.0))
+        if isinstance(
+            gs_trimesh_obj.visual, gs.ext.trimesh.visual.color.ColorVisuals
+        ):
+            return SimMaterial(
+                color=list(gs_trimesh_obj.visual.face_colors[0] / 255.0)
+            )
         else:
             return SimMaterial(color=[0.0, 0.0, 0.0, 1.0])
-    
+
     # def parse_mesh(self, gs_mesh: gs.Mesh):
     #     pass
-

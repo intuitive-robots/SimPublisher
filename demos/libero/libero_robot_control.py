@@ -27,7 +27,6 @@ from simpub.xr_device.meta_quest3 import MetaQuest3
 
 
 class MQ3CartController:
-
     def __init__(self, meta_quest3: MetaQuest3):
         self.meta_quest3 = meta_quest3
         self.last_state = None
@@ -57,7 +56,6 @@ class MQ3CartController:
 
 
 class RealRobotJointPDController:
-
     def __init__(self, real_robot_ip):
         self.pgain = np.array(
             [1000.0, 1000.0, 1000.0, 1000.0, 200.0, 200.0, 300.0]
@@ -73,7 +71,7 @@ class RealRobotJointPDController:
 
     def subscribe_task(self):
         try:
-            print('Start to sub')
+            print("Start to sub")
             while True:
                 msg = self.sub_socket.recv_string()
                 # print(msg)
@@ -90,14 +88,14 @@ class RealRobotJointPDController:
         :param robot: instance of the robot
         :return: target joint acceleration (num_joints, )
         """
-        joint_pos, joint_vel = obs['robot0_joint_pos'], obs['robot0_joint_vel']
+        joint_pos, joint_vel = obs["robot0_joint_pos"], obs["robot0_joint_vel"]
         if self.data is None:
             return np.zeros(8)
-        qd_d = self.data['q'] - joint_pos
-        vd_d = self.data['dq'] - joint_vel
+        qd_d = self.data["q"] - joint_pos
+        vd_d = self.data["dq"] - joint_vel
         action = np.zeros(8)
         action[0:7] = self.pgain * qd_d + self.dgain * vd_d  # original
-        if self.data['gripper_width'][0] < 0.9 * self.data['gripper_width'][1]:
+        if self.data["gripper_width"][0] < 0.9 * self.data["gripper_width"][1]:
             action[-1] = 10
         else:
             action[-1] = -10
@@ -165,7 +163,7 @@ if __name__ == "__main__":
             MetaQuest3(device_name="IRLMQ3-1")
         )
     elif args.device == "real_robot":
-        virtual_controller = RealRobotJointPDController('141.3.53.152')
+        virtual_controller = RealRobotJointPDController("141.3.53.152")
     else:
         raise Exception(
             "Invalid device choice: choose either 'keyboard' or 'spacemouse'."

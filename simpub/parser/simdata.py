@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, field, fields, asdict
+from dataclasses import dataclass, field, fields
 from typing import Optional, Tuple, List, Dict
 from enum import Enum
 import numpy as np
@@ -24,13 +24,15 @@ class VisualType(str, Enum):
 
 @dataclass
 class SimData:
-
     def to_dict(self):
         return {
             f.name: getattr(self, f.name)
             for f in fields(self)
             if not f.metadata.get("exclude", False)
         }
+
+    def serialize(self) -> str:
+        return json.dumps(self.to_dict())
 
 
 @dataclass
@@ -72,7 +74,7 @@ class SimAsset(SimData):
         bin_buffer: io.BytesIO,
         data: np.ndarray,
     ) -> Tuple[int, int]:
-        # change all float nparray to float32 and all int nparray to int32
+        # change all float np array to float32 and all int np array to int32
         if data.dtype == np.float64:
             data = data.astype(np.float32)
         elif data.dtype == np.int64:
@@ -83,9 +85,7 @@ class SimAsset(SimData):
         return layout
 
     def update_raw_data(
-        self,
-        raw_data: Dict[str, bytes],
-        new_data: bytes
+        self, raw_data: Dict[str, bytes], new_data: bytes
     ) -> None:
         if self.hash in raw_data:
             raw_data.pop(self.hash)
@@ -126,13 +126,16 @@ class SimMesh(SimAsset):
             if mesh_texcoord.shape[0] == vertices.shape[0]:
                 uvs = mesh_texcoord
             else:
-                vertices, faces, uvs, vertex_normals = (
-                    SimMesh.generate_vertex_uv_from_face_uv(
-                        vertices,
-                        faces_uv,
-                        faces,
-                        mesh_texcoord,
-                    )
+                (
+                    vertices,
+                    faces,
+                    uvs,
+                    vertex_normals,
+                ) = SimMesh.generate_vertex_uv_from_face_uv(
+                    vertices,
+                    faces_uv,
+                    faces,
+                    mesh_texcoord,
                 )
             assert uvs.shape[0] == vertices.shape[0], (
                 f"Number of mesh texcoords ({mesh_texcoord.shape[0]}) must be "
@@ -167,16 +170,16 @@ class SimMesh(SimAsset):
         normals[:, 0] = -normals[:, 0]
         normals = normals.flatten()
         assert normals.size == num_vertices * 3, (
-                f"Number of vertex normals ({normals.shape[0]}) must be equal "
-                f"to number of vertices ({num_vertices})"
-            )
+            f"Number of vertex normals ({normals.shape[0]}) must be equal "
+            f"to number of vertices ({num_vertices})"
+        )
         assert np.max(indices) < num_vertices, (
             f"Index value exceeds number of vertices: {np.max(indices)} >= "
             f"{num_vertices}"
         )
-        assert indices.size % 3 == 0, (
-            f"Number of indices ({indices.size}) must be a multiple of 3"
-        )
+        assert (
+            indices.size % 3 == 0
+        ), f"Number of indices ({indices.size}) must be a multiple of 3"
         # write to buffer
         bin_buffer = io.BytesIO()
         vertices_layout = SimMesh.write_to_buffer(bin_buffer, vertices)
@@ -324,15 +327,14 @@ class SimVisual(SimData):
     #     if self.material is not None:
     #         self.material = self
 
-    def to_string(self) -> str:
-        dict_data = {
+    def to_dict(self) -> Dict:
+        return {
             "name": self.name,
             "type": self.type.value,
             "trans": self.trans.to_dict(),
             "mesh": self.mesh.to_dict() if self.mesh else None,
             "material": self.material.to_dict() if self.material else None,
         }
-        return json.dumps(dict_data)
 
 
 @dataclass
@@ -342,14 +344,13 @@ class SimObject(SimData):
     visuals: List[SimVisual] = field(default_factory=list)
     children: List[SimObject] = field(default_factory=list)
 
-    def to_string(self, sim_scene: SimScene, parent: Optional[SimObject]) -> str:
-        # visuals_data = [visual.to_dict() for visual in self.visuals]
-        # children_data = [child.to_dict() for child in self.children]
-        dict_data = {
+    def to_dict(self) -> Dict:
+        return {
             "name": self.name,
             "trans": self.trans.to_dict(),
+            "visuals": [visual.to_dict() for visual in self.visuals],
+            "children": [child.to_dict() for child in self.children],
         }
-        return json.dumps(dict_data)
 
 
 class SimScene:
@@ -358,7 +359,7 @@ class SimScene:
         self.name: str = "DefaultSceneName"
         self.raw_data: Dict[str, bytes] = dict()
 
-    def to_string(self) -> str:
+    def serialize(self) -> str:
         if self.root is None:
             raise ValueError("Root object is not set")
         dict_data = {
@@ -372,3 +373,26 @@ class SimScene:
         #         visual.mesh.generate_normals(self.raw_data)
         for child in sim_obj.children:
             self.process_sim_obj(child)
+
+    def get_all_assets(
+        self, sim_obj: SimObject
+    ) -> List[Tuple[str, SimVisual, bytes, bytes]]:
+        assets: List[Tuple[str, SimVisual, bytes, bytes]] = []
+        mesh_data, texture_data = b"", b""
+        for visual in sim_obj.visuals:
+            if (
+                visual.mesh is None
+                and visual.material is not None
+                and visual.material.texture is None
+            ):
+                continue
+            if visual.mesh is not None:
+                mesh_data = self.raw_data.get(visual.mesh.hash, b"")
+            if visual.material and visual.material.texture:
+                texture_data = self.raw_data.get(
+                    visual.material.texture.hash, b""
+                )
+            assets.append((sim_obj.name, visual, mesh_data, texture_data))
+        for child in sim_obj.children:
+            assets.extend(self.get_all_assets(child))
+        return assets

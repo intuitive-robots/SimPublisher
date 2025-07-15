@@ -26,8 +26,15 @@ import numpy as np
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Pick and lift a teddy bear with a robotic arm.")
-parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
+parser = argparse.ArgumentParser(
+    description="Pick and lift a teddy bear with a robotic arm."
+)
+parser.add_argument(
+    "--num_envs",
+    type=int,
+    default=1,
+    help="Number of environments to simulate.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -48,15 +55,23 @@ import isaaclab.sim as sim_utils
 import torch
 import trimesh
 from isaaclab.assets import DeformableObjectCfg
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab.controllers.differential_ik_cfg import (
+    DifferentialIKControllerCfg,
+)
+from isaaclab.envs.mdp.actions.actions_cfg import (
+    DifferentialInverseKinematicsActionCfg,
+)
 from isaaclab.sim.spawners.meshes import meshes
 from isaaclab.sim.spawners.meshes.meshes_cfg import MeshCfg
 from isaaclab.sim.utils import clone
 from isaaclab.utils import configclass
 from isaaclab_tasks.manager_based.manipulation.lift import mdp
-from isaaclab_tasks.manager_based.manipulation.lift.config.franka.ik_abs_env_cfg import FrankaTeddyBearLiftEnvCfg
-from isaaclab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
+from isaaclab_tasks.manager_based.manipulation.lift.config.franka.ik_abs_env_cfg import (
+    FrankaTeddyBearLiftEnvCfg,
+)
+from isaaclab_tasks.manager_based.manipulation.lift.lift_env_cfg import (
+    LiftEnvCfg,
+)
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 from simpub.sim.isaacsim_publisher import IsaacSimPublisher
@@ -72,7 +87,9 @@ def _spaw_func(
     mesh_obj: trimesh.Trimesh = trimesh.load(cfg.mesh)
     mesh_obj.fix_normals()
     # mesh_obj.apply_transform(trimesh.transformations.scale_matrix(0.75))
-    mesh_obj.apply_transform(trimesh.transformations.euler_matrix(math.pi * 0.5, 0, math.pi * 0.5))
+    mesh_obj.apply_transform(
+        trimesh.transformations.euler_matrix(math.pi * 0.5, 0, math.pi * 0.5)
+    )
     meshes._spawn_mesh_geom_from_mesh(
         prim_path=prim_path,
         cfg=cfg,
@@ -115,8 +132,12 @@ class FrankaSoftBasketLiftEnvCfg(FrankaTeddyBearLiftEnvCfg):
             asset_name="robot_2",
             joint_names=["panda_joint.*"],
             body_name="panda_hand",
-            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+            controller=DifferentialIKControllerCfg(
+                command_type="pose", use_relative_mode=False, ik_method="dls"
+            ),
+            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(
+                pos=[0.0, 0.0, 0.107]
+            ),
         )
         self.actions.gripper_action_2 = mdp.BinaryJointPositionActionCfg(
             asset_name="robot_2",
@@ -127,13 +148,21 @@ class FrankaSoftBasketLiftEnvCfg(FrankaTeddyBearLiftEnvCfg):
 
         self.scene.object = DeformableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
-            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.7, 0, 0.5), rot=(0.707, 0, 0, 0.707)),
+            init_state=DeformableObjectCfg.InitialStateCfg(
+                pos=(0.7, 0, 0.5), rot=(0.707, 0, 0, 0.707)
+            ),
             spawn=MeshTrimeshCfg(
                 mesh=f"{Path(__file__).parent.as_posix()}/basket.obj",
-                deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.0)),
+                deformable_props=sim_utils.DeformableBodyPropertiesCfg(
+                    rest_offset=0.0, contact_offset=0.001
+                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(0.5, 0.1, 0.0)
+                ),
                 physics_material=sim_utils.DeformableBodyMaterialCfg(
-                    poissons_ratio=0.4, youngs_modulus=5e2, dynamic_friction=100.0
+                    poissons_ratio=0.4,
+                    youngs_modulus=5e2,
+                    dynamic_friction=100.0,
                 ),
                 mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
             ),
@@ -143,9 +172,15 @@ class FrankaSoftBasketLiftEnvCfg(FrankaTeddyBearLiftEnvCfg):
             prim_path="{ENV_REGEX_NS}/Prop0",
             spawn=sim_utils.MeshCuboidCfg(
                 size=(0.4, 0.4, 0.2),
-                deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.5, 0.5)),
-                physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e8),
+                deformable_props=sim_utils.DeformableBodyPropertiesCfg(
+                    rest_offset=0.0, contact_offset=0.001
+                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(0.5, 0.5, 0.5)
+                ),
+                physics_material=sim_utils.DeformableBodyMaterialCfg(
+                    poissons_ratio=0.4, youngs_modulus=1e8
+                ),
             ),
             init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.7, 0, 0.2)),
             debug_vis=True,
@@ -155,12 +190,20 @@ class FrankaSoftBasketLiftEnvCfg(FrankaTeddyBearLiftEnvCfg):
             prim_path="{ENV_REGEX_NS}/Prop1",
             spawn=sim_utils.MeshSphereCfg(
                 radius=0.1,
-                deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.5, 0.0)),
-                physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e2),
+                deformable_props=sim_utils.DeformableBodyPropertiesCfg(
+                    rest_offset=0.0, contact_offset=0.001
+                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(0.2, 0.5, 0.0)
+                ),
+                physics_material=sim_utils.DeformableBodyMaterialCfg(
+                    poissons_ratio=0.4, youngs_modulus=1e2
+                ),
                 mass_props=sim_utils.MassPropertiesCfg(mass=0.01),
             ),
-            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.7, -0.1, 1.0)),
+            init_state=DeformableObjectCfg.InitialStateCfg(
+                pos=(0.7, -0.1, 1.0)
+            ),
             debug_vis=True,
         )
 
@@ -168,12 +211,20 @@ class FrankaSoftBasketLiftEnvCfg(FrankaTeddyBearLiftEnvCfg):
             prim_path="{ENV_REGEX_NS}/Prop2",
             spawn=sim_utils.MeshSphereCfg(
                 radius=0.1,
-                deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.3)),
-                physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e2),
+                deformable_props=sim_utils.DeformableBodyPropertiesCfg(
+                    rest_offset=0.0, contact_offset=0.001
+                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(0.5, 0.1, 0.3)
+                ),
+                physics_material=sim_utils.DeformableBodyMaterialCfg(
+                    poissons_ratio=0.4, youngs_modulus=1e2
+                ),
                 mass_props=sim_utils.MassPropertiesCfg(mass=0.01),
             ),
-            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.7, -0.1, 1.2)),
+            init_state=DeformableObjectCfg.InitialStateCfg(
+                pos=(0.7, -0.1, 1.2)
+            ),
             debug_vis=True,
         )
 
@@ -181,12 +232,20 @@ class FrankaSoftBasketLiftEnvCfg(FrankaTeddyBearLiftEnvCfg):
             prim_path="{ENV_REGEX_NS}/Prop3",
             spawn=sim_utils.MeshSphereCfg(
                 radius=0.1,
-                deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.7, 0.3)),
-                physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e2),
+                deformable_props=sim_utils.DeformableBodyPropertiesCfg(
+                    rest_offset=0.0, contact_offset=0.001
+                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(0.5, 0.7, 0.3)
+                ),
+                physics_material=sim_utils.DeformableBodyMaterialCfg(
+                    poissons_ratio=0.4, youngs_modulus=1e2
+                ),
                 mass_props=sim_utils.MassPropertiesCfg(mass=0.01),
             ),
-            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.7, -0.1, 1.4)),
+            init_state=DeformableObjectCfg.InitialStateCfg(
+                pos=(0.7, -0.1, 1.4)
+            ),
             debug_vis=True,
         )
 
@@ -212,7 +271,9 @@ def main():
     env_cfg.viewer.eye = (2.1, 1.0, 1.3)
 
     # create environment
-    env = gym.make("Isaac-Lift-Soft-Basket-Franka-IK-Abs-v0", cfg=env_cfg).unwrapped
+    env = gym.make(
+        "Isaac-Lift-Soft-Basket-Franka-IK-Abs-v0", cfg=env_cfg
+    ).unwrapped
     # reset environment at start
     env.reset()
 

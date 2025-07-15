@@ -7,6 +7,7 @@ from .simdata import SimMaterial, SimTexture, SimMesh
 from .simdata import VisualType
 from ..core.log import logger
 
+
 def get_scene_obj_type_str(sim, obj_type_id: int):
     # TODO, MAKE THIS A DICT
     # Get obj type name from obj type id
@@ -103,13 +104,13 @@ def ungroup_compound_objects(sim, visual_layer_list):
         ungroup_compound_objects(sim, visual_layer_list)
 
 
-def get_objects_info_dict(sim, visual_layer_list=None,
-                          name_as_key=False):
+def get_objects_info_dict(sim, visual_layer_list=None, name_as_key=False):
     # Ungroup compound objects
     ungroup_compound_objects(sim, visual_layer_list)
 
-    objects_handle_list = (
-        sim.getObjectsInTree(sim.handle_scene, sim.handle_all, 0))
+    objects_handle_list = sim.getObjectsInTree(
+        sim.handle_scene, sim.handle_all, 0
+    )
 
     obj_info_dict = {}
 
@@ -129,10 +130,12 @@ def get_objects_info_dict(sim, visual_layer_list=None,
         obj_type_id = sim.getObjectType(idx)
         obj_type_str = get_scene_obj_type_str(sim, obj_type_id)
         idx_str = str(idx)
-        obj_info_dict[idx_str] = {"name": obj_name,
-                                  "parent_id": parent_id,
-                                  "type": obj_type_str,
-                                  "visualize": visualize}
+        obj_info_dict[idx_str] = {
+            "name": obj_name,
+            "parent_id": parent_id,
+            "type": obj_type_str,
+            "visualize": visualize,
+        }
 
         # Check shape type, return types: int, int, list
         if obj_type_str == "shape" and visualize:
@@ -143,23 +146,30 @@ def get_objects_info_dict(sim, visual_layer_list=None,
             indices = np.asarray(indices).reshape(-1, 3)  # 11904
             normals = np.asarray(normals).reshape(-1, 3)  # 35712
             ambient_diffuse = sim.getShapeColor(
-                idx, None, sim.colorcomponent_ambient_diffuse)[1]
-            diffuse = sim.getShapeColor(
-                idx, None, sim.colorcomponent_diffuse)[1]
+                idx, None, sim.colorcomponent_ambient_diffuse
+            )[1]
+            diffuse = sim.getShapeColor(idx, None, sim.colorcomponent_diffuse)[
+                1
+            ]
             specular = sim.getShapeColor(
-                idx, None, sim.colorcomponent_specular)[1]
+                idx, None, sim.colorcomponent_specular
+            )[1]
             emission = sim.getShapeColor(
-                idx, None, sim.colorcomponent_emission)[1]
+                idx, None, sim.colorcomponent_emission
+            )[1]
             transparency = sim.getShapeColor(
-                idx, None, sim.colorcomponent_transparency)[1]
+                idx, None, sim.colorcomponent_transparency
+            )[1]
             auxiliary = sim.getShapeColor(
-                idx, None, sim.colorcomponent_auxiliary)[1]
+                idx, None, sim.colorcomponent_auxiliary
+            )[1]
 
             texture_id = sim.getShapeTextureId(idx)
             if texture_id != -1:
                 mesh_id = sim.getProperty(idx, "meshes")[0]
-                texture_width, texture_height = (
-                    sim.getProperty(mesh_id, "textureResolution"))
+                texture_width, texture_height = sim.getProperty(
+                    mesh_id, "textureResolution"
+                )
                 texture_data = sim.readTexture(texture_id, 0)
                 texture_repeat_u = sim.getProperty(mesh_id, "textureRepeatU")
                 texture_repeat_v = sim.getProperty(mesh_id, "textureRepeatV")
@@ -175,47 +185,49 @@ def get_objects_info_dict(sim, visual_layer_list=None,
                 texture_repeat_v = None
                 texture_coord = None
 
-            obj_info_dict[idx_str].update({
-                "shape_result": result,
-                "primitive_type": primitive_type_str,
-                "dimensions": dimensions,
-                "shape_vertices": vertices,
-                "shape_indices": indices,
-                "shape_normals": normals,
-                "color_ambient_diffuse": ambient_diffuse,
-                "color_diffuse": diffuse,
-                "color_specular": specular,
-                "color_emission": emission,
-                "color_transparency": transparency,
-                "color_auxiliary": auxiliary,
-                "texture_data": texture_data,
-                "texture_width": texture_width,
-                "texture_height": texture_height,
-                "texture_repeat_u": texture_repeat_u,
-                "texture_repeat_v": texture_repeat_v,
-                "texture_coord": texture_coord,
-            })
+            obj_info_dict[idx_str].update(
+                {
+                    "shape_result": result,
+                    "primitive_type": primitive_type_str,
+                    "dimensions": dimensions,
+                    "shape_vertices": vertices,
+                    "shape_indices": indices,
+                    "shape_normals": normals,
+                    "color_ambient_diffuse": ambient_diffuse,
+                    "color_diffuse": diffuse,
+                    "color_specular": specular,
+                    "color_emission": emission,
+                    "color_transparency": transparency,
+                    "color_auxiliary": auxiliary,
+                    "texture_data": texture_data,
+                    "texture_width": texture_width,
+                    "texture_height": texture_height,
+                    "texture_repeat_u": texture_repeat_u,
+                    "texture_repeat_v": texture_repeat_v,
+                    "texture_coord": texture_coord,
+                }
+            )
 
         # Get Transform info, absolute to world
         if parent_id == "world":
             pos = sim.getObjectPosition(idx, sim.handle_world)
-            quat = sim.getObjectQuaternion(idx,
-                                           sim.handle_world)  # fixme, use quaternion?
+            quat = sim.getObjectQuaternion(
+                idx, sim.handle_world
+            )  # fixme, use quaternion?
         else:
             pos = sim.getObjectPosition(idx, int(parent_id))
             quat = sim.getObjectQuaternion(idx, int(parent_id))
-        obj_info_dict[idx_str].update({
-            "pos": pos,
-            "quat": quat
-        })
+        obj_info_dict[idx_str].update({"pos": pos, "quat": quat})
 
     # Add a virtual root object
-    obj_info_dict["world"] = {"name": "world",
-                              "visualize": False,
-                              "parent_id": -1,
-                              "type": "root",
-                              "pos": [0, 0, 0],
-                              "quat": [0, 0, 0, 1]}
+    obj_info_dict["world"] = {
+        "name": "world",
+        "visualize": False,
+        "parent_id": -1,
+        "type": "root",
+        "pos": [0, 0, 0],
+        "quat": [0, 0, 0, 1],
+    }
 
     if name_as_key:
         name_as_key_obj_info_dict = {}
@@ -261,7 +273,8 @@ class CoppeliasSimParser:
 
         # Info dict
         info_dict_id_as_key = get_objects_info_dict(
-            cs_sim, self.visual_layer_list, name_as_key=False)
+            cs_sim, self.visual_layer_list, name_as_key=False
+        )
 
         # Build the hierarchy tree
         body_hierarchy = {}
@@ -327,8 +340,11 @@ class CoppeliasSimParser:
                 texture_repeat_v = obj_info["texture_repeat_v"]
                 texture_coord = obj_info["texture_coord"]
                 mat_texture = SimTexture.create_texture(
-                    texture_data, texture_height,  # fixme, why height first?
-                    texture_width, self.sim_scene)
+                    texture_data,
+                    texture_height,  # fixme, why height first?
+                    texture_width,
+                    self.sim_scene,
+                )
                 mat_texture.textureScale = [1, 1]
                 # plt.imshow(texture_data.reshape(texture_height,
                 #                                 texture_width, 3))
@@ -340,17 +356,21 @@ class CoppeliasSimParser:
             # FIXME, THESE COLOR PROPERTIES MISMATCH BETWEEN VREP AND UNITY
             # FIXME, THE COLOR RENDERING HAS ISSUE, ESPECIALLY FOR THE FLOOR
             # Fixme, Setting transparency and emission are buggy
-            material = SimMaterial(color=ambient_diffuse,
-                                   emissionColor=[0., 0., 0., 0.],
-                                   # specular=specular,
-                                   # shininess=mat_shininess,
-                                   # reflectance=mat_reflectance,
-                                   texture=mat_texture)
+            material = SimMaterial(
+                color=ambient_diffuse,
+                emissionColor=[0.0, 0.0, 0.0, 0.0],
+                # specular=specular,
+                # shininess=mat_shininess,
+                # reflectance=mat_reflectance,
+                texture=mat_texture,
+            )
 
             # Process Mesh
             vertices = obj_info["shape_vertices"]
             indices = obj_info["shape_indices"]
-            normals = obj_info["shape_normals"]  # fixme, this is not being used
+            normals = obj_info[
+                "shape_normals"
+            ]  # fixme, this is not being used
             sim_trans = SimTransform()  # todo, specify some arguments here?
             sim_visual = SimVisual(
                 name=body_name,

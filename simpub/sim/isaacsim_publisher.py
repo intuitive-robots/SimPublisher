@@ -27,14 +27,19 @@ class IsaacSimPublisher(SimPublisher):
 
         # set usdrt stage and tracked prims
         self.rt_stage = self.parser.get_usdrt_stage()
-        self.tracked_prims, self.tracked_deform_prims = self.parser.get_tracked_prims()
+        (
+            self.tracked_prims,
+            self.tracked_deform_prims,
+        ) = self.parser.get_tracked_prims()
 
         self.sim_scene.process_sim_obj(self.sim_scene.root)
 
         super().__init__(self.sim_scene, host)
 
         # add deformable update streamer
-        self.deform_update_streamer = ByteStreamer("DeformUpdate", self.get_deform_update, start_streaming=True)
+        self.deform_update_streamer = ByteStreamer(
+            "DeformUpdate", self.get_deform_update, start_streaming=True
+        )
 
     def get_update(self) -> dict[str, list[float]]:
         state = {}
@@ -72,7 +77,9 @@ class IsaacSimPublisher(SimPublisher):
         #####################################################
 
         state = {}
-        mesh_vert_len = np.ndarray(len(self.tracked_deform_prims), dtype=np.uint32)  # N
+        mesh_vert_len = np.ndarray(
+            len(self.tracked_deform_prims), dtype=np.uint32
+        )  # N
         update_list = ""  # S
 
         for idx, tracked_prim in enumerate(self.tracked_deform_prims):
@@ -80,7 +87,9 @@ class IsaacSimPublisher(SimPublisher):
             prim_path = tracked_prim["prim_path"]
 
             vertices = np.asarray(
-                self.rt_stage.GetPrimAtPath(prim_path).GetAttribute(RtGeom.Tokens.points).Get(),
+                self.rt_stage.GetPrimAtPath(prim_path)
+                .GetAttribute(RtGeom.Tokens.points)
+                .Get(),
                 dtype=np.float32,
             )
             vertices = vertices[:, [1, 2, 0]]

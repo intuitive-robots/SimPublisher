@@ -17,9 +17,9 @@ from ..parser.simdata import SimObject
 
 
 class CoppeliaSimPublisher(SimPublisher):
-
     def __init__(
-        self, sim,
+        self,
+        sim,
         host: str = "127.0.0.1",
         no_rendered_objects: Optional[List[str]] = None,
         no_tracked_objects: Optional[List[str]] = None,
@@ -59,6 +59,12 @@ class CoppeliaSimPublisher(SimPublisher):
         for name, trans in self.tracked_obj_trans.items():
             pos, rot = trans
             state[name] = [
-                -pos[1], pos[2], pos[0], rot[2], -rot[3], -rot[1], rot[0]
+                -pos[1],
+                pos[2],
+                pos[0],
+                rot[2],
+                -rot[3],
+                -rot[1],
+                rot[0],
             ]
         return state

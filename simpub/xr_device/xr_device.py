@@ -7,6 +7,7 @@ from asyncio import sleep as async_sleep
 from ..core.log import logger
 from ..core.net_manager import XRNodeManager, XRNodeInfo
 from ..core.net_manager import TopicName
+
 # from ..core.net_component import Subscriber
 from ..core.utils import AsyncSocket
 
@@ -67,9 +68,7 @@ class XRDevice:
         self.sub_topic_callback[topic] = callback
 
     def request(self, service: str, req: str) -> str:
-        future = self.manager.submit_task(
-            self.request_async, service, req
-        )
+        future = self.manager.submit_task(self.request_async, service, req)
         if future is None:
             logger.error("Future is None")
             return ""
@@ -85,7 +84,7 @@ class XRDevice:
             logger.error(f"Device {self.device_name} is not connected")
             return ""
         if service not in self.device_info["serviceList"]:
-            logger.error(f"\"{service}\" Service is not available")
+            logger.error(f'"{service}" Service is not available')
             return ""
         await self.req_socket.send_string(f"{service}:{req}")
         return await self.req_socket.recv_string()

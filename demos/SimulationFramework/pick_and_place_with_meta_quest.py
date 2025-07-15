@@ -11,7 +11,6 @@ from simpub.xr_device import MetaQuest3
 
 
 class MetaQuest3Controller(CartPosQuatImpedenceController):
-
     def __init__(self, device):
         super().__init__()
         self.device: MetaQuest3 = device

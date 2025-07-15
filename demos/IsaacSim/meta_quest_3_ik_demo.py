@@ -39,11 +39,17 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.sim.spawners.shapes.shapes_cfg import CapsuleCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+from isaaclab.controllers.differential_ik_cfg import (
+    DifferentialIKControllerCfg,
+)
 from isaaclab.envs.mdp.actions.actions_cfg import (
     DifferentialInverseKinematicsActionCfg,
 )
-from isaaclab.utils.math import quat_from_euler_xyz, euler_xyz_from_quat, quat_mul
+from isaaclab.utils.math import (
+    quat_from_euler_xyz,
+    euler_xyz_from_quat,
+    quat_mul,
+)
 
 from isaaclab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
 
@@ -67,7 +73,9 @@ def pre_process_actions(
         return delta_pose
     else:
         # resolve gripper command
-        gripper_vel = torch.zeros(delta_pose.shape[0], 1, device=delta_pose.device)
+        gripper_vel = torch.zeros(
+            delta_pose.shape[0], 1, device=delta_pose.device
+        )
         gripper_vel[:] = -1.0 if gripper_command else 1.0
         # compute actions
         return torch.concat([delta_pose, gripper_vel], dim=1)
@@ -134,7 +142,9 @@ def main():
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 1.0)),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.0, 1.0, 1.0)
+            ),
         ),
     )
 
@@ -150,7 +160,9 @@ def main():
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 1.0)),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.1, 0.1, 1.0)
+            ),
         ),
     )
 
@@ -173,14 +185,30 @@ def main():
         return (pos[0], pos[1], pos[2] + 1.05)
 
     # move objects above ground (z=0)
-    env_cfg.scene.table.init_state.pos = update_z(env_cfg.scene.table.init_state.pos)
-    env_cfg.scene.plane.init_state.pos = update_z(env_cfg.scene.plane.init_state.pos)
-    env_cfg.scene.robot.init_state.pos = update_z(env_cfg.scene.robot.init_state.pos)
-    env_cfg.scene.light.init_state.pos = update_z(env_cfg.scene.light.init_state.pos)
-    env_cfg.scene.object.init_state.pos = update_z(env_cfg.scene.object.init_state.pos)
-    env_cfg.scene.cube2.init_state.pos = update_z(env_cfg.scene.cube2.init_state.pos)
-    env_cfg.scene.cube3.init_state.pos = update_z(env_cfg.scene.cube3.init_state.pos)
-    env_cfg.scene.cube4.init_state.pos = update_z(env_cfg.scene.cube4.init_state.pos)
+    env_cfg.scene.table.init_state.pos = update_z(
+        env_cfg.scene.table.init_state.pos
+    )
+    env_cfg.scene.plane.init_state.pos = update_z(
+        env_cfg.scene.plane.init_state.pos
+    )
+    env_cfg.scene.robot.init_state.pos = update_z(
+        env_cfg.scene.robot.init_state.pos
+    )
+    env_cfg.scene.light.init_state.pos = update_z(
+        env_cfg.scene.light.init_state.pos
+    )
+    env_cfg.scene.object.init_state.pos = update_z(
+        env_cfg.scene.object.init_state.pos
+    )
+    env_cfg.scene.cube2.init_state.pos = update_z(
+        env_cfg.scene.cube2.init_state.pos
+    )
+    env_cfg.scene.cube3.init_state.pos = update_z(
+        env_cfg.scene.cube3.init_state.pos
+    )
+    env_cfg.scene.cube4.init_state.pos = update_z(
+        env_cfg.scene.cube4.init_state.pos
+    )
     env_cfg.scene.capsule1.init_state.pos = update_z(
         env_cfg.scene.capsule1.init_state.pos
     )
@@ -219,7 +247,9 @@ def main():
 
     if env.sim is not None and env.sim.stage is not None:
         print("parsing usd stage...")
-        publisher = IsaacSimPublisher(host="192.168.0.134", stage=env.sim.stage)
+        publisher = IsaacSimPublisher(
+            host="192.168.0.134", stage=env.sim.stage
+        )
         # publisher = IsaacSimPublisher(host="127.0.0.1", stage=env.sim.stage)
 
     meta_quest3 = MetaQuest3("ALRMetaQuest3")
@@ -289,9 +319,9 @@ def main():
 
             delta_pose = delta_pose.astype("float32")
             # convert to torch
-            delta_pose = torch.tensor(delta_pose, device=env.unwrapped.device).repeat(
-                env.unwrapped.num_envs, 1
-            )
+            delta_pose = torch.tensor(
+                delta_pose, device=env.unwrapped.device
+            ).repeat(env.unwrapped.num_envs, 1)
             # pre-process actions
             actions = pre_process_actions(task, delta_pose, gripper_command)
             # apply actions

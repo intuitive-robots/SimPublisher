@@ -8,7 +8,6 @@ from ..parser.simdata import SimObject
 
 
 class MujocoPublisher(SimPublisher):
-
     def __init__(
         self,
         mj_model,
@@ -23,7 +22,9 @@ class MujocoPublisher(SimPublisher):
         # default setting for visible geoms groups
         if visible_geoms_groups is None:
             visible_geoms_groups = list(range(5))
-        self.parser = MjModelParser(mj_model, visible_geoms_groups, no_rendered_objects)
+        self.parser = MjModelParser(
+            mj_model, visible_geoms_groups, no_rendered_objects
+        )
         sim_scene = self.parser.parse()
         self.tracked_obj_trans: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
         super().__init__(
@@ -52,6 +53,12 @@ class MujocoPublisher(SimPublisher):
         for name, trans in self.tracked_obj_trans.items():
             pos, rot = trans
             state[name] = [
-                -pos[1], pos[2], pos[0], rot[2], -rot[3], -rot[1], rot[0]
+                -pos[1],
+                pos[2],
+                pos[0],
+                rot[2],
+                -rot[3],
+                -rot[1],
+                rot[0],
             ]
         return state
