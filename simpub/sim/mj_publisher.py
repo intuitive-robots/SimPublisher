@@ -4,7 +4,7 @@ import numpy as np
 
 from ..core.simpub_server import SimPublisher
 from ..parser.mj import MjModelParser
-from ..simdata import SimObject
+from ..parser.simdata import SimObject
 
 
 class MujocoPublisher(SimPublisher):

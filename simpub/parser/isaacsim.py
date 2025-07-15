@@ -32,7 +32,7 @@ else:
 
 from ..parser.mesh_utils import Mesh as MeshData
 from ..parser.mesh_utils import split_mesh_faces
-from ..simdata import (
+from .simdata import (
     SimAsset,
     SimMaterial,
     SimMesh,

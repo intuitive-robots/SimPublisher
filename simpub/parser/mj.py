@@ -2,9 +2,9 @@ import mujoco
 import numpy as np
 from typing import List, Dict, Callable
 
-from ..simdata import SimObject, SimScene, SimTransform, SimVisual
-from ..simdata import SimMaterial, SimTexture, SimMesh
-from ..simdata import VisualType
+from .simdata import SimObject, SimScene, SimTransform, SimVisual
+from .simdata import SimMaterial, SimTexture, SimMesh
+from .simdata import VisualType
 from ..core.log import logger
 
 

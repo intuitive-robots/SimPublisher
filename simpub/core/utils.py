@@ -1,8 +1,8 @@
 import zmq
 import zmq.asyncio
-import struct
+import asyncio
 import socket
-from typing import List, TypedDict
+from typing import List, TypedDict, Optional
 import enum
 from traceback import print_exc
 import time
@@ -66,50 +66,69 @@ class XRNodeInfo(TypedDict):
     topicList: List[TopicName]
 
 
-def send_raw_request(messages: List[bytes], addr: str) -> bytes:
-    req_socket = zmq.Context().socket(zmq.REQ)
+def send_raw_request(messages: List[bytes], addr: str, timeout: int = 1000) -> Optional[bytes]:
+    req_socket = zmq.Context().instance().socket(zmq.REQ)
+    poller = zmq.Poller()
+    poller.register(req_socket, zmq.POLLIN)
     req_socket.connect(addr)
+    req_socket.setsockopt(zmq.RCVTIMEO, 200)
+    start = time.time()
     try:
-        start = time.time()
         req_socket.send_multipart(messages, copy=False)
     except Exception as e:
         logger.error(
             f"Error when sending message from send_message function in "
             f"simpub.core.utils: {e}"
         )
+        print_exc()
     start2 = time.time()
-    result = req_socket.recv()
-    print(f"Message sent in {time.time() - start:.6f} seconds, {time.time() - start2:.6f} seconds to receive response")
-    req_socket.close()
-    return result
+    result = None
+    try:
+        if poller.poll(timeout):
+            result = req_socket.recv()
+            print("Received:", result)
+        else:
+            print("Timeout occurred")
+    except Exception as e:
+        logger.error(
+            f"Error when receiving message from send_message function in "
+            f"simpub.core.utils: {e}"
+        )
+        print_exc()
+    finally:
+        print(f"Message sent in {1000 * (start2 - start):.2f} ms, {1000 * (time.time() - start2):.2f} ms to receive response")
+        req_socket.close()
+        return result
 
 
-def send_request(service_name: str, message: bytes, addr: str) -> bytes:
+
+def send_request(service_name: str, message: bytes, addr: str) -> Optional[bytes]:
     return send_raw_request([service_name.encode(), message], addr)
 
 
-def send_string_request(service_name: str, message: str, addr: str) -> bytes:
+def send_string_request(service_name: str, message: str, addr: str) -> Optional[bytes]:
     return send_raw_request([service_name.encode(), message.encode()], addr)
 
 
 async def send_raw_request_async(messages: List[bytes], addr: str) -> bytes:
-    req_socket = zmq.asyncio.Context().socket(zmq.REQ)  # type: ignore
+    req_socket = zmq.asyncio.Context.instance().socket(zmq.REQ)
     req_socket.connect(addr)
     try:
         start = time.time()
         await req_socket.send_multipart(messages, copy=False)
+        start2 = time.time()
+        print(f"message: {messages[0].decode()}, addr: {addr}")
+        # Set receive timeout to 200ms (0.2 seconds)
+        result = await asyncio.wait_for(req_socket.recv(), timeout=0.2)
+        print(f"Message sent in {1000 * (start2 - start):.2f} ms, {1000 * (time.time() - start2):.2f} ms to receive response")
+        req_socket.close()
+        return result
     except Exception as e:
         logger.error(
             f"Error when sending message from send_message function in "
             f"simpub.core.utils: {e}"
         )
-    start2 = time.time()
-    result = await req_socket.recv()
-    print(f"Message sent in {time.time() - start:.6f} seconds, {time.time() - start2:.6f} seconds to receive response")
-    req_socket.close()
-    return result
-
-
+        req_socket.close()
 
 # def calculate_broadcast_addr(ip_addr: IPAddress) -> IPAddress:
 #     ip_bin = struct.unpack("!I", socket.inet_aton(ip_addr))[0]

@@ -2,9 +2,9 @@ from typing import List
 
 import numpy as np
 import tqdm
-from ..simdata import SimObject, SimScene, SimTransform, SimVisual
-from ..simdata import SimMaterial, SimTexture, SimMesh
-from ..simdata import VisualType
+from .simdata import SimObject, SimScene, SimTransform, SimVisual
+from .simdata import SimMaterial, SimTexture, SimMesh
+from .simdata import VisualType
 from ..core.log import logger
 
 def get_scene_obj_type_str(sim, obj_type_id: int):
