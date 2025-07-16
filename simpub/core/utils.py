@@ -109,26 +109,25 @@ def search_for_master_node(
     print(f"local_ip  {local_ip}")
     print(f"broadcast_ip {broadcast_ip}")
 
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        # 1. allow reuse so another process (e.g. the master) can also bind
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        #    on recent Linux kernels you also need SO_REUSEPORT
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        # 2. enable broadcast
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
-        # 3. bind to all interfaces on the DISCOVERY_PORT
-        s.bind(("", DISCOVERY_PORT))
-        # 4. spray out a few PINGs
+   with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as _socket:
+        # wait for response
+        _socket.bind((local_ip, 0))
+        _socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         for _ in range(search_time):
-            s.sendto(EchoHeader.PING, ("192.168.178.255", DISCOVERY_PORT))
-            s.settimeout(time_out)
+            _socket.sendto(
+                EchoHeader.PING, (broadcast_ip, DISCOVERY_PORT)
+            )
+            _socket.settimeout(time_out)
             try:
-                data, addr = s.recvfrom(1024)
-                print(f"← got reply from {addr}: {data!r}")
+                data, addr = _socket.recvfrom(1024)
+                logger.info(f"Find a master node at {addr[0]}:{addr[1]}")
                 return addr[0], data.decode()
             except socket.timeout:
                 continue
-
-    print("No master node found.")
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                logger.error(f"Error when searching for master node: {e}")
+                print_exc()
+    logger.info("No master node found, start as master node")
     return None
