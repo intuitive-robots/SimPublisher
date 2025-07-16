@@ -1,5 +1,6 @@
 from simpub.core.net_manager import init_node
 from simpub.xr_device.xr_device import XRDevice
+from simpub.xr_device.meta_quest3 import MetaQuest3
 from simpub.core.net_manager import Publisher
 import numpy as np
 
@@ -14,9 +15,9 @@ def generate_random_point_cloud(num_points=10000):
 
 if __name__ == "__main__":
 
-    net_manager = init_node("192.168.0.134", "PointCloud")
+    net_manager = init_node("192.168.178.51", "PointCloud") # 192.168.178.51
     net_manager.start_node_broadcast()
-    unity_editor = XRDevice("UnityNode")
+    unity_editor = MetaQuest3("UnityNode") # XRDevice("UnityNode")
     publisher = Publisher("PointCloud")
     try:
         while True:
