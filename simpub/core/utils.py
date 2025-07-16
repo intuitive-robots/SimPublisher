@@ -109,7 +109,7 @@ def search_for_master_node(
     print(f"local_ip  {local_ip}")
     print(f"broadcast_ip {broadcast_ip}")
 
-   with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as _socket:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as _socket:
         # wait for response
         _socket.bind((local_ip, 0))
         _socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
