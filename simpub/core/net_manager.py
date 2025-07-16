@@ -459,7 +459,7 @@ class NodeManager:
                 msg.encode(), (broadcast_ip, DISCOVERY_PORT)
             )
             await async_sleep(0.5)
-            print(f"broadcasted {i}: {msg}")
+            # print(f"broadcasted {i}: {msg}")
             i += 1
         logger.info("Broadcasting has been stopped")
 

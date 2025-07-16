@@ -15,7 +15,7 @@ def generate_random_point_cloud(num_points=10000):
 
 if __name__ == "__main__":
 
-    net_manager = init_node("192.168.178.51", "PointCloud") # 192.168.178.51
+    net_manager = init_node("192.168.178.60", "PointCloud") # 192.168.178.51
     net_manager.start_node_broadcast()
     unity_editor = MetaQuest3("UnityNode") # XRDevice("UnityNode")
     publisher = Publisher("PointCloud")
