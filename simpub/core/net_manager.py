@@ -286,6 +286,7 @@ class NodesInfoManager:
                 f"{info['addr']['ip']} has been launched"
             )
         self.nodes_info[node_id] = info
+        print(f"Node {info} registered")
 
     def remove_node(self, node_id: HashIdentifier):
         try:
@@ -445,16 +446,21 @@ class NodeManager:
         # calculate broadcast ip
         local_info = self.local_info
         _ip = local_info["addr"]["ip"]
+        print(f"** ip {_ip}")
         ip_bin = struct.unpack('!I', socket.inet_aton(_ip))[0]
         netmask_bin = struct.unpack('!I', socket.inet_aton("255.255.255.0"))[0]
         broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
         broadcast_ip = socket.inet_ntoa(struct.pack('!I', broadcast_bin))
+        print(f"** broadcast_ip {broadcast_ip}")
+        i = 0
         while self.running:
             msg = f"SimPub|{dumps(local_info)}"
             _socket.sendto(
                 msg.encode(), (broadcast_ip, DISCOVERY_PORT)
             )
-            await async_sleep(0.1)
+            await async_sleep(0.5)
+            print(f"broadcasted {i}: {msg}")
+            i += 1
         logger.info("Broadcasting has been stopped")
 
     def register_node_callback(self, msg: str) -> str:
