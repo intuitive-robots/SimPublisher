@@ -6,7 +6,7 @@ if __name__ == "__main__":
 
     net_manager = init_node("192.168.0.134", "InputDataExample")
     net_manager.start_node_broadcast()
-    mq3 = MetaQuest3("IRLMQ3-1")  # You can change the name by using simpubweb
+    mq3 = MetaQuest3("UnityNode")  # You can change the name by using simpubweb
     try:
         while True:
             input_data = mq3.get_input_data()
