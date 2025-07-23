@@ -1,12 +1,15 @@
 import json
 import zmq
-import zmq.asyncio
-from typing import Optional, Dict, Callable
+import traceback
+from typing import Optional
 from asyncio import sleep as async_sleep
 
 from ..core.log import logger
-from ..core.net_manager import XRNodeManager, XRNodeInfo
-from ..core.net_manager import TopicName
+from ..core.node_manager import init_xr_node_manager, XRNodeInfo
+from ..core.net_component import Subscriber
+
+# from ..core.utils import TopicName
+
 
 # from ..core.net_component import Subscriber
 from ..core.utils import AsyncSocket
@@ -23,52 +26,59 @@ class XRDevice:
 
     def __init__(
         self,
-        device_name: str = "UnityClient",
+        device_name: str = "UnityNode",
     ) -> None:
-        if XRNodeManager.manager is None:
-            raise Exception("XRNodeManager is not initialized")
-        self.manager: XRNodeManager = XRNodeManager.manager
+        self.manager = init_xr_node_manager()
+        self.running = True
         self.connected = False
         self.device_name = device_name
+        self.device_id: Optional[str] = None
         self.device_info: Optional[XRNodeInfo] = None
         self.req_socket: AsyncSocket = self.manager.create_socket(zmq.REQ)
-        self.sub_socket: AsyncSocket = self.manager.create_socket(zmq.SUB)
-        # subscriber
-        self.sub_topic_callback: Dict[TopicName, Callable] = {}
-        self.register_topic_callback(f"{device_name}/Log", self.print_log)
-        self.manager.submit_task(self.wait_for_connection)
+        self.log_sub = Subscriber("Log", self.print_log)
+        self.manager.submit_asyncio_task(self.checking_connection)
 
-    async def wait_for_connection(self):
-        logger.info(f"Waiting for connection to {self.device_name}")
-        while not self.connected:
-            device_info = self.manager.nodes_info_manager.get_node_info(
-                self.device_name
-            )
-            if device_info is not None:
-                self.device_info = device_info
+    async def checking_connection(self):
+        logger.info(f"checking the connection to {self.device_name}")
+        while self.running:
+            for node_info in self.manager.xr_nodes_info.values():
+                if node_info["name"] != self.device_name:
+                    continue
+                if node_info["nodeID"] == self.device_id:
+                    continue
+                if self.device_info is not None:
+                    self.disconnect()
+                self.device_info = node_info
+                self.device_id = node_info["nodeID"]
                 self.connected = True
-                logger.info(f"Connected to {self.device_name}")
-                break
-            await async_sleep(0.01)
-        if self.device_info is None:
-            return
-        self.connect_to_client(self.device_info)
+                self.connect_to_client(node_info)
+            await async_sleep(0.5)
+        # if self.device_info is None:
+        #     return
+        # self.connect_to_client(self.device_info)
 
     def connect_to_client(self, info: XRNodeInfo):
-        self.req_socket.connect(
-            f"tcp://{info['addr']['ip']}:{info['servicePort']}"
-        )
-        self.sub_socket.connect(
-            f"tcp://{info['addr']['ip']}:{info['topicPort']}"
-        )
-        self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
-        self.manager.submit_task(self.subscribe_loop)
+        try:
+            self.req_socket.connect(f"tcp://{info['ip']}:{info['port']}")
+            self.log_sub.start_connection(
+                f"tcp://{info['ip']}:{info['topicDict']['ConsoleLogger']}"
+            )
+            logger.remote_log(
+                f"{self.type} Connected to {self.device_name} "
+                f"at {info['ip']}:{info['port']}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to connect to {self.device_name} at "
+                f"{info['ip']}:{info['port']}: {e}"
+            )
+            traceback.print_exc()
+            return
 
-    def register_topic_callback(self, topic: TopicName, callback: Callable):
-        self.sub_topic_callback[topic] = callback
-
-    def request(self, service: str, req: str) -> str:
-        future = self.manager.submit_task(self.request_async, service, req)
+    def request(self, service: str, request: str) -> str:
+        future = self.manager.submit_asyncio_task(
+            self.request_async, service, request
+        )
         if future is None:
             logger.error("Future is None")
             return ""
@@ -89,18 +99,16 @@ class XRDevice:
         await self.req_socket.send_string(f"{service}:{req}")
         return await self.req_socket.recv_string()
 
-    async def subscribe_loop(self):
-        try:
-            while self.connected:
-                message = await self.sub_socket.recv_string()
-                topic, msg = message.split("|", 1)
-                if topic in self.sub_topic_callback:
-                    self.sub_topic_callback[topic](msg)
-                await async_sleep(0.01)
-        except Exception as e:
+    def disconnect(self):
+        if self.device_info is None:
             logger.error(
-                f"{e} from subscribe loop in device {self.device_name}"
+                f"Device {self.device_name} is not "
+                "connected and it cannot be disconnected"
             )
+            return
+        self.req_socket.disconnect(
+            f"tcp://{self.device_info['ip']}:{self.device_info['port']}"
+        )
 
     def print_log(self, log: str):
         logger.remote_log(f"{self.type} Log: {log}")

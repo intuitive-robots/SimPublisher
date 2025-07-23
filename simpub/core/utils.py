@@ -2,7 +2,7 @@ import zmq
 import zmq.asyncio
 import asyncio
 import socket
-from typing import List, TypedDict, Optional, Callable, Any
+from typing import List, TypedDict, Optional, Callable, Any, Dict
 import enum
 from traceback import print_exc
 from functools import wraps
@@ -23,9 +23,14 @@ DISCOVERY_PORT = int(7720)
 MULTICAST_GRP = "239.255.10.10"
 
 
-class MSG(enum.Enum):
-    SERVICE_ERROR = b"\x10"
-    SERVICE_TIMEOUT = b"\x11"
+class IRISMSG(enum.Enum):
+    EMPTY = "EMPTY"
+    SUCCESS = "SUCCESS"
+    ERROR = "ERROR"
+    TIMEOUT = "TIMEOUT"
+    NOTFOUND = "NOTFOUND"
+    START = "START"
+    STOP = "STOP"
 
 
 class XRNodeInfo(TypedDict):
@@ -33,10 +38,9 @@ class XRNodeInfo(TypedDict):
     nodeID: str  # hash code since bytes is not JSON serializable
     ip: IPAddress
     type: str
-    servicePort: int
-    topicPort: int
+    port: int
     serviceList: List[ServiceName]
-    topicList: List[TopicName]
+    topicDict: Dict[TopicName, int]
 
 
 def request_log(func: Callable) -> Callable:
