@@ -5,7 +5,8 @@ from asyncio import sleep as asyncio_sleep
 import traceback
 
 from ..parser.simdata import SimScene, SimObject
-from .net_manager import XRNodeManager, init_xr_node_manager, Streamer
+from .node_manager import XRNodeManager, init_xr_node_manager
+from .net_component import Streamer
 from .log import logger, func_timing
 from .utils import (
     send_raw_request_async,
@@ -66,7 +67,6 @@ class SimPublisher(ServerBase):
             fps=self.fps,
             start_streaming=True,
         )
-        # self.asset_service = StrBytesService("Asset", self._on_asset_request)
         self.xr_device_set: Set[HashIdentifier] = set()
         self.node_manager.submit_asyncio_task(
             self.search_xr_device, self.node_manager
@@ -94,14 +94,14 @@ class SimPublisher(ServerBase):
                 "DeleteSimScene".encode(),
                 self.sim_scene.name.encode(),
             ],
-            f"tcp://{xr_info['ip']}:{xr_info['servicePort']}",
+            f"tcp://{xr_info['ip']}:{xr_info['port']}",
         )
         await send_raw_request_async(
             [
                 "SpawnSimScene".encode(),
                 self.sim_scene.serialize().encode(),
             ],
-            f"tcp://{xr_info['ip']}:{xr_info['servicePort']}",
+            f"tcp://{xr_info['ip']}:{xr_info['port']}",
         )
         if self.sim_scene.root is None:
             logger.warning("The SimScene root is None, nothing to send.")
@@ -133,7 +133,7 @@ class SimPublisher(ServerBase):
                 parent.name.encode() if parent else "".encode(),
                 sim_object.serialize().encode(),
             ],
-            f"tcp://{xr_info['ip']}:{xr_info['servicePort']}",
+            f"tcp://{xr_info['ip']}:{xr_info['port']}",
         )
 
     async def send_assets_to_xr_device(
@@ -158,7 +158,7 @@ class SimPublisher(ServerBase):
                     mesh_raw_data,
                     texture_raw_data,
                 ],
-                f"tcp://{xr_info['ip']}:{xr_info['servicePort']}",
+                f"tcp://{xr_info['ip']}:{xr_info['port']}",
             )
 
     async def send_rigid_body_streamer(
@@ -173,7 +173,7 @@ class SimPublisher(ServerBase):
                 url.encode(),
                 "RigidObjectUpdate".encode(),
             ],
-            f"tcp://{xr_info['ip']}:{xr_info['servicePort']}",
+            f"tcp://{xr_info['ip']}:{xr_info['port']}",
         )
 
     def _on_asset_request(self, req: str) -> bytes:

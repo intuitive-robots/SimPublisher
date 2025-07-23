@@ -1,8 +1,7 @@
 from __future__ import annotations
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
-import abc
-from typing import Dict, Optional, Callable, Union
+from typing import Dict, Optional, Callable
 import asyncio
 from asyncio import sleep as async_sleep
 import socket
@@ -10,7 +9,7 @@ import struct
 import zmq
 import zmq.asyncio
 import time
-from json import dumps, loads
+from json import loads
 import traceback
 
 from .log import logger
@@ -22,158 +21,6 @@ from .utils import (
 )
 
 
-class NetComponent(abc.ABC):
-    def __init__(self):
-        if XRNodeManager.manager is None:
-            raise ValueError("XRNodeManager is not initialized")
-        self.manager: XRNodeManager = XRNodeManager.manager
-        self.running: bool = False
-
-    def shutdown(self) -> None:
-        self.running = False
-        self.on_shutdown()
-
-    @abc.abstractmethod
-    def on_shutdown(self):
-        raise NotImplementedError
-
-
-class Publisher(NetComponent):
-    def __init__(self, topic_name: str):
-        super().__init__()
-        self.topic_name = topic_name
-        self.socket = self.manager.create_socket(zmq.PUB)
-        self.socket.bind(f"tcp://{self.manager.host_ip}:0")
-
-    def publish_bytes(self, msg: bytes) -> None:
-        self.manager.submit_asyncio_task(self.send_bytes_async, msg)
-
-    def publish_dict(self, msg: Dict) -> None:
-        self.publish_string(dumps(msg))
-
-    def publish_string(self, msg: str) -> None:
-        self.manager.submit_asyncio_task(self.send_bytes_async, msg.encode())
-
-    async def send_bytes_async(self, msg: bytes) -> None:
-        await self.socket.send(msg)
-
-    def on_shutdown(self):
-        pass
-
-
-class Streamer(Publisher):
-    def __init__(
-        self,
-        topic_name: str,
-        update_func: Callable[[], Optional[Union[str, bytes, Dict]]],
-        fps: int,
-        start_streaming: bool = False,
-    ):
-        super().__init__(topic_name)
-        self.running = False
-        self.dt: float = 1 / fps
-        self.update_func = update_func
-        self.topic_byte = self.topic_name.encode("utf-8")
-        if start_streaming:
-            self.start_streaming()
-
-    def start_streaming(self):
-        self.manager.submit_asyncio_task(self.update_loop)
-
-    def generate_byte_msg(self) -> bytes:
-        update_msg = self.update_func()
-        if isinstance(update_msg, str):
-            return update_msg.encode("utf-8")
-        elif isinstance(update_msg, bytes):
-            return update_msg
-        elif isinstance(update_msg, dict):
-            return dumps(update_msg).encode("utf-8")
-        raise ValueError("Update function should return str, bytes or dict")
-
-    async def update_loop(self):
-        self.running = True
-        last = 0.0
-        logger.info(f"Topic {self.topic_name} starts streaming")
-        while self.running:
-            try:
-                diff = time.monotonic() - last
-                if diff < self.dt:
-                    await async_sleep(self.dt - diff)
-                last = time.monotonic()
-                await self.send_bytes_async(self.generate_byte_msg())
-            except Exception as e:
-                logger.error(f"Error when streaming {self.topic_name}: {e}")
-                traceback.print_exc()
-        logger.info(f"Streamer for topic {self.topic_name} is stopped")
-
-
-class ByteStreamer(Streamer):
-    def __init__(
-        self,
-        topic: str,
-        update_func: Callable[[], bytes],
-        fps: int,
-    ):
-        super().__init__(topic, update_func, fps)
-        self.update_func: Callable[[], bytes]
-
-    def generate_byte_msg(self) -> bytes:
-        return self.update_func()
-
-
-# class Subscriber(NetComponent):
-#     # TODO: test this class
-#     def __init__(self, topic_name: str, callback: Callable[[str], None]):
-#         super().__init__()
-#         self.sub_socket: AsyncSocket = self.manager.create_socket(zmq.SUB)
-#         self.topic_name = topic_name
-#         self.connected = False
-#         self.callback = callback
-#         self.remote_addr: Optional[NodeAddress] = None
-#         self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, topic_name)
-
-#     def change_connection(self, new_addr: NodeAddress) -> None:
-#         """Changes the connection to a new IP address."""
-#         if self.connected and self.remote_addr is not None:
-#             logger.info(f"Disconnecting from {self.remote_addr}")
-#             self.sub_socket.disconnect(
-#                 f"tcp://{self.remote_addr}"
-#             )
-#         self.sub_socket.connect(f"tcp://{new_addr}")
-#         self.remote_addr = new_addr
-#         self.connected = True
-
-#     async def wait_for_publisher(self) -> None:
-#         """Waits for a publisher to be available for the topic."""
-#         while self.running:
-#             node_info = self.manager.nodes_info_manager.check_topic(
-#                 self.topic_name
-#             )
-#             if node_info is not None:
-#                 logger.info(
-#                     f"Connected to new publisher from node "
-#                     f"'{node_info['name']}' with topic '{self.topic_name}'"
-#                 )
-#             await async_sleep(0.5)
-
-#     async def listen(self) -> None:
-#         """Listens for incoming messages on the subscribed topic."""
-#         while self.running:
-#             try:
-#                 # Wait for a message
-#                 msg = await self.sub_socket.recv_string()
-#                 # Invoke the callback
-#                 self.callback(msg)
-#             except Exception as e:
-#                 logger.error(
-#                     f"Error in subscriber for topic '{self.topic_name}': {e}"
-#                 )
-#                 traceback.print_exc()
-
-#     def on_shutdown(self) -> None:
-#         self.running = False
-#         self.sub_socket.close()
-
 # NOTE: asyncio.loop.sock_recvfrom can only be used after Python 3.11
 # So we create a custom DatagramProtocol for multicast discovery
 class MulticastDiscoveryProtocol(asyncio.DatagramProtocol):
@@ -181,19 +28,16 @@ class MulticastDiscoveryProtocol(asyncio.DatagramProtocol):
 
     def __init__(self, node_manager: XRNodeManager):
         self.node_manager = node_manager
-        self.transport = None
+        self.transport: Optional[asyncio.DatagramTransport] = None
 
-    def connection_made(self, transport):
+    def connection_made(self, transport: asyncio.DatagramTransport):
         self.transport = transport
         logger.info("Multicast discovery connection established")
 
-    def datagram_received(self, data, addr):
+    def datagram_received(self, data: bytes, addr: tuple[str, int]):
         """Handle incoming multicast discovery messages"""
         try:
-            # Filter by sender IP address
-            node_ip = addr[0]
-            # Decode and print the message from the allowed IP
-            message = data.decode("utf-8")
+            node_ip, message = addr[0], data.decode("utf-8")
             node_id, service_port = message[:36], message[36:]
             if node_id not in self.node_manager.xr_nodes_info:
                 # Schedule the async registration
@@ -203,7 +47,7 @@ class MulticastDiscoveryProtocol(asyncio.DatagramProtocol):
                     node_ip,
                     service_port,
                 )
-
+            self.node_manager.xr_node_heartbeat[node_id] = time.time()
         except Exception as e:
             logger.error(f"Error processing datagram: {e}")
             traceback.print_exc()
@@ -219,16 +63,16 @@ class MulticastDiscoveryProtocol(asyncio.DatagramProtocol):
 
 
 class XRNodeManager:
-    manager = None
+    manager: Optional[XRNodeManager] = None
 
     def __init__(self, host_ip: str) -> None:
         XRNodeManager.manager = self
         self.zmq_context = zmq.asyncio.Context.instance()
         self.host_ip: str = host_ip
         self.xr_nodes_info: Dict[str, XRNodeInfo] = {}
-        self.executor = ThreadPoolExecutor(max_workers=10)
+        self.xr_node_heartbeat: Dict[str, float] = {}
+        self.executor = ThreadPoolExecutor(max_workers=3)
         self.server_future = self.executor.submit(self.thread_task)
-        self.discovery_task = None  # Track the discovery task
         self.discovery_transport = None  # Track the transport for cleanup
         # Wait for the loop
         while not hasattr(self, "loop"):
@@ -240,6 +84,9 @@ class XRNodeManager:
             # Submit the async task to the event loop
             self.discovery_task = self.submit_asyncio_task(
                 self.xr_node_discover_loop
+            )
+            self.node_heartbeat_task = self.submit_asyncio_task(
+                self.check_node_heartbeat
             )
         else:
             logger.error(
@@ -328,10 +175,10 @@ class XRNodeManager:
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         logger.info(
             f"Listening for multicast on {MULTICAST_GRP}:{DISCOVERY_PORT}"
+            f" from {self.host_ip}"
         )
         # Get event loop and create datagram endpoint
         loop = asyncio.get_event_loop()
-
         try:
             # Create the datagram endpoint with the protocol
             transport, _ = await loop.create_datagram_endpoint(
@@ -341,7 +188,7 @@ class XRNodeManager:
             self.discovery_transport = transport
             # Keep the loop running until stopped
             while self.running:
-                await asyncio.sleep(1)  # Keep the coroutine alive
+                await async_sleep(1)  # Keep the coroutine alive
         except asyncio.CancelledError:
             logger.info("Discovery loop cancelled...")
         except Exception as e:
@@ -371,14 +218,44 @@ class XRNodeManager:
             )
             self.xr_nodes_info[node_id]["ip"] = node_ip
             logger.info(
-                f"Registering node info: {node_id} at {node_ip}:{service_port}"
+                f"Registering node info: {self.xr_nodes_info[node_id]['name']}"
+                f"/{node_id} at {node_ip}:{service_port}"
             )
         except Exception as e:
             logger.error(f"Error in async_register_node_info: {e}")
             traceback.print_exc()
 
+    async def check_node_heartbeat(self):
+        """Check the heartbeat of registered nodes and remove offline nodes."""
+        while self.running:
+            offline_nodes = [
+                node_id
+                for node_id, last_heartbeat in self.xr_node_heartbeat.items()
+                if time.time() - last_heartbeat > 5.0  # 5 seconds timeout
+            ]
+            for node_id in offline_nodes:
+                logger.warning(
+                    f"Node {self.xr_nodes_info[node_id]['name']} "
+                    f"{node_id} is offline for 5s, removing it"
+                )
+                del self.xr_nodes_info[node_id]
+                del self.xr_node_heartbeat[node_id]
+            await async_sleep(1)
 
-def init_xr_node_manager(ip_addr: str) -> XRNodeManager:
+
+def init_xr_node_manager(ip_addr: Optional[str] = None) -> XRNodeManager:
     if XRNodeManager.manager is not None:
-        raise RuntimeError("The node has been initialized")
-    return XRNodeManager(ip_addr)
+        if ip_addr is None:
+            return XRNodeManager.manager
+        else:
+            raise RuntimeError(
+                "XRNodeManager is already initialized, "
+                "cannot reinitialize with a different IP address."
+            )
+    else:
+        if ip_addr is None:
+            raise ValueError(
+                "IP address must be provided for the first initialization"
+            )
+        logger.info(f"Initializing XRNodeManager with IP {ip_addr}")
+        return XRNodeManager(ip_addr)

@@ -8,7 +8,7 @@ from genesis.engine.entities.rigid_entity import RigidLink, RigidGeom
 
 from ..parser.gs import GenesisSceneParser, gs2unity_pos, gs2unity_quat
 from ..core.simpub_server import SimPublisher
-from ..core.net_manager import XRNodeManager, Streamer, StrBytesService
+from ..core.node_manager import XRNodeManager, Streamer, StrBytesService
 from ..core.utils import send_request, HashIdentifier
 
 
