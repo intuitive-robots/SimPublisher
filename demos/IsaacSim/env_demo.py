@@ -186,7 +186,7 @@ def main():
         # run everything in inference mode
         with torch.inference_mode():
             # # get meta quest 3 input (does not work...)
-            # input_data = meta_quest3.get_input_data()
+            # input_data = meta_quest3.get_controller_data()
             # if input_data is None:
             #     continue
 

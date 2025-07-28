@@ -1,5 +1,6 @@
 from typing import Optional, TypedDict, Callable, Dict, List
 import json
+import enum
 
 # from asyncio import sleep as async_sleep
 
@@ -7,16 +8,16 @@ from simpub.core.net_component import Subscriber
 from .xr_device import XRDevice
 
 
-class MetaQuest3Hand(TypedDict):
+class MetaQuest3MotionController(TypedDict):
     pos: List[float]
     rot: List[float]
     index_trigger: bool
     hand_trigger: bool
 
 
-class MetaQuest3InputData(TypedDict):
-    left: MetaQuest3Hand
-    right: MetaQuest3Hand
+class MetaQuest3MotionControllerData(TypedDict):
+    left: MetaQuest3MotionController
+    right: MetaQuest3MotionController
     A: bool
     B: bool
     X: bool
@@ -24,9 +25,53 @@ class MetaQuest3InputData(TypedDict):
 
 
 # TODO: Vibration Data Structure
-class Vibration(TypedDict):
-    hand: str
-    amplitude: float
+# class Vibration(TypedDict):
+#     hand: str
+#     amplitude: float
+
+
+class MetaQuest3Bone(TypedDict):
+    pos: List[float]
+    rot: List[float]
+
+
+class MetaQuest3Hand(TypedDict):
+    bones: List[MetaQuest3Bone]
+    # TODO: hand gesture data can be added here
+
+
+class MetaQuest3HandTrackingData(TypedDict):
+    leftHand: MetaQuest3Hand
+    rightHand: MetaQuest3Hand
+
+
+class MetaQuest3HandBoneID(enum.IntEnum):
+    XRHand_Palm = 0
+    XRHand_Wrist = 1
+    XRHand_ThumbMetacarpal = 2
+    XRHand_ThumbProximal = 3
+    XRHand_ThumbDistal = 4
+    XRHand_ThumbTip = 5
+    XRHand_IndexMetacarpal = 6
+    XRHand_IndexProximal = 7
+    XRHand_IndexIntermediate = 8
+    XRHand_IndexDistal = 9
+    XRHand_IndexTip = 10
+    XRHand_MiddleMetacarpal = 11
+    XRHand_MiddleProximal = 12
+    XRHand_MiddleIntermediate = 13
+    XRHand_MiddleDistal = 14
+    XRHand_MiddleTip = 15
+    XRHand_RingMetacarpal = 16
+    XRHand_RingProximal = 17
+    XRHand_RingIntermediate = 18
+    XRHand_RingDistal = 19
+    XRHand_RingTip = 20
+    XRHand_LittleMetacarpal = 21
+    XRHand_LittleProximal = 22
+    XRHand_LittleIntermediate = 23
+    XRHand_LittleDistal = 24
+    XRHand_LittleTip = 25
 
 
 class MetaQuest3(XRDevice):
@@ -35,9 +80,17 @@ class MetaQuest3(XRDevice):
         device_name: str,
     ) -> None:
         super().__init__(device_name)
-        self.last_input_data: Optional[MetaQuest3InputData] = None
-        self.input_data: Optional[MetaQuest3InputData] = None
-        self.input_subscriber = Subscriber("InputData", self.update)
+        self.last_input_data: Optional[MetaQuest3MotionControllerData] = None
+        self.motion_controller_data: Optional[
+            MetaQuest3MotionControllerData
+        ] = None
+        self.hand_tracking_data: Optional[MetaQuest3HandTrackingData] = None
+        self.sub_list.append(
+            Subscriber("MotionController", self.update_motion_controller)
+        )
+        self.sub_list.append(
+            Subscriber("HandTracking", self.update_hand_tracking)
+        )
         # self.start_vib_pub = Publisher(f"{device_name}/StartVibration")
         # self.stop_vib_pub = Publisher(f"{device_name}/StopVibration")
         self.button_press_event: Dict[str, List[Callable]] = {
@@ -64,7 +117,7 @@ class MetaQuest3(XRDevice):
         }
         self.on_vibration = {"left": False, "right": False}
 
-    def update(self, data: str):
+    def update_motion_controller(self, data: str):
         self.last_input_data = self.input_data
         self.input_data = json.loads(data)
         if self.last_input_data is None:
@@ -119,8 +172,14 @@ class MetaQuest3(XRDevice):
         else:
             raise ValueError("Invalid hand")
 
-    def get_input_data(self) -> Optional[MetaQuest3InputData]:
-        return self.input_data
+    def get_controller_data(self) -> Optional[MetaQuest3MotionControllerData]:
+        return self.motion_controller_data
+
+    def update_hand_tracking(self, data: str):
+        self.hand_tracking_data: MetaQuest3HandTrackingData = json.loads(data)
+
+    def get_hand_tracking_data(self) -> Optional[MetaQuest3HandTrackingData]:
+        return self.hand_tracking_data
 
     # # TODO: Vibration Data Structure
     # def start_vibration(self, hand: str = "right", duration=0.5):

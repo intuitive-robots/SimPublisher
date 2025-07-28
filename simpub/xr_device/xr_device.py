@@ -35,7 +35,8 @@ class XRDevice:
         self.device_id: Optional[str] = None
         self.device_info: Optional[XRNodeInfo] = None
         self.req_socket: AsyncSocket = self.manager.create_socket(zmq.REQ)
-        self.log_sub = Subscriber("Log", self.print_log)
+        self.sub_list: list[Subscriber] = []
+        self.sub_list.append(Subscriber("ConsoleLogger", self.print_log))
         self.manager.submit_asyncio_task(self.checking_connection)
 
     async def checking_connection(self):
@@ -51,18 +52,25 @@ class XRDevice:
                 self.device_info = node_info
                 self.device_id = node_info["nodeID"]
                 self.connected = True
-                self.connect_to_client(node_info)
+                self.subscribe_to_client(node_info)
             await async_sleep(0.5)
         # if self.device_info is None:
         #     return
         # self.connect_to_client(self.device_info)
 
-    def connect_to_client(self, info: XRNodeInfo):
+    def subscribe_to_client(self, info: XRNodeInfo):
         try:
             self.req_socket.connect(f"tcp://{info['ip']}:{info['port']}")
-            self.log_sub.start_connection(
-                f"tcp://{info['ip']}:{info['topicDict']['ConsoleLogger']}"
-            )
+            for sub in self.sub_list:
+                if sub.topic_name not in info["topicDict"]:
+                    continue
+                sub.start_connection(
+                    f"tcp://{info['ip']}:{info['topicDict'][sub.topic_name]}"
+                )
+                logger.info(
+                    f"Subscribed to {sub.topic_name} "
+                    f"on {info['ip']}:{info['port']}"
+                )
             logger.remote_log(
                 f"{self.type} Connected to {self.device_name} "
                 f"at {info['ip']}:{info['port']}"
@@ -113,5 +121,5 @@ class XRDevice:
     def print_log(self, log: str):
         logger.remote_log(f"{self.type} Log: {log}")
 
-    def get_input_data(self) -> InputData:
+    def get_controller_data(self) -> InputData:
         raise NotImplementedError

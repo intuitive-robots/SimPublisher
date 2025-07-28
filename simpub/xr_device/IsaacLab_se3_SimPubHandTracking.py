@@ -64,8 +64,8 @@ class Se3SimPubHandTracking(DeviceBase):
                 )
         return
 
-    def _get_input_data(self):
-        input_data = self.meta_quest3.get_input_data()
+    def _get_controller_data(self):
+        input_data = self.meta_quest3.get_controller_data()
 
         if input_data is not None:
             # hand controller info with order in unity coords:
@@ -131,7 +131,7 @@ class Se3SimPubHandTrackingRel(Se3SimPubHandTracking):
         Returns:
             The processed output form the joystick.
         """
-        input_data = self._get_input_data()
+        input_data = self._get_controller_data()
 
         d_rot = np.zeros(3)
         d_pos = np.zeros(3)

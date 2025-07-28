@@ -128,6 +128,10 @@ class Subscriber(NetComponent):
         self.remote_addr = addr
         self.running = True
         self.manager.submit_asyncio_task(self.listen)
+        logger.info(
+            f"Subscriber for topic '{self.topic_name}' started "
+            f"listening on {addr}"
+        )
 
     async def listen(self) -> None:
         """Listens for incoming messages on the subscribed topic."""

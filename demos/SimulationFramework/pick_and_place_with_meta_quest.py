@@ -16,7 +16,7 @@ class MetaQuest3Controller(CartPosQuatImpedenceController):
         self.device: MetaQuest3 = device
 
     def getControl(self, robot: MjRobot):
-        input_data = self.device.get_input_data()
+        input_data = self.device.get_controller_data()
         if input_data is not None:
             hand = input_data["right"]
             desired_pos = hand["pos"]
