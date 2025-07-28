@@ -32,7 +32,7 @@ class MQ3CartController:
         self.last_state = None
 
     def get_action(self, obs):
-        input_data = self.meta_quest3.get_input_data()
+        input_data = self.meta_quest3.get_controller_data()
         action = np.zeros(7)
         if input_data is None:
             return action

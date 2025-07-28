@@ -1,0 +1,242 @@
+<mujoco model="openxr_both_hands">
+  <compiler angle="radian" meshdir="assets/"/>
+  
+  <option timestep="0.001" iterations="50" solver="Newton" tolerance="1e-10"/>
+  
+  <visual>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global offwidth="800" offheight="800"/>
+  </visual>
+  
+  <asset>
+    <material name="left_hand_finger" rgba="0.4 0.6 0.8 1"/>
+    <material name="left_hand_wrist" rgba="0.4 0.8 0.6 1"/>
+    <material name="left_hand_thumb" rgba="0.5 0.7 0.9 1"/>
+    <material name="right_hand_finger" rgba="0.8 0.6 0.4 1"/>
+    <material name="right_hand_wrist" rgba="0.6 0.8 0.4 1"/>
+    <material name="right_hand_thumb" rgba="0.9 0.7 0.5 1"/>
+  </asset>
+  
+  <worldbody>
+    <!-- LEFT HAND - All bodies flattened -->
+    <body name="Left_XRHand_Palm" pos="-0.3 0 0">
+      <geom name="Left_XRHand_Palm_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_Wrist" pos="-0.35 0 -0.015">
+      <geom name="Left_XRHand_Wrist_geom" type="sphere" size="0.02" material="left_hand_wrist"/>
+    </body>
+    
+    <!-- Left Thumb Chain - Flattened -->
+    <body name="Left_XRHand_ThumbMetacarpal" pos="-0.324 -0.02 0.015">
+      <geom name="Left_XRHand_ThumbMetacarpal_geom" type="sphere" size="0.02" material="left_hand_thumb"/>
+    </body>
+    
+    <body name="Left_XRHand_ThumbProximal" pos="-0.356 -0.02 0.04">
+      <geom name="Left_XRHand_ThumbProximal_geom" type="sphere" size="0.02" material="left_hand_thumb"/>
+    </body>
+    
+    <body name="Left_XRHand_ThumbDistal" pos="-0.381 -0.02 0.072">
+      <geom name="Left_XRHand_ThumbDistal_geom" type="sphere" size="0.02" material="left_hand_thumb"/>
+    </body>
+    
+    <body name="Left_XRHand_ThumbTip" pos="-0.401 -0.02 0.097">
+      <geom name="Left_XRHand_ThumbTip_geom" type="sphere" size="0.02" material="left_hand_thumb"/>
+    </body>
+    
+    <!-- Left Index Finger Chain - Flattened -->
+    <body name="Left_XRHand_IndexMetacarpal" pos="-0.395 0 0.02">
+      <geom name="Left_XRHand_IndexMetacarpal_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_IndexProximal" pos="-0.433 0 0.02">
+      <geom name="Left_XRHand_IndexProximal_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_IndexIntermediate" pos="-0.46 0 0.02">
+      <geom name="Left_XRHand_IndexIntermediate_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_IndexDistal" pos="-0.478 0 0.02">
+      <geom name="Left_XRHand_IndexDistal_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_IndexTip" pos="-0.493 0 0.02">
+      <geom name="Left_XRHand_IndexTip_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <!-- Left Middle Finger Chain - Flattened -->
+    <body name="Left_XRHand_MiddleMetacarpal" pos="-0.395 0 -0.02">
+      <geom name="Left_XRHand_MiddleMetacarpal_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_MiddleProximal" pos="-0.438 0 -0.02">
+      <geom name="Left_XRHand_MiddleProximal_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_MiddleIntermediate" pos="-0.468 0 -0.02">
+      <geom name="Left_XRHand_MiddleIntermediate_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_MiddleDistal" pos="-0.488 0 -0.02">
+      <geom name="Left_XRHand_MiddleDistal_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_MiddleTip" pos="-0.503 0 -0.02">
+      <geom name="Left_XRHand_MiddleTip_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <!-- Left Ring Finger Chain - Flattened -->
+    <body name="Left_XRHand_RingMetacarpal" pos="-0.395 0 -0.021">
+      <geom name="Left_XRHand_RingMetacarpal_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_RingProximal" pos="-0.435 0 -0.021">
+      <geom name="Left_XRHand_RingProximal_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_RingIntermediate" pos="-0.463 0 -0.021">
+      <geom name="Left_XRHand_RingIntermediate_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_RingDistal" pos="-0.481 0 -0.021">
+      <geom name="Left_XRHand_RingDistal_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_RingTip" pos="-0.496 0 -0.021">
+      <geom name="Left_XRHand_RingTip_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <!-- Left Little Finger Chain - Flattened -->
+    <body name="Left_XRHand_LittleMetacarpal" pos="-0.390 0 -0.033">
+      <geom name="Left_XRHand_LittleMetacarpal_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_LittleProximal" pos="-0.422 0 -0.033">
+      <geom name="Left_XRHand_LittleProximal_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_LittleIntermediate" pos="-0.442 0 -0.033">
+      <geom name="Left_XRHand_LittleIntermediate_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_LittleDistal" pos="-0.457 0 -0.033">
+      <geom name="Left_XRHand_LittleDistal_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+    
+    <body name="Left_XRHand_LittleTip" pos="-0.469 0 -0.033">
+      <geom name="Left_XRHand_LittleTip_geom" type="sphere" size="0.02" material="left_hand_finger"/>
+    </body>
+
+    <!-- RIGHT HAND - All bodies flattened -->
+    <body name="Right_XRHand_Palm" pos="0.3 0 0">
+      <geom name="Right_XRHand_Palm_geom" type="sphere" size="0.020" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_Wrist" pos="0.35 0 -0.015">
+      <geom name="Right_XRHand_Wrist_geom" type="sphere" size="0.015" material="right_hand_wrist"/>
+    </body>
+    
+    <!-- Right Thumb Chain - Flattened -->
+    <body name="Right_XRHand_ThumbMetacarpal" pos="0.324 -0.02 0.015">
+      <geom name="Right_XRHand_ThumbMetacarpal_geom" type="sphere" size="0.02" material="right_hand_thumb"/>
+    </body>
+    
+    <body name="Right_XRHand_ThumbProximal" pos="0.356 -0.02 0.04">
+      <geom name="Right_XRHand_ThumbProximal_geom" type="sphere" size="0.02" material="right_hand_thumb"/>
+    </body>
+    
+    <body name="Right_XRHand_ThumbDistal" pos="0.381 -0.02 0.072">
+      <geom name="Right_XRHand_ThumbDistal_geom" type="sphere" size="0.02" material="right_hand_thumb"/>
+    </body>
+    
+    <body name="Right_XRHand_ThumbTip" pos="0.401 -0.02 0.097">
+      <geom name="Right_XRHand_ThumbTip_geom" type="sphere" size="0.02" material="right_hand_thumb"/>
+    </body>
+    
+    <!-- Right Index Finger Chain - Flattened -->
+    <body name="Right_XRHand_IndexMetacarpal" pos="0.395 0 0.02">
+      <geom name="Right_XRHand_IndexMetacarpal_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_IndexProximal" pos="0.433 0 0.02">
+      <geom name="Right_XRHand_IndexProximal_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_IndexIntermediate" pos="0.46 0 0.02">
+      <geom name="Right_XRHand_IndexIntermediate_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_IndexDistal" pos="0.478 0 0.02">
+      <geom name="Right_XRHand_IndexDistal_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_IndexTip" pos="0.493 0 0.02">
+      <geom name="Right_XRHand_IndexTip_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <!-- Right Middle Finger Chain - Flattened -->
+    <body name="Right_XRHand_MiddleMetacarpal" pos="0.395 0 -0.02">
+      <geom name="Right_XRHand_MiddleMetacarpal_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_MiddleProximal" pos="0.438 0 -0.02">
+      <geom name="Right_XRHand_MiddleProximal_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_MiddleIntermediate" pos="0.468 0 -0.02">
+      <geom name="Right_XRHand_MiddleIntermediate_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_MiddleDistal" pos="0.488 0 -0.02">
+      <geom name="Right_XRHand_MiddleDistal_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_MiddleTip" pos="0.503 0 -0.02">
+      <geom name="Right_XRHand_MiddleTip_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <!-- Right Ring Finger Chain - Flattened -->
+    <body name="Right_XRHand_RingMetacarpal" pos="0.395 0 -0.021">
+      <geom name="Right_XRHand_RingMetacarpal_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_RingProximal" pos="0.435 0 -0.021">
+      <geom name="Right_XRHand_RingProximal_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_RingIntermediate" pos="0.463 0 -0.021">
+      <geom name="Right_XRHand_RingIntermediate_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_RingDistal" pos="0.481 0 -0.021">
+      <geom name="Right_XRHand_RingDistal_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_RingTip" pos="0.496 0 -0.021">
+      <geom name="Right_XRHand_RingTip_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <!-- Right Little Finger Chain - Flattened -->
+    <body name="Right_XRHand_LittleMetacarpal" pos="0.390 0 -0.033">
+      <geom name="Right_XRHand_LittleMetacarpal_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_LittleProximal" pos="0.422 0 -0.033">
+      <geom name="Right_XRHand_LittleProximal_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_LittleIntermediate" pos="0.442 0 -0.033">
+      <geom name="Right_XRHand_LittleIntermediate_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_LittleDistal" pos="0.457 0 -0.033">
+      <geom name="Right_XRHand_LittleDistal_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+    
+    <body name="Right_XRHand_LittleTip" pos="0.469 0 -0.033">
+      <geom name="Right_XRHand_LittleTip_geom" type="sphere" size="0.02" material="right_hand_finger"/>
+    </body>
+  </worldbody>
+  
+</mujoco>

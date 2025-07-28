@@ -83,6 +83,7 @@ def request_log(func: Callable) -> Callable:
             logger.info(
                 f"Request '{request_name}' took {total_time*1000:.2f}ms, "
                 f"sent: {input_size_kb:.2f}KB, "
+                f"speed: {input_size_kb / 1024 / total_time:.2f}MB/s, "
                 f"received: {output_size_kb:.2f}KB"
             )
             return result

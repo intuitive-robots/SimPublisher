@@ -13,6 +13,7 @@ from simpub.xr_device.meta_quest3 import MetaQuest3
 
 from scipy.spatial.transform import Rotation as R
 
+
 # Function to apply Z-axis rotation to a quaternion
 def apply_z_rotation(quat, z_angle=np.pi / 2):
     """
@@ -197,7 +198,7 @@ if __name__ == "__main__":
             )
 
             # Update posture task target.
-            input_data = mq3.get_input_data()
+            input_data = mq3.get_controller_data()
             if input_data is not None:
                 left_hand = input_data["left"]
                 right_hand = input_data["right"]

@@ -58,7 +58,7 @@ def update_bat(mj_model, mj_data, player: MetaQuest3, bat_name, hand="right"):
         return
     bat_dofadr = mj_model.jnt_dofadr[bat_joint_id]
     # Get player input
-    player_input = player.get_input_data()
+    player_input = player.get_controller_data()
     if player_input is None or hand not in player_input:
         mj_data.qvel[bat_dofadr : bat_dofadr + 3] = np.array([0, 0, 0])
         # Angular velocity - next 3 DOFs
