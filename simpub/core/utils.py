@@ -101,11 +101,9 @@ def request_log(func: Callable) -> Callable:
 
 
 @request_log
-async def send_raw_request_async(
-    messages: List[bytes], addr: str, timeout: int = 2
+async def send_request_async(
+    messages: List[str], req_socket: AsyncSocket, timeout: int = 2
 ) -> Optional[bytes]:
-    req_socket = zmq.asyncio.Context.instance().socket(zmq.REQ)
-    req_socket.connect(addr)
     result = None
     try:
         await req_socket.send_multipart(messages, copy=False)
@@ -121,10 +119,19 @@ async def send_raw_request_async(
         return result
 
 
+@request_log
+async def send_request_with_addr_async(
+    messages: List[bytes], addr: str, timeout: int = 2
+) -> Optional[bytes]:
+    req_socket = zmq.asyncio.Context.instance().socket(zmq.REQ)
+    req_socket.connect(addr)
+    return await send_request_async(messages, req_socket, timeout)
+
+
 async def send_string_request_async(
     messages: List[str], addr: str, timeout: int = 2
 ) -> Optional[bytes]:
-    return await send_raw_request_async(
+    return await send_request_with_addr_async(
         [item.encode() for item in messages], addr, timeout
     )
 

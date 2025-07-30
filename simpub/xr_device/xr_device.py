@@ -1,18 +1,14 @@
 import json
 import zmq
 import traceback
+import time
 from typing import Optional
 from asyncio import sleep as async_sleep
 
 from ..core.log import logger
 from ..core.node_manager import init_xr_node_manager, XRNodeInfo
 from ..core.net_component import Subscriber
-
-# from ..core.utils import TopicName
-
-
-# from ..core.net_component import Subscriber
-from ..core.utils import AsyncSocket
+from ..core.utils import AsyncSocket, send_request_async
 
 
 class InputData:
@@ -38,6 +34,14 @@ class XRDevice:
         self.sub_list: list[Subscriber] = []
         self.sub_list.append(Subscriber("ConsoleLogger", self.print_log))
         self.manager.submit_asyncio_task(self.checking_connection)
+
+    def wait_for_connection(self):
+        """
+        Wait for the connection to the XR device.
+        This method blocks until the connection is established.
+        """
+        while not self.connected:
+            time.sleep(0.1)
 
     async def checking_connection(self):
         logger.info(f"checking the connection to {self.device_name}")
@@ -83,9 +87,19 @@ class XRDevice:
             traceback.print_exc()
             return
 
-    def request(self, service: str, request: str) -> str:
+    def request(self, service_name: str, request: str) -> str:
+        if self.device_info is None:
+            logger.error(f"Device {self.device_name} is not connected")
+            return ""
+        if service_name not in self.device_info["serviceList"]:
+            logger.error(f'"{service_name}" Service is not available')
+            return ""
+        messages = [
+            service_name.encode(),
+            request.encode(),
+        ]
         future = self.manager.submit_asyncio_task(
-            self.request_async, service, request
+            send_request_async, messages, self.req_socket
         )
         if future is None:
             logger.error("Future is None")
@@ -96,16 +110,6 @@ class XRDevice:
         except Exception as e:
             logger.error(f"Error occurred when waiting for a response: {e}")
             return ""
-
-    async def request_async(self, service: str, req: str) -> str:
-        if self.device_info is None:
-            logger.error(f"Device {self.device_name} is not connected")
-            return ""
-        if service not in self.device_info["serviceList"]:
-            logger.error(f'"{service}" Service is not available')
-            return ""
-        await self.req_socket.send_string(f"{service}:{req}")
-        return await self.req_socket.recv_string()
 
     def disconnect(self):
         if self.device_info is None:

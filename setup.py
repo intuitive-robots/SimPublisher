@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="simpub",
-    version="1.3.1",
+    version="2.1.0",
     install_requires=[
         "zmq",
         "numpy",
