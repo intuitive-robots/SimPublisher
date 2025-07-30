@@ -9,7 +9,7 @@ from .node_manager import XRNodeManager, init_xr_node_manager
 from .net_component import Streamer
 from .log import logger, func_timing
 from .utils import (
-    send_raw_request_async,
+    send_request_with_addr_async,
     HashIdentifier,
     XRNodeInfo,
     get_zmq_socket_url,
@@ -89,14 +89,14 @@ class SimPublisher(ServerBase):
 
     @func_timing
     async def send_scene_to_xr_device(self, xr_info: XRNodeInfo):
-        await send_raw_request_async(
+        await send_request_with_addr_async(
             [
                 "DeleteSimScene".encode(),
                 self.sim_scene.name.encode(),
             ],
             f"tcp://{xr_info['ip']}:{xr_info['port']}",
         )
-        await send_raw_request_async(
+        await send_request_with_addr_async(
             [
                 "SpawnSimScene".encode(),
                 self.sim_scene.serialize().encode(),
@@ -127,7 +127,7 @@ class SimPublisher(ServerBase):
         sim_object: SimObject,
         parent: Optional[SimObject] = None,
     ):
-        await send_raw_request_async(
+        await send_request_with_addr_async(
             [
                 f"{sim_scene.name}/CreateSimObject".encode(),
                 parent.name.encode() if parent else "".encode(),
@@ -150,7 +150,7 @@ class SimPublisher(ServerBase):
             mesh_raw_data,
             texture_raw_data,
         ) in sim_scene.get_all_assets(sim_scene.root):
-            await send_raw_request_async(
+            await send_request_with_addr_async(
                 [
                     f"{sim_scene.name}/CreateVisual".encode(),
                     name.encode(),
@@ -167,7 +167,7 @@ class SimPublisher(ServerBase):
         sim_scene: SimScene,
     ):
         url = get_zmq_socket_url(self.scene_update_streamer.socket)
-        await send_raw_request_async(
+        await send_request_with_addr_async(
             [
                 f"{sim_scene.name}/SubscribeRigidObjectsController".encode(),
                 url.encode(),

@@ -10,21 +10,17 @@ import numpy as np
 from simpub.xr_device.meta_quest3 import MetaQuest3HandBoneID, MetaQuest3Hand
 
 
-def update_hand_tracking_data(mj_model, mj_data, hand_data: MetaQuest3Hand, hand_name: str):
-    """
-    Update the Mujoco model with hand tracking data.
-    
-    Args:
-        model: Mujoco model
-        data: Mujoco data
-        hand_data: Hand tracking data from Meta Quest 3
-    """
+def update_hand_tracking_data(
+    mj_model, hand_data: MetaQuest3Hand, hand_name: str
+):
     for bone in MetaQuest3HandBoneID:
-        object_id = mj_name2id(mj_model, mjtObj.mjOBJ_BODY, f"{hand_name}_{bone.name}")
-        # body_jnt_addr = mj_model.body_jntadr[object_id]
-        # assert body_jnt_addr >= 0, "Body joint address not found"
-        # qposadr = mj_model.jnt_qposadr[body_jnt_addr]
-        mj_model.body_pos[object_id] = np.array(hand_data["bones"][bone.value]["pos"])
+        object_id = mj_name2id(
+            mj_model, mjtObj.mjOBJ_BODY, f"{hand_name}_{bone.name}"
+        )
+        mj_model.body_pos[object_id] = np.array(
+            hand_data["bones"][bone.value]["pos"]
+        )
+
 
 def run_hand_simulation():
     """
@@ -35,13 +31,18 @@ def run_hand_simulation():
     """
     try:
         # Load the model
-        file_path = os.path.join(os.path.dirname(__file__), "openxr_hand.xml")
+        file_path = os.path.join(
+            os.path.dirname(__file__), "./utils/openxr_hand.xml"
+        )
         print(f"Loading model from {file_path}...")
         model = mj.MjModel.from_xml_path(file_path)
         data = mj.MjData(model)
         net_manager = init_xr_node_manager("192.168.0.134")
         net_manager.start_discover_node_loop()
         mq3 = MetaQuest3("UnityNode")
+        mq3.wait_for_connection()
+        response = mq3.request("ToggleHandTracking", "")
+        print(response)
         print("\nStarting interactive viewer...")
         # Launch the interactive viewer
         with mujoco.viewer.launch_passive(model, data) as viewer:
@@ -49,8 +50,12 @@ def run_hand_simulation():
                 hand_data = mq3.get_hand_tracking_data()
                 if hand_data:
                     # update the model data with hand tracking data
-                    update_hand_tracking_data(model, data, hand_data["leftHand"], "Left")
-                    update_hand_tracking_data(model, data, hand_data["rightHand"], "Right")
+                    update_hand_tracking_data(
+                        model, hand_data["leftHand"], "Left"
+                    )
+                    update_hand_tracking_data(
+                        model, hand_data["rightHand"], "Right"
+                    )
                 # Step the simulation
                 mj.mj_step(model, data)
                 viewer.sync()
