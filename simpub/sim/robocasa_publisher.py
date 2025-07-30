@@ -6,7 +6,6 @@ from .mj_publisher import MujocoPublisher
 
 
 class RobocasaPublisher(MujocoPublisher):
-
     def __init__(
         self,
         env: MujocoEnv,

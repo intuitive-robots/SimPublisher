@@ -26,8 +26,15 @@ import numpy as np
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Pick and lift a teddy bear with a robotic arm.")
-parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
+parser = argparse.ArgumentParser(
+    description="Pick and lift a teddy bear with a robotic arm."
+)
+parser.add_argument(
+    "--num_envs",
+    type=int,
+    default=1,
+    help="Number of environments to simulate.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -48,16 +55,24 @@ import isaaclab.sim as sim_utils
 import torch
 import trimesh
 from isaaclab.assets import DeformableObjectCfg, RigidObjectCfg
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab.controllers.differential_ik_cfg import (
+    DifferentialIKControllerCfg,
+)
+from isaaclab.envs.mdp.actions.actions_cfg import (
+    DifferentialInverseKinematicsActionCfg,
+)
 from isaaclab.sim import UsdFileCfg
 from isaaclab.sim.spawners.meshes import meshes
 from isaaclab.sim.spawners.meshes.meshes_cfg import MeshCfg
 from isaaclab.sim.utils import clone
 from isaaclab.utils import configclass
 from isaaclab_tasks.manager_based.manipulation.lift import mdp
-from isaaclab_tasks.manager_based.manipulation.lift.config.franka.ik_abs_env_cfg import FrankaTeddyBearLiftEnvCfg
-from isaaclab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
+from isaaclab_tasks.manager_based.manipulation.lift.config.franka.ik_abs_env_cfg import (
+    FrankaTeddyBearLiftEnvCfg,
+)
+from isaaclab_tasks.manager_based.manipulation.lift.lift_env_cfg import (
+    LiftEnvCfg,
+)
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 from simpub.sim.isaacsim_publisher import IsaacSimPublisher
@@ -76,7 +91,9 @@ class FrankaSoftBasketLiftEnvCfg(FrankaTeddyBearLiftEnvCfg):
 
         self.scene.object = DeformableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
-            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.85, 0.1, 0.5), rot=(1, 0, 0, 0)),
+            init_state=DeformableObjectCfg.InitialStateCfg(
+                pos=(0.85, 0.1, 0.5), rot=(1, 0, 0, 0)
+            ),
             spawn=UsdFileCfg(
                 usd_path=f"{Path(__file__).parent.as_posix()}/jacket.usd",
                 scale=(0.75, 0.75, 0.75),
@@ -90,8 +107,12 @@ class FrankaSoftBasketLiftEnvCfg(FrankaTeddyBearLiftEnvCfg):
             spawn=sim_utils.MeshCuboidCfg(
                 size=(1.5, 0.6, 0.2),
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.5, 0.5)),
-                physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=20.0, dynamic_friction=20.0),
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(0.5, 0.5, 0.5)
+                ),
+                physics_material=sim_utils.RigidBodyMaterialCfg(
+                    static_friction=20.0, dynamic_friction=20.0
+                ),
                 collision_props=sim_utils.CollisionPropertiesCfg(),
                 mass_props=sim_utils.MassPropertiesCfg(mass=50.0),
             ),
@@ -121,7 +142,9 @@ def main():
     env_cfg.viewer.eye = (2.1, 1.0, 1.3)
 
     # create environment
-    env = gym.make("Isaac-Lift-Soft-Basket-Franka-IK-Abs-v0", cfg=env_cfg).unwrapped
+    env = gym.make(
+        "Isaac-Lift-Soft-Basket-Franka-IK-Abs-v0", cfg=env_cfg
+    ).unwrapped
     # reset environment at start
     env.reset()
 
@@ -132,7 +155,9 @@ def main():
         publisher = IsaacSimPublisher(host="127.0.0.1", stage=env.sim.stage)
 
     # create action buffers (position + quaternion)
-    actions = torch.zeros(env.unwrapped.action_space.shape, device=env.unwrapped.device)
+    actions = torch.zeros(
+        env.unwrapped.action_space.shape, device=env.unwrapped.device
+    )
 
     ee_poses = torch.tensor(
         [

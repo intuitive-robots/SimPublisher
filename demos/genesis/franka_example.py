@@ -59,11 +59,17 @@ if __name__ == "__main__":
     # Hard reset
     for i in range(150):
         if i < 50:
-            franka.set_dofs_position(np.array([1, 1, 0, 0, 0, 0, 0, 0.04, 0.04]), dofs_idx)
+            franka.set_dofs_position(
+                np.array([1, 1, 0, 0, 0, 0, 0, 0.04, 0.04]), dofs_idx
+            )
         elif i < 100:
-            franka.set_dofs_position(np.array([-1, 0.8, 1, -2, 1, 0.5, -0.5, 0.04, 0.04]), dofs_idx)
+            franka.set_dofs_position(
+                np.array([-1, 0.8, 1, -2, 1, 0.5, -0.5, 0.04, 0.04]), dofs_idx
+            )
         else:
-            franka.set_dofs_position(np.array([0, 0, 0, 0, 0, 0, 0, 0, 0]), dofs_idx)
+            franka.set_dofs_position(
+                np.array([0, 0, 0, 0, 0, 0, 0, 0, 0]), dofs_idx
+            )
 
         scene.step()
 

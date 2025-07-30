@@ -1,10 +1,12 @@
 import zmq
 import zmq.asyncio
-import struct
+import asyncio
 import socket
-from typing import List, TypedDict
+from typing import List, TypedDict, Optional, Callable, Any, Dict
 import enum
 from traceback import print_exc
+from functools import wraps
+import time
 
 from .log import logger
 
@@ -18,57 +20,120 @@ HashIdentifier = str
 BROADCAST_INTERVAL = 0.5
 HEARTBEAT_INTERVAL = 0.2
 DISCOVERY_PORT = int(7720)
+MULTICAST_GRP = "239.255.10.10"
 
 
-class NodeAddress(TypedDict):
-    ip: IPAddress
-    port: Port
+class IRISMSG(enum.Enum):
+    EMPTY = "EMPTY"
+    SUCCESS = "SUCCESS"
+    ERROR = "ERROR"
+    TIMEOUT = "TIMEOUT"
+    NOTFOUND = "NOTFOUND"
+    START = "START"
+    STOP = "STOP"
 
 
-def create_address(ip: IPAddress, port: Port) -> NodeAddress:
-    return {"ip": ip, "port": port}
-
-
-class MSG(enum.Enum):
-    SERVICE_ERROR = b'\x10'
-    SERVICE_TIMEOUT = b'\x11'
-
-
-class NodeInfo(TypedDict):
+class XRNodeInfo(TypedDict):
     name: str
     nodeID: str  # hash code since bytes is not JSON serializable
-    addr: NodeAddress
+    ip: IPAddress
     type: str
-    servicePort: int
-    topicPort: int
+    port: int
     serviceList: List[ServiceName]
-    topicList: List[TopicName]
+    topicDict: Dict[TopicName, int]
 
 
-async def send_request(
-    msg: str,
-    addr: str,
-    context: zmq.asyncio.Context
-) -> str:
-    req_socket = context.socket(zmq.REQ)
-    req_socket.connect(addr)
+def request_log(func: Callable) -> Callable:
+    """
+    Decorator that logs execution time and message sizes in KB
+    Shows the request name from the first message instead of function name
+    """
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs) -> Any:
+        start_time = time.time()
+
+        # Calculate input message size and extract request name
+        input_size_kb = 0
+        request_name = "unknown"
+        if args and isinstance(args[0], list):
+            # First argument should be messages: List[bytes]
+            messages = args[0]
+            total_bytes = sum(
+                len(msg) for msg in messages if isinstance(msg, bytes)
+            )
+            input_size_kb = total_bytes / 1024
+            # Extract request name from first message
+            if messages and isinstance(messages[0], bytes):
+                try:
+                    request_name = messages[0].decode("utf-8")
+                except UnicodeDecodeError:
+                    # If decode fails, show as binary with length
+                    request_name = f"<binary:{len(messages[0])}bytes>"
+
+        try:
+            result = await func(*args, **kwargs)
+            total_time = time.time() - start_time
+
+            # Calculate output message size
+            output_size_kb = 0
+            if result and isinstance(result, bytes):
+                output_size_kb = len(result) / 1024
+
+            logger.info(
+                f"Request '{request_name}' took {total_time*1000:.2f}ms, "
+                f"sent: {input_size_kb:.2f}KB, "
+                f"speed: {input_size_kb / 1024 / total_time:.2f}MB/s, "
+                f"received: {output_size_kb:.2f}KB"
+            )
+            return result
+
+        except Exception as e:
+            total_time = time.time() - start_time
+            logger.error(
+                f"Request '{request_name}' failed after "
+                f"{total_time*1000:.2f}ms, "
+                f"sent: {input_size_kb:.2f}KB: {e}"
+            )
+            raise
+
+    return wrapper
+
+
+@request_log
+async def send_request_async(
+    messages: List[str], req_socket: AsyncSocket, timeout: int = 2
+) -> Optional[bytes]:
+    result = None
     try:
-        await req_socket.send_string(msg)
+        await req_socket.send_multipart(messages, copy=False)
+        result = await asyncio.wait_for(req_socket.recv(), timeout=timeout)
     except Exception as e:
         logger.error(
             f"Error when sending message from send_message function in "
             f"simpub.core.utils: {e}"
         )
-    result = await req_socket.recv_string()
-    req_socket.close()
-    return result
+        print_exc()
+    finally:
+        req_socket.close()
+        return result
 
 
-# def calculate_broadcast_addr(ip_addr: IPAddress) -> IPAddress:
-#     ip_bin = struct.unpack("!I", socket.inet_aton(ip_addr))[0]
-#     netmask_bin = struct.unpack("!I", socket.inet_aton("255.255.255.0"))[0]
-#     broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
-#     return socket.inet_ntoa(struct.pack("!I", broadcast_bin))
+@request_log
+async def send_request_with_addr_async(
+    messages: List[bytes], addr: str, timeout: int = 2
+) -> Optional[bytes]:
+    req_socket = zmq.asyncio.Context.instance().socket(zmq.REQ)
+    req_socket.connect(addr)
+    return await send_request_async(messages, req_socket, timeout)
+
+
+async def send_string_request_async(
+    messages: List[str], addr: str, timeout: int = 2
+) -> Optional[bytes]:
+    return await send_request_with_addr_async(
+        [item.encode() for item in messages], addr, timeout
+    )
 
 
 def create_udp_socket() -> socket.socket:
@@ -78,6 +143,11 @@ def create_udp_socket() -> socket.socket:
 def get_zmq_socket_port(socket: zmq.asyncio.Socket) -> int:
     endpoint: bytes = socket.getsockopt(zmq.LAST_ENDPOINT)  # type: ignore
     return int(endpoint.decode().split(":")[-1])
+
+
+def get_zmq_socket_url(socket: zmq.asyncio.Socket) -> str:
+    endpoint: bytes = socket.getsockopt(zmq.LAST_ENDPOINT)  # type: ignore
+    return endpoint.decode()
 
 
 def split_byte(bytes_msg: bytes) -> List[bytes]:
@@ -90,36 +160,3 @@ def split_byte_to_str(bytes_msg: bytes) -> List[str]:
 
 def split_str(str_msg: str) -> List[str]:
     return str_msg.split("|", 1)
-
-
-# def search_for_master_node(
-#     local_ip: Optional[IPAddress] = None,
-#     search_time: int = 5,
-#     time_out: float = 0.1
-# ) -> Optional[Tuple[IPAddress, str]]:
-#     if local_ip is not None:
-#         broadcast_ip = calculate_broadcast_addr(local_ip)
-#     else:
-#         broadcast_ip = "255.255.255.255"
-#     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as _socket:
-#         # wait for response
-#         _socket.bind(("0.0.0.0", 0))
-#         _socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-#         for _ in range(search_time):
-#             _socket.sendto(
-#                 EchoHeader.PING.value, (broadcast_ip, DISCOVERY_PORT)
-#             )
-#             _socket.settimeout(time_out)
-#             try:
-#                 data, addr = _socket.recvfrom(1024)
-#                 logger.info(f"Find a master node at {addr[0]}:{addr[1]}")
-#                 return addr[0], data.decode()
-#             except socket.timeout:
-#                 continue
-#             except KeyboardInterrupt:
-#                 break
-#             except Exception as e:
-#                 logger.error(f"Error when searching for master node: {e}")
-#                 print_exc()
-#     logger.info("No master node found, start as master node")
-#     return None

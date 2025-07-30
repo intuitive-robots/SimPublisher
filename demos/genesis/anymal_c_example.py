@@ -1,4 +1,3 @@
-
 import genesis as gs
 import numpy as np
 from simpub.sim.genesis_publisher import GenesisPublisher

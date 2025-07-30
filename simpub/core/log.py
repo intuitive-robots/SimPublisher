@@ -1,5 +1,8 @@
 import logging
 from colorama import init, Fore
+from functools import wraps
+import time
+from typing import Callable, Any
 
 init(autoreset=True)
 
@@ -16,6 +19,7 @@ class CustomLogger(logging.Logger):
 
 class CustomFormatter(logging.Formatter):
     """Custom log formatter that adds colors"""
+
     FORMAT = "[%(asctime)s] [%(levelname)s] %(message)s"
 
     FORMATS = {
@@ -57,3 +61,24 @@ def get_logger():
 
 # Get the logger
 logger = get_logger()
+
+
+def func_timing(func: Callable) -> Callable:
+    """Simple timing decorator that just logs total execution time"""
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs) -> Any:
+        start_time = time.time()
+        try:
+            result = await func(*args, **kwargs)
+            total_time = time.time() - start_time
+            logger.info(f"{func.__name__} took {total_time*1000:.2f}ms")
+            return result
+        except Exception as e:
+            total_time = time.time() - start_time
+            logger.error(
+                f"{func.__name__} failed after {total_time*1000:.2f}ms: {e}"
+            )
+            raise
+
+    return wrapper

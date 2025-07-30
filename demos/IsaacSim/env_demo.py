@@ -6,6 +6,7 @@
 import argparse
 import numpy as np
 import torch
+
 # import carb
 from scipy.spatial.transform import Rotation
 
@@ -37,6 +38,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.sim.spawners.shapes.shapes_cfg import CapsuleCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+
 # from omni.isaac.lab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 # from omni.isaac.lab.envs.mdp.actions.actions_cfg import (
 #     DifferentialInverseKinematicsActionCfg,
@@ -48,6 +50,7 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 
 from simpub.sim.isaacsim_publisher import IsaacSimPublisher
+
 # from simpub.xr_device.meta_quest3 import MetaQuest3
 
 print(ISAACLAB_NUCLEUS_DIR)
@@ -64,7 +67,9 @@ def pre_process_actions(
         return delta_pose
     else:
         # resolve gripper command
-        gripper_vel = torch.zeros(delta_pose.shape[0], 1, device=delta_pose.device)
+        gripper_vel = torch.zeros(
+            delta_pose.shape[0], 1, device=delta_pose.device
+        )
         gripper_vel[:] = -1.0 if gripper_command else 1.0
         # compute actions
         return torch.concat([delta_pose, gripper_vel], dim=1)
@@ -114,7 +119,9 @@ def main():
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 1.0)),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=(0.1, 0.1, 1.0)
+            ),
         ),
     )
 
@@ -167,7 +174,9 @@ def main():
 
     if env.sim is not None and env.sim.stage is not None:
         print("parsing usd stage...")
-        publisher = IsaacSimPublisher(host="192.168.0.134", stage=env.sim.stage)
+        publisher = IsaacSimPublisher(
+            host="192.168.0.134", stage=env.sim.stage
+        )
         # publisher = IsaacSimPublisher(host="127.0.0.1", stage=env.sim.stage)
 
     # meta_quest3 = MetaQuest3("ALRMetaQuest3")
@@ -177,7 +186,7 @@ def main():
         # run everything in inference mode
         with torch.inference_mode():
             # # get meta quest 3 input (does not work...)
-            # input_data = meta_quest3.get_input_data()
+            # input_data = meta_quest3.get_controller_data()
             # if input_data is None:
             #     continue
 
@@ -210,9 +219,9 @@ def main():
 
             delta_pose = delta_pose.astype("float32")
             # convert to torch
-            delta_pose = torch.tensor(delta_pose, device=env.unwrapped.device).repeat(
-                env.unwrapped.num_envs, 1
-            )
+            delta_pose = torch.tensor(
+                delta_pose, device=env.unwrapped.device
+            ).repeat(env.unwrapped.num_envs, 1)
             # pre-process actions
             actions = pre_process_actions(task, delta_pose, gripper_command)
             # apply actions

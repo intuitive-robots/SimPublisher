@@ -8,13 +8,12 @@ from simpub.xr_device.meta_quest3 import MetaQuest3
 
 
 class MQ3CartController:
-
     def __init__(self, meta_quest3: MetaQuest3):
         self.meta_quest3 = meta_quest3
         self.last_state = None
 
     def get_action(self):
-        input_data = self.meta_quest3.get_input_data()
+        input_data = self.meta_quest3.get_controller_data()
         action = np.zeros(4)
         if input_data is None:
             return action
@@ -53,7 +52,8 @@ def main():
     if args.env_name not in ml1.train_classes:
         raise ValueError(
             f"Environment '{args.env_name}' is not available."
-            f"Available environments: {list(ml1.train_classes.keys())}")
+            f"Available environments: {list(ml1.train_classes.keys())}"
+        )
 
     env = ml1.train_classes[args.env_name]()
     task = random.choice(ml1.train_tasks)
@@ -64,7 +64,7 @@ def main():
         env.model,
         env.data,
         host=args.host,
-        visible_geoms_groups=list(range(3))
+        visible_geoms_groups=list(range(3)),
     )
     controller = MQ3CartController(MetaQuest3("IRLMQ3-1"))
 

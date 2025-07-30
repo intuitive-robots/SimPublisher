@@ -1,6 +1,6 @@
-from simpub.core.net_manager import init_node
+from simpub.core.node_manager import init_node
 from simpub.xr_device.xr_device import XRDevice
-from simpub.core.net_manager import Publisher
+from simpub.core.node_manager import Publisher
 import numpy as np
 
 

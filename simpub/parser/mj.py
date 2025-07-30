@@ -2,9 +2,9 @@ import mujoco
 import numpy as np
 from typing import List, Dict, Callable
 
-from ..simdata import SimObject, SimScene, SimTransform, SimVisual
-from ..simdata import SimMaterial, SimTexture, SimMesh
-from ..simdata import VisualType
+from .simdata import SimObject, SimScene, SimTransform, SimVisual
+from .simdata import SimMaterial, SimTexture, SimMesh
+from .simdata import VisualType
 from ..core.log import logger
 
 
@@ -77,7 +77,9 @@ def mj2unity_quat(quat: List[float]) -> List[float]:
 
 
 class MjModelParser:
-    def __init__(self, mj_model, visible_geoms_groups, no_rendered_objects=None):
+    def __init__(
+        self, mj_model, visible_geoms_groups, no_rendered_objects=None
+    ):
         if no_rendered_objects is None:
             self.no_rendered_objects = []
         else:
@@ -91,13 +93,12 @@ class MjModelParser:
 
     def parse_model(self, mj_model):
         sim_scene = SimScene()
+        sim_scene.name = "MujocoScene"
         self.sim_scene = sim_scene
         # create a dictionary to store the body hierarchy
         body_hierarchy = {}
         for body_id in range(mj_model.nbody):
-            sim_object, parent_id = self.process_body(
-                mj_model, body_id
-            )
+            sim_object, parent_id = self.process_body(mj_model, body_id)
             if sim_object is None:
                 continue
             # update the body hierarchy dictionary
@@ -132,13 +133,16 @@ class MjModelParser:
         trans.pos = mj2unity_pos(mj_model.body_pos[body_id].tolist())
         trans.rot = mj2unity_quat(mj_model.body_quat[body_id].tolist())
         # if the body does not have any geom, return the object
-        if mj_model.body_geomadr[body_id] == -1 or body_name in self.no_rendered_objects:
+        if (
+            mj_model.body_geomadr[body_id] == -1
+            or body_name in self.no_rendered_objects
+        ):
             return sim_object, parent_id
         # process the geoms attached to the body
         num_geoms = mj_model.body_geomnum[body_id]
         for geom_id in range(
             mj_model.body_geomadr[body_id],
-            mj_model.body_geomadr[body_id] + num_geoms
+            mj_model.body_geomadr[body_id] + num_geoms,
         ):
             geom_group = int(mj_model.geom_group[geom_id])
             # check if the geom participates in rendering
@@ -160,9 +164,7 @@ class MjModelParser:
         geom_scale = scale2unity(
             mj_model.geom_size[geom_id].tolist(), visual_type
         )
-        trans = SimTransform(
-            pos=geom_pos, rot=geom_quat, scale=geom_scale
-        )
+        trans = SimTransform(pos=geom_pos, rot=geom_quat, scale=geom_scale)
         geom_color = mj_model.geom_rgba[geom_id].tolist()
         sim_visual = SimVisual(
             name=geom_name,
@@ -176,9 +178,7 @@ class MjModelParser:
         # attach material id if geom has an associated material
         mat_id = mj_model.geom_matid[geom_id]
         if mat_id != -1:
-            sim_visual.material = self.process_material(
-                mj_model, mat_id
-            )
+            sim_visual.material = self.process_material(mj_model, mat_id)
         else:
             sim_visual.material = SimMaterial(geom_color)
         return sim_visual
@@ -187,12 +187,12 @@ class MjModelParser:
         # vertices
         start_vert = mj_model.mesh_vertadr[mesh_id]
         num_verts = mj_model.mesh_vertnum[mesh_id]
-        vertices = mj_model.mesh_vert[start_vert:start_vert + num_verts]
+        vertices = mj_model.mesh_vert[start_vert : start_vert + num_verts]
         vertices = vertices.astype(np.float32)
         # faces
         start_face = mj_model.mesh_faceadr[mesh_id]
         num_faces = mj_model.mesh_facenum[mesh_id]
-        faces = mj_model.mesh_face[start_face:start_face + num_faces]
+        faces = mj_model.mesh_face[start_face : start_face + num_faces]
         faces = faces.astype(np.int32)
         # normals
         if hasattr(mj_model, "mesh_normaladr"):
@@ -203,7 +203,7 @@ class MjModelParser:
             num_norm = num_verts
         norms = None
         if num_norm == num_verts:
-            norms = mj_model.mesh_normal[start_norm:start_norm + num_norm]
+            norms = mj_model.mesh_normal[start_norm : start_norm + num_norm]
             norms = norms.astype(np.float32)
         # uv coordinates
         start_uv = mj_model.mesh_texcoordadr[mesh_id]
@@ -212,10 +212,10 @@ class MjModelParser:
         if start_uv != -1:
             num_texcoord = mj_model.mesh_texcoordnum[mesh_id]
             mesh_texcoord = mj_model.mesh_texcoord[
-                start_uv:start_uv + num_texcoord
+                start_uv : start_uv + num_texcoord
             ]
             faces_uv = mj_model.mesh_facetexcoord[
-                start_face:start_face + num_faces
+                start_face : start_face + num_faces
             ]
         mesh = SimMesh.create_mesh(
             scene=self.sim_scene,
@@ -280,11 +280,11 @@ class MjModelParser:
         num_tex_data = tex_height * tex_width * tex_nchannel
         if hasattr(mj_model, "tex_data"):
             tex_data: np.ndarray = mj_model.tex_data[
-                start_tex:start_tex + num_tex_data
+                start_tex : start_tex + num_tex_data
             ]
         else:
             tex_data: np.ndarray = mj_model.tex_rgb[
-                start_tex:start_tex + num_tex_data
+                start_tex : start_tex + num_tex_data
             ]
         return SimTexture.create_texture(
             tex_data, tex_height, tex_width, self.sim_scene

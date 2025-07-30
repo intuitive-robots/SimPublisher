@@ -4,7 +4,6 @@ from robosuite.environments.base import MujocoEnv as RobosuiteEnv
 import xml.etree.ElementTree as ET
 import os
 
-from simpub.xr_device.meta_quest3 import MetaQuest3 as MetaQuest3Sim
 from simpub.sim.mj_publisher import MujocoPublisher
 
 import libero
@@ -15,7 +14,6 @@ from robosuite.robots import ROBOT_CLASS_MAPPING
 
 
 class RobosuitePublisher(MujocoPublisher):
-
     def __init__(self, env: RobosuiteEnv, host):
         super().__init__(
             env.sim.model._model,
@@ -28,7 +26,9 @@ class RobosuitePublisher(MujocoPublisher):
 
 def select_file_from_txt(bddl_dataset_name: str, index: int = None) -> str:
 
-    bddl_base_path = os.path.join(libero.__path__[0], "libero", "bddl_files", bddl_dataset_name)
+    bddl_base_path = os.path.join(
+        libero.__path__[0], "libero", "bddl_files", bddl_dataset_name
+    )
     task_info_path = os.path.join(bddl_base_path, "tasks_info.txt")
     with open(task_info_path, "r") as file:
         bddl_paths = [line.strip() for line in file.readlines()]
@@ -37,9 +37,12 @@ def select_file_from_txt(bddl_dataset_name: str, index: int = None) -> str:
         raise IndexError("Index is out of file bounds")
     return os.path.join(libero.__path__[0], bddl_paths[index])
 
+
 if __name__ == "__main__":
     # Get controller config
-    controller_config = load_controller_config(default_controller="JOINT_POSITION")
+    controller_config = load_controller_config(
+        default_controller="JOINT_POSITION"
+    )
     # Create argument configuration
     config = {
         "robots": ["Panda"],
@@ -72,5 +75,7 @@ if __name__ == "__main__":
     publisher = RobosuitePublisher(env)
     while True:
         action = np.random.randn(env.robots[0].dof)  # sample random action
-        obs, reward, done, info = env.step(action)  # take action in the environment
+        obs, reward, done, info = env.step(
+            action
+        )  # take action in the environment
         env.render()  # render on display

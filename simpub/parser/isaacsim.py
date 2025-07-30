@@ -23,16 +23,23 @@ from usdrt import UsdGeom as RtGeom
 
 # support for IsaacSim versions < 4.5
 from importlib.metadata import version
+
 if version("isaacsim") < "4.5":
     from omni.isaac.core.prims import XFormPrim as SingleXFormPrim
-    from omni.isaac.core.utils.rotations import quat_to_rot_matrix, euler_angles_to_quat
+    from omni.isaac.core.utils.rotations import (
+        quat_to_rot_matrix,
+        euler_angles_to_quat,
+    )
 else:
     from isaacsim.core.prims import SingleXFormPrim
-    from isaacsim.core.utils.rotations import quat_to_rot_matrix, euler_angles_to_quat
+    from isaacsim.core.utils.rotations import (
+        quat_to_rot_matrix,
+        euler_angles_to_quat,
+    )
 
 from ..parser.mesh_utils import Mesh as MeshData
 from ..parser.mesh_utils import split_mesh_faces
-from ..simdata import (
+from .simdata import (
     SimAsset,
     SimMaterial,
     SimMesh,
@@ -60,8 +67,12 @@ class Timer:
             self.start_time = timeit.default_timer()
             return self
 
-        def __exit__(self, exception_type, exception_value, exception_traceback):
-            self.accum_times[self.name] += timeit.default_timer() - self.start_time
+        def __exit__(
+            self, exception_type, exception_value, exception_traceback
+        ):
+            self.accum_times[self.name] += (
+                timeit.default_timer() - self.start_time
+            )
             self.started_timers.remove(self.name)
 
     def __init__(self):
@@ -73,7 +84,11 @@ class Timer:
 
     def print_timings(self):
         print("\n\n[*** timers (unit: seconds) ***]")
-        print(tabulate(sorted(list(self.accum_times.items()), key=lambda x: x[0])))
+        print(
+            tabulate(
+                sorted(list(self.accum_times.items()), key=lambda x: x[0])
+            )
+        )
         print()
 
     @staticmethod
@@ -142,10 +157,14 @@ class IsaacSimStageParser:
         if texture_cache_dir is not None:
             if not os.path.isdir(texture_cache_dir):
                 os.makedirs(texture_cache_dir, exist_ok=True)
-                print(f"texture cache dir [{texture_cache_dir}] does not exist. it is created.")
+                print(
+                    f"texture cache dir [{texture_cache_dir}] does not exist. it is created."
+                )
             print(f"using texture cache dir: {texture_cache_dir}")
             # load texture dict
-            texture_dict_path = os.path.join(texture_cache_dir, "texture_dict.json")
+            texture_dict_path = os.path.join(
+                texture_cache_dir, "texture_dict.json"
+            )
             if os.path.isfile(texture_dict_path):
                 print(f"loading texture dict from: {texture_dict_path}")
                 with open(texture_dict_path) as f:
@@ -155,7 +174,9 @@ class IsaacSimStageParser:
                         self.texture_dict[k] = TextureInfo(relative_path=v)
             self.texture_dict_path = texture_dict_path
         else:
-            print("no texture cache dir is specified; performance will degrade.")
+            print(
+                "no texture cache dir is specified; performance will degrade."
+            )
 
     def get_usdrt_stage(self) -> RtUsd.Stage:
         return self.rt_stage
@@ -176,7 +197,9 @@ class IsaacSimStageParser:
         # parse the usd stage
         root_path = "/World"
         with self.timer.start("parse_prim_tree"):
-            sim_obj = self.parse_prim_tree(root=self.stage.GetPrimAtPath(root_path))
+            sim_obj = self.parse_prim_tree(
+                root=self.stage.GetPrimAtPath(root_path)
+            )
 
         assert sim_obj is not None
         scene.root.children.append(sim_obj)
@@ -187,7 +210,10 @@ class IsaacSimStageParser:
         # store texture dict
         if self.texture_dict_path is not None:
             with open(self.texture_dict_path, "w") as f:
-                json.dump({k: v.relative_path for k, v in self.texture_dict.items()}, f)
+                json.dump(
+                    {k: v.relative_path for k, v in self.texture_dict.items()},
+                    f,
+                )
             print(f"texture dict stored to: {self.texture_dict_path}")
 
         return scene
@@ -259,14 +285,22 @@ class IsaacSimStageParser:
         )
 
         # track prims with rigid objects attached
-        if (attr := root.GetAttribute("physics:rigidBodyEnabled")) and attr.Get():
+        if (
+            attr := root.GetAttribute("physics:rigidBodyEnabled")
+        ) and attr.Get():
             print("\t" * indent + f"tracking {prim_path}")
-            self.tracked_prims.append({"name": sim_object.name, "prim": root, "prim_path": prim_path})
+            self.tracked_prims.append(
+                {"name": sim_object.name, "prim": root, "prim_path": prim_path}
+            )
 
         # track prims with deformable enabled
-        if (attr := root.GetAttribute("physxDeformable:deformableEnabled")) and attr.Get():
+        if (
+            attr := root.GetAttribute("physxDeformable:deformableEnabled")
+        ) and attr.Get():
             print("\t" * indent + f"tracking deform {prim_path}")
-            self.tracked_deform_prims.append({"name": sim_object.name, "prim": root, "prim_path": prim_path})
+            self.tracked_deform_prims.append(
+                {"name": sim_object.name, "prim": root, "prim_path": prim_path}
+            )
 
         child: Usd.Prim
         if root.IsInstance():
@@ -300,7 +334,9 @@ class IsaacSimStageParser:
     def compute_local_trans(self, prim: Usd.Prim):
         # not really necessary...
         timeline = omni.timeline.get_timeline_interface()
-        timecode = timeline.get_current_time() * timeline.get_time_codes_per_seconds()
+        timecode = (
+            timeline.get_current_time() * timeline.get_time_codes_per_seconds()
+        )
 
         # extract local transformation
         sc, rt, rto, tr = omni.usd.get_local_transform_SRT(prim, timecode)
@@ -319,7 +355,9 @@ class IsaacSimStageParser:
 
         return translate, rot, scale
 
-    def compute_world_trans(self, prim: Usd.Prim) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
+    def compute_world_trans(
+        self, prim: Usd.Prim
+    ) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
         # TODO: use isaacsim api instead of usd api for getting transformations
 
         prim = SingleXFormPrim(str(prim.GetPath()))
@@ -380,7 +418,9 @@ class IsaacSimStageParser:
 
         with self.timer.start("parse_prim_material_3"):
             diffuse_color = [1.0, 1.0, 1.0]
-            if (c := mat_shader.GetInput("diffuse_color_constant").Get()) is not None:
+            if (
+                c := mat_shader.GetInput("diffuse_color_constant").Get()
+            ) is not None:
                 diffuse_color = [c[0], c[1], c[2]]
             elif (c := mat_shader.GetInput("diffuseColor").Get()) is not None:
                 diffuse_color = [c[0], c[1], c[2]]
@@ -394,7 +434,11 @@ class IsaacSimStageParser:
                 if texture_path in self.texture_dict:
                     tex_info = self.texture_dict[texture_path]
                     if tex_info.image is None:
-                        tex_info.image = Image.open(os.path.join(self.texture_cache_dir, tex_info.relative_path))
+                        tex_info.image = Image.open(
+                            os.path.join(
+                                self.texture_cache_dir, tex_info.relative_path
+                            )
+                        )
                     image = tex_info.image
 
                 # if not found, download the texture and add it to cache
@@ -406,18 +450,27 @@ class IsaacSimStageParser:
                         image = Image.open(texture_path)
 
                     # this is not needed for local textures. but anyway...
-                    if image is not None and self.texture_cache_dir is not None:
+                    if (
+                        image is not None
+                        and self.texture_cache_dir is not None
+                    ):
                         ext = os.path.splitext(texture_path)[1]
                         texture_file_name = f"{str(uuid.uuid4())}{ext}"
-                        texture_file_path = os.path.join(self.texture_cache_dir, texture_file_name)
+                        texture_file_path = os.path.join(
+                            self.texture_cache_dir, texture_file_name
+                        )
                         image.save(texture_file_path)
-                        self.texture_dict[texture_path] = TextureInfo(relative_path=texture_file_name, image=image)
+                        self.texture_dict[texture_path] = TextureInfo(
+                            relative_path=texture_file_name, image=image
+                        )
 
             with self.timer.start("parse_prim_material_4.2"):
                 if image is not None:
                     image = image.convert("RGB")
                     image = np.array(image).astype(np.uint8)
-                    image, height, width = SimTexture.compress_image(image, height=image.shape[0], width=image.shape[1])
+                    image, height, width = SimTexture.compress_image(
+                        image, height=image.shape[0], width=image.shape[1]
+                    )
                     # sim_mat.texture = SimTexture.create_texture(
                     #     np.array(image),
                     #     height=image.height,
@@ -440,15 +493,25 @@ class IsaacSimStageParser:
         with self.timer.start("parse_prim_material_5"):
             mi = MaterialInfo(sim_mat=sim_mat)
 
-            if (use_uvw := mat_shader.GetInput("project_uvw").Get()) is not None and use_uvw is True:
+            if (
+                use_uvw := mat_shader.GetInput("project_uvw").Get()
+            ) is not None and use_uvw is True:
                 mi.project_uvw = True
 
-                if (world_coord := mat_shader.GetInput("world_or_object").Get()) is not None and world_coord is True:
+                if (
+                    world_coord := mat_shader.GetInput("world_or_object").Get()
+                ) is not None and world_coord is True:
                     mi.use_world_coord = True
 
         return mi
 
-    def compute_projected_uv(self, prim: Usd.Prim, vertex_buf, index_buf, use_world_coord: bool = False):
+    def compute_projected_uv(
+        self,
+        prim: Usd.Prim,
+        vertex_buf,
+        index_buf,
+        use_world_coord: bool = False,
+    ):
         """project_uvw: cube map for uv"""
 
         assert type(vertex_buf) is np.ndarray
@@ -457,7 +520,16 @@ class IsaacSimStageParser:
         assert len(index_buf.shape) == 2 and index_buf.shape[1] in {3, 4}
 
         uvs = []
-        axes = np.array([[0, 0, 1], [0, 0, -1], [0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0]])
+        axes = np.array(
+            [
+                [0, 0, 1],
+                [0, 0, -1],
+                [0, 1, 0],
+                [0, -1, 0],
+                [1, 0, 0],
+                [-1, 0, 0],
+            ]
+        )
         axis_projectors = [
             lambda v: [v[0], v[1]],
             lambda v: [v[0], -v[1]],
@@ -522,10 +594,16 @@ class IsaacSimStageParser:
 
                 # read vertices, normals and indices
 
-                vertices = np.asarray(mesh_prim.GetPointsAttr().Get(), dtype=np.float32)
+                vertices = np.asarray(
+                    mesh_prim.GetPointsAttr().Get(), dtype=np.float32
+                )
                 # normals = np.asarray(mesh_prim.GetNormalsAttr().Get(), dtype=np.float32)
-                indices_orig = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get(), dtype=np.int32)
-                face_vertex_counts = np.asarray(mesh_prim.GetFaceVertexCountsAttr().Get(), dtype=np.int32)
+                indices_orig = np.asarray(
+                    mesh_prim.GetFaceVertexIndicesAttr().Get(), dtype=np.int32
+                )
+                face_vertex_counts = np.asarray(
+                    mesh_prim.GetFaceVertexCountsAttr().Get(), dtype=np.int32
+                )
 
                 # assuming there are either only triangular faces or only quad faces...
                 assert len(set(face_vertex_counts)) == 1
@@ -558,7 +636,9 @@ class IsaacSimStageParser:
                         for i in range(1, 100):
                             if UsdGeom.PrimvarsAPI(prim).HasPrimvar(f"st_{i}"):
                                 uvs_more = np.asarray(
-                                    UsdGeom.PrimvarsAPI(prim).GetPrimvar(f"st_{i}").Get(),
+                                    UsdGeom.PrimvarsAPI(prim)
+                                    .GetPrimvar(f"st_{i}")
+                                    .Get(),
                                     dtype=np.float32,
                                 )
                                 subset_uvs[uvs_more.shape[0]] = uvs_more
@@ -577,7 +657,9 @@ class IsaacSimStageParser:
 
                         # get subset material
                         # TODO: handle project_uvw?
-                        subset_mat_info = self.parse_prim_material((subset), indent + 1)
+                        subset_mat_info = self.parse_prim_material(
+                            (subset), indent + 1
+                        )
                         subset_mat = None
                         if subset_mat_info is not None:
                             subset_mat = subset_mat_info.sim_mat
@@ -591,7 +673,8 @@ class IsaacSimStageParser:
                                     # normal_buf=subset_normals,
                                     index_buf=subset_indices,
                                     uv_buf=subset_uvs.get(
-                                        subset_indices.shape[0] * subset_indices.shape[1],
+                                        subset_indices.shape[0]
+                                        * subset_indices.shape[1],
                                         None,
                                     ),
                                 ),
@@ -630,7 +713,9 @@ class IsaacSimStageParser:
                                 index_buf=indices,
                                 uv_buf=uvs,
                             ),
-                            "material": mat_info.sim_mat if mat_info is not None else None,
+                            "material": mat_info.sim_mat
+                            if mat_info is not None
+                            else None,
                         }
                     )
 
@@ -641,14 +726,16 @@ class IsaacSimStageParser:
                 # TODO: Fix whatever this is supposed to do so it doenst create ghost vertices
                 # with self.timer.start("parse_prim_geometries_mesh_4"):
                 #     mesh_data = split_mesh_faces(mesh_info["mesh"])
-                
+
                 # after split_mesh_faces is fixed this can be removed
                 mesh_data = mesh_info["mesh"]
 
                 with self.timer.start("parse_prim_geometries_mesh_5"):
                     texture_visual = None
                     if mesh_data.uv_buf is not None:
-                        texture_visual = trimesh.visual.TextureVisuals(uv=mesh_data.uv_buf)
+                        texture_visual = trimesh.visual.TextureVisuals(
+                            uv=mesh_data.uv_buf
+                        )
 
                     mesh_obj = trimesh.Trimesh(
                         vertices=mesh_data.vertex_buf,
@@ -656,7 +743,7 @@ class IsaacSimStageParser:
                         faces=mesh_data.index_buf,
                         visual=texture_visual,
                         # can' process, otherwise deformable object meshes have to be processed every time they
-                        # are transmitted. 
+                        # are transmitted.
                         process=False,
                     )
                     mesh_obj.fix_normals()
@@ -664,11 +751,23 @@ class IsaacSimStageParser:
                     trimesh.repair.fix_inversion(mesh_obj, True)
 
                     print("\t" * (indent + 1) + "[mesh geometry]")
-                    print("\t" * (indent + 1) + f"vertex:   {mesh_obj.vertices.shape}")
-                    print("\t" * (indent + 1) + f"normal:   {mesh_obj.vertex_normals.shape}")
-                    print("\t" * (indent + 1) + f"index:    {mesh_obj.faces.shape}")
+                    print(
+                        "\t" * (indent + 1)
+                        + f"vertex:   {mesh_obj.vertices.shape}"
+                    )
+                    print(
+                        "\t" * (indent + 1)
+                        + f"normal:   {mesh_obj.vertex_normals.shape}"
+                    )
+                    print(
+                        "\t" * (indent + 1)
+                        + f"index:    {mesh_obj.faces.shape}"
+                    )
                     if mesh_data.uv_buf is not None:
-                        print("\t" * (indent + 1) + f"uv:       {mesh_obj.visual.uv.shape}")
+                        print(
+                            "\t" * (indent + 1)
+                            + f"uv:       {mesh_obj.visual.uv.shape}"
+                        )
 
                 # # #######################################################################################
                 # # (for debug) export extracted mesh and check
@@ -709,7 +808,10 @@ class IsaacSimStageParser:
 
                     if mesh_info["material"] is not None:
                         sim_mesh.material = mesh_info["material"]
-                        print("\t" * (indent + 1) + f"material: {sim_mesh.material}")
+                        print(
+                            "\t" * (indent + 1)
+                            + f"material: {sim_mesh.material}"
+                        )
 
                     sim_obj.visuals.append(sim_mesh)
 
@@ -752,11 +854,21 @@ class IsaacSimStageParser:
                 height = cap_prim.GetHeightAttr().Get()
                 radius = cap_prim.GetRadiusAttr().Get()
 
-                capsule_mesh = trimesh.creation.capsule(height=height, radius=radius)
+                capsule_mesh = trimesh.creation.capsule(
+                    height=height, radius=radius
+                )
                 if axis == "Y":
-                    capsule_mesh.apply_transform(trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0]))
+                    capsule_mesh.apply_transform(
+                        trimesh.transformations.rotation_matrix(
+                            -math.pi / 2, [1, 0, 0]
+                        )
+                    )
                 elif axis == "X":
-                    capsule_mesh.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
+                    capsule_mesh.apply_transform(
+                        trimesh.transformations.rotation_matrix(
+                            math.pi / 2, [0, 1, 0]
+                        )
+                    )
 
                 # scale/translation/rotation not handled,
                 # since it seems that isaac lab won't modify them...
@@ -777,11 +889,23 @@ class IsaacSimStageParser:
                 radius = cap_prim.GetRadiusAttr().Get()
 
                 cone_mesh = trimesh.creation.cone(height=height, radius=radius)
-                cone_mesh.apply_transform(trimesh.transformations.translation_matrix([0, 0, -height * 0.5]))
+                cone_mesh.apply_transform(
+                    trimesh.transformations.translation_matrix(
+                        [0, 0, -height * 0.5]
+                    )
+                )
                 if axis == "Y":
-                    cone_mesh.apply_transform(trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0]))
+                    cone_mesh.apply_transform(
+                        trimesh.transformations.rotation_matrix(
+                            -math.pi / 2, [1, 0, 0]
+                        )
+                    )
                 elif axis == "X":
-                    cone_mesh.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
+                    cone_mesh.apply_transform(
+                        trimesh.transformations.rotation_matrix(
+                            math.pi / 2, [0, 1, 0]
+                        )
+                    )
 
                 # scale/translation/rotation not handled,
                 # since it seems that isaac lab won't modify them...
@@ -801,11 +925,21 @@ class IsaacSimStageParser:
                 height = cap_prim.GetHeightAttr().Get()
                 radius = cap_prim.GetRadiusAttr().Get()
 
-                cylinder_mesh = trimesh.creation.cylinder(height=height, radius=radius)
+                cylinder_mesh = trimesh.creation.cylinder(
+                    height=height, radius=radius
+                )
                 if axis == "Y":
-                    cylinder_mesh.apply_transform(trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0]))
+                    cylinder_mesh.apply_transform(
+                        trimesh.transformations.rotation_matrix(
+                            -math.pi / 2, [1, 0, 0]
+                        )
+                    )
                 elif axis == "X":
-                    cylinder_mesh.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
+                    cylinder_mesh.apply_transform(
+                        trimesh.transformations.rotation_matrix(
+                            math.pi / 2, [0, 1, 0]
+                        )
+                    )
 
                 # scale/translation/rotation not handled,
                 # since it seems that isaac lab won't modify them...
@@ -837,7 +971,9 @@ class IsaacSimStageParser:
     @Timer.time_function("build_mesh_buffer")
     def build_mesh_buffer(self, mesh_obj: trimesh.Trimesh):
         # rotate mesh to match unity coord system
-        rot_mat = np.array([[0, 1, 0, 0], [0, 0, 1, 0], [-1, 0, 0, 0], [0, 0, 0, 1]])
+        rot_mat = np.array(
+            [[0, 1, 0, 0], [0, 0, 1, 0], [-1, 0, 0, 0], [0, 0, 0, 1]]
+        )
         mesh_obj.apply_transform(rot_mat)
 
         # this will create smooth vertex normals.

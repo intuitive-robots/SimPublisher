@@ -22,8 +22,8 @@ def reset_ball(mj_model, mj_data):
     target_ball_id = mj_name2id(model, mjtObj.mjOBJ_BODY, "target_ball")
     body_jnt_addr = mj_model.body_jntadr[target_ball_id]
     qposadr = mj_model.jnt_qposadr[body_jnt_addr]
-    mj_data.qpos[qposadr:qposadr + 3] = np.array([0, 0, -0.3])
-    mj_data.qvel[qposadr:qposadr + 3] = np.array([1.5, 0, 0])
+    mj_data.qpos[qposadr : qposadr + 3] = np.array([0, 0, -0.3])
+    mj_data.qvel[qposadr : qposadr + 3] = np.array([1.5, 0, 0])
 
 
 def update_bat(mj_model, mj_data, player: MetaQuest3, bat_name, hand="right"):
@@ -39,9 +39,9 @@ def update_bat(mj_model, mj_data, player: MetaQuest3, bat_name, hand="right"):
     """
     # Control parameters - tune these for responsiveness vs. stability
     pos_gain = 100.0  # Position tracking gain
-    rot_gain = 0.5   # Rotation tracking gain
-    max_vel = 100.0    # Maximum linear velocity
-    max_angvel = 40.0 # Maximum angular velocity
+    rot_gain = 0.5  # Rotation tracking gain
+    max_vel = 100.0  # Maximum linear velocity
+    max_angvel = 40.0  # Maximum angular velocity
     # Get bat body ID
     bat_id = mj_name2id(mj_model, mjtObj.mjOBJ_BODY, bat_name)
     if bat_id < 0:
@@ -58,11 +58,11 @@ def update_bat(mj_model, mj_data, player: MetaQuest3, bat_name, hand="right"):
         return
     bat_dofadr = mj_model.jnt_dofadr[bat_joint_id]
     # Get player input
-    player_input = player.get_input_data()
+    player_input = player.get_controller_data()
     if player_input is None or hand not in player_input:
-        mj_data.qvel[bat_dofadr:bat_dofadr+3] = np.array([0, 0, 0])
+        mj_data.qvel[bat_dofadr : bat_dofadr + 3] = np.array([0, 0, 0])
         # Angular velocity - next 3 DOFs
-        mj_data.qvel[bat_dofadr+3:bat_dofadr+6] = np.array([0, 0, 0])
+        mj_data.qvel[bat_dofadr + 3 : bat_dofadr + 6] = np.array([0, 0, 0])
         return
     # Get target position and orientation from controller
     target_pos = np.array(player_input[hand]["pos"])
@@ -79,13 +79,15 @@ def update_bat(mj_model, mj_data, player: MetaQuest3, bat_name, hand="right"):
     vel_norm = np.linalg.norm(desired_vel)
     if vel_norm > max_vel:
         desired_vel = desired_vel * (max_vel / vel_norm)
-    desired_angular_vel = rot_gain * get_rot_vec_error(target_quat, current_quat)
+    desired_angular_vel = rot_gain * get_rot_vec_error(
+        target_quat, current_quat
+    )
     # Limit maximum angular velocity
     ang_vel_norm = np.linalg.norm(desired_angular_vel)
     if ang_vel_norm > max_angvel:
         desired_angular_vel = desired_angular_vel * (max_angvel / ang_vel_norm)
-    mj_data.qvel[bat_dofadr:bat_dofadr+3] = desired_vel
-    mj_data.qvel[bat_dofadr+3:bat_dofadr+6] = desired_angular_vel
+    mj_data.qvel[bat_dofadr : bat_dofadr + 3] = desired_vel
+    mj_data.qvel[bat_dofadr + 3 : bat_dofadr + 6] = desired_angular_vel
 
 
 def get_rot_vec_error(target_quat, current_quat):
@@ -97,8 +99,12 @@ def get_rot_vec_error(target_quat, current_quat):
         current_quat: Current quaternion in [w, x, y, z] format
     """
     # Convert from [w, x, y, z] to SciPy's [x, y, z, w] format
-    target_scipy_quat = np.array([target_quat[1], target_quat[2], target_quat[3], target_quat[0]])
-    current_scipy_quat = np.array([current_quat[1], current_quat[2], current_quat[3], current_quat[0]])
+    target_scipy_quat = np.array(
+        [target_quat[1], target_quat[2], target_quat[3], target_quat[0]]
+    )
+    current_scipy_quat = np.array(
+        [current_quat[1], current_quat[2], current_quat[3], current_quat[0]]
+    )
 
     # Create Rotation objects
     target_rot = Rotation.from_quat(target_scipy_quat)
@@ -114,13 +120,13 @@ def get_rot_vec_error(target_quat, current_quat):
     return error
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="127.0.0.1")
     args = parser.parse_args()
     xml_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
-        "assets/table_tennis_env.xml"
+        "assets/table_tennis_env.xml",
     )
     model = mujoco.MjModel.from_xml_path(xml_path)
     data = mujoco.MjData(model)
