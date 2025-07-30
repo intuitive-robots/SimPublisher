@@ -1,9 +1,9 @@
 import numpy as np
 
 from ..parser.coppelia_sim import CoppeliasSimParser
-from ..simdata import SimObject, SimScene, SimTransform, SimVisual
-from ..simdata import SimMaterial, SimTexture, SimMesh
-from ..simdata import VisualType
+from ..parser.simdata import SimObject, SimScene, SimTransform, SimVisual
+from ..parser.simdata import SimMaterial, SimTexture, SimMesh
+from ..parser.simdata import VisualType
 from ..core.log import logger
 
 
@@ -13,13 +13,13 @@ import numpy as np
 
 from ..core.simpub_server import SimPublisher
 from ..parser.mj import MjModelParser
-from ..simdata import SimObject
+from ..parser.simdata import SimObject
 
 
 class CoppeliaSimPublisher(SimPublisher):
-
     def __init__(
-        self, sim,
+        self,
+        sim,
         host: str = "127.0.0.1",
         no_rendered_objects: Optional[List[str]] = None,
         no_tracked_objects: Optional[List[str]] = None,
@@ -59,6 +59,12 @@ class CoppeliaSimPublisher(SimPublisher):
         for name, trans in self.tracked_obj_trans.items():
             pos, rot = trans
             state[name] = [
-                -pos[1], pos[2], pos[0], rot[2], -rot[3], -rot[1], rot[0]
+                -pos[1],
+                pos[2],
+                pos[0],
+                rot[2],
+                -rot[3],
+                -rot[1],
+                rot[0],
             ]
         return state

@@ -6,7 +6,7 @@ import time
 from simpub.sim.mj_publisher import MujocoPublisher
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, default="/home/xinkai/repository")
     # parser.add_argument("--name", type=str, default="unitree_h1")
@@ -20,10 +20,7 @@ if __name__ == '__main__':
     model = mujoco.MjModel.from_xml_path(xml_path)
     data = mujoco.MjData(model)
     publisher = MujocoPublisher(
-        model,
-        data,
-        args.host,
-        visible_geoms_groups=list(range(1, 3))
+        model, data, args.host, visible_geoms_groups=list(range(1, 3))
     )
     for _ in range(100):
         mujoco.mj_step(model, data)

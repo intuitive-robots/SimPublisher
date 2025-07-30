@@ -8,12 +8,12 @@ from genesis.engine.entities.rigid_entity import RigidLink, RigidGeom
 
 from ..parser.gs import GenesisSceneParser, gs2unity_pos, gs2unity_quat
 from ..core.simpub_server import SimPublisher
-from ..core.net_manager import NodeManager, Streamer, StrBytesService
+from ..core.node_manager import XRNodeManager, Streamer, StrBytesService
 from ..core.utils import send_request, HashIdentifier
+
 
 @ti.data_oriented
 class GenesisPublisher(SimPublisher):
-
     def __init__(
         self,
         gs_scene: GSScene,
@@ -39,7 +39,8 @@ class GenesisPublisher(SimPublisher):
             topic_name="SceneUpdate",
             update_func=self.get_update,
             fps=self.fps,
-            start_streaming=True)
+            start_streaming=True,
+        )
         self.asset_service = StrBytesService("Asset", self._on_asset_request)
         self.xr_device_set: Set[HashIdentifier] = set()
         self.net_manager.submit_task(self.search_xr_device, self.net_manager)
@@ -63,7 +64,13 @@ class GenesisPublisher(SimPublisher):
                 else:
                     continue
                 state[name] = [
-                    pos[0], pos[1], pos[2], quat[0], quat[1], quat[2], quat[3]
+                    pos[0],
+                    pos[1],
+                    pos[2],
+                    quat[0],
+                    quat[1],
+                    quat[2],
+                    quat[3],
                 ]
         except Exception:
             return {}

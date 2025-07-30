@@ -5,6 +5,7 @@ import genesis as gs
 
 from simpub.sim.genesis_publisher import GenesisPublisher
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--vis", action="store_true", default=True)
@@ -34,7 +35,7 @@ def main():
     plane = scene.add_entity(
         gs.morphs.Plane(),
     )
-    
+
     drones = []
     distance = 0.2
     square_size = 5
@@ -52,7 +53,9 @@ def main():
     publisher = GenesisPublisher(scene, host="192.168.0.134")
     scene.build()
     if args.mac:
-        gs.tools.run_in_another_thread(fn=run_sim, args=(scene, drone, args.vis))
+        gs.tools.run_in_another_thread(
+            fn=run_sim, args=(scene, drone, args.vis)
+        )
         if args.vis:
             scene.viewer.start()
     else:
@@ -231,8 +234,6 @@ def run_sim(scene, drones, enable_vis):
 
     # if enable_vis:
     #     scene.viewer.stop()
-        
-
 
 
 if __name__ == "__main__":

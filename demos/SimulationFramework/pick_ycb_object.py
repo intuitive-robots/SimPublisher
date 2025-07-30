@@ -73,7 +73,9 @@ if __name__ == "__main__":
 
     publisher = SFPublisher(scene, args.host)
 
-    robot.set_desired_gripper_width(0.4)  # we set the gripper to clos at the beginning
+    robot.set_desired_gripper_width(
+        0.4
+    )  # we set the gripper to clos at the beginning
 
     # execute the pick and place movements
     robot.gotoCartPositionAndQuat(

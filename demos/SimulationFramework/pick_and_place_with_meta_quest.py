@@ -11,13 +11,12 @@ from simpub.xr_device import MetaQuest3
 
 
 class MetaQuest3Controller(CartPosQuatImpedenceController):
-
     def __init__(self, device):
         super().__init__()
         self.device: MetaQuest3 = device
 
     def getControl(self, robot: MjRobot):
-        input_data = self.device.get_input_data()
+        input_data = self.device.get_controller_data()
         if input_data is not None:
             hand = input_data["right"]
             desired_pos = hand["pos"]

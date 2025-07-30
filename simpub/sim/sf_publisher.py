@@ -6,7 +6,6 @@ from .mj_publisher import MujocoPublisher
 
 
 class SFPublisher(MujocoPublisher):
-
     def __init__(
         self,
         sf_mj_sim: MjScene,
