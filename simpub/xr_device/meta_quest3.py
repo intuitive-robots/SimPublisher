@@ -80,7 +80,7 @@ class MetaQuest3(XRDevice):
         device_name: str,
     ) -> None:
         super().__init__(device_name)
-        self.last_input_data: Optional[MetaQuest3MotionControllerData] = None
+        self.last_motion_controller_data: Optional[MetaQuest3MotionControllerData] = None
         self.motion_controller_data: Optional[
             MetaQuest3MotionControllerData
         ] = None
@@ -118,25 +118,25 @@ class MetaQuest3(XRDevice):
         self.on_vibration = {"left": False, "right": False}
 
     def update_motion_controller(self, data: str):
-        self.last_input_data = self.input_data
-        self.input_data = json.loads(data)
-        if self.last_input_data is None:
+        self.last_motion_controller_data = self.motion_controller_data
+        self.motion_controller_data = json.loads(data)
+        if self.last_motion_controller_data is None:
             return
-        if self.input_data is None:
+        if self.motion_controller_data is None:
             return
         for button, callbacks in self.button_press_event.items():
-            if self.input_data[button] and not self.last_input_data[button]:
+            if self.motion_controller_data[button] and not self.last_motion_controller_data[button]:
                 [callback() for callback in callbacks]
-        left_hand = self.input_data["left"]
-        last_left_hand = self.last_input_data["left"]
+        left_hand = self.motion_controller_data["left"]
+        last_left_hand = self.last_motion_controller_data["left"]
         for trigger, callbacks in self.left_trigger_press_event.items():
             if left_hand[trigger] and not last_left_hand[trigger]:
                 [callback() for callback in callbacks]
         for trigger, callbacks in self.left_trigger_release_event.items():
             if not left_hand[trigger] and last_left_hand[trigger]:
                 [callback() for callback in callbacks]
-        right_hand = self.input_data["right"]
-        last_right_hand = self.last_input_data["right"]
+        right_hand = self.motion_controller_data["right"]
+        last_right_hand = self.last_motion_controller_data["right"]
         for trigger, callbacks in self.right_trigger_press_event.items():
             if right_hand[trigger] and not last_right_hand[trigger]:
                 [callback() for callback in callbacks]
