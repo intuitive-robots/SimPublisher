@@ -1,0 +1,115 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+}
+
+.dashboard {
+    display: flex;
+    height: 100vh;
+}
+
+.sidebar {
+    width: 15%;
+    background-color: #2c3e50;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 20px;
+}
+
+.sidebar-btn {
+    width: 80%;
+    padding: 10px;
+    margin: 10px 0;
+    background-color: #3498db;
+    border: none;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    text-align: center;
+}
+
+.sidebar-btn:hover {
+    background-color: #2980b9;
+}
+
+.content {
+    flex: 1;
+    padding: 20px;
+    background-color: #ecf0f1;
+}
+
+#button-container {
+    margin-top: 20px;
+}
+
+.device-panel {
+    margin: 20px 0;
+    width: 300px;
+    background-color: #5DADE2; /* Blue background */
+    color: black;
+    border: 2px solid black;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    text-align: center;
+}
+
+.device-header {
+    background-color: #2980B9; /* Darker blue for the header */
+    color: white;
+    font-weight: bold;
+    margin: 0px 0px;
+    padding: 10px 0px;
+    font-size: 20px;
+    /* border-bottom: 1px solid black; */
+}
+
+.device-info {
+    display: flex;
+    justify-content: space-between;
+    margin: 0px 0px;
+    padding: 0px 0px;
+    font-size: 14px;
+    background-color: #2980B9; /* Matches the panel background */
+    border-bottom: 1px solid black;
+}
+
+.device-info span {
+    flex: 1;
+    text-align: center;
+    font-weight: bold;
+}
+
+.device-actions {
+    padding: 15px;
+    background-color: #5DADE2;
+}
+
+.action-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    justify-items: center;
+    padding: 10px;
+}
+
+.action-btn {
+    width: 90%;
+    margin: 5px 0;
+    padding: 10px;
+    font-size: 14px;
+    font-weight: bold;
+    color: black;
+    background-color: white;
+    border: 2px solid black;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.action-btn:hover {
+    background-color: #eaf2f8; /* Slightly lighter background on hover */
+}
+

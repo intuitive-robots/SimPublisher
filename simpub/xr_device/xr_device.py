@@ -57,6 +57,7 @@ class XRDevice:
                 self.device_id = node_info["nodeID"]
                 self.connected = True
                 self.subscribe_to_client(node_info)
+                self.print_node_info(node_info)
             await async_sleep(0.5)
         # if self.device_info is None:
         #     return
@@ -127,3 +128,13 @@ class XRDevice:
 
     def get_controller_data(self) -> InputData:
         raise NotImplementedError
+
+    def print_node_info(self, node_info: XRNodeInfo):
+        # print the node info with service and topics
+        logger.info(f"Node Info for {node_info['name']}:")
+        logger.info(f"  Node ID: {node_info['nodeID']}")
+        logger.info(f"  IP: {node_info['ip']}")
+        logger.info(f"  Port: {node_info['port']}")
+        logger.info(f"  Services: {node_info['serviceList']}")
+        logger.info(f"  Topics: {node_info['topicDict']}")
+

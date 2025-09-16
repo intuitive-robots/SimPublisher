@@ -118,8 +118,6 @@ async def send_request_async(
         req_socket.close()
         return result
 
-
-@request_log
 async def send_request_with_addr_async(
     messages: List[bytes], addr: str, timeout: int = 2
 ) -> Optional[bytes]:
