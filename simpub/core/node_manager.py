@@ -1,7 +1,7 @@
 from __future__ import annotations
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Optional, Callable
+from typing import Optional, Callable
 import asyncio
 from asyncio import sleep as async_sleep
 import socket
@@ -18,7 +18,9 @@ from .utils import (
     MULTICAST_GRP,
     DISCOVERY_PORT,
     XRNodeInfo,
+    XRNodeRegistry,
 )
+from ..simpubweb.server import SimPubWebServer
 
 
 # NOTE: asyncio.loop.sock_recvfrom can only be used after Python 3.11
@@ -39,15 +41,17 @@ class MulticastDiscoveryProtocol(asyncio.DatagramProtocol):
         try:
             node_ip, message = addr[0], data.decode("utf-8")
             node_id, service_port = message[:36], message[36:]
-            if node_id not in self.node_manager.xr_nodes_info:
-                # Schedule the async registration
+            registry = self.node_manager.xr_nodes
+            entry = registry.get(node_id)
+            if entry is None or entry.info is None:
+                # Schedule the async registration when node info is unknown
                 self.node_manager.submit_asyncio_task(
                     self.node_manager.async_register_node_info,
                     node_id,
                     node_ip,
                     service_port,
                 )
-            self.node_manager.xr_node_heartbeat[node_id] = time.time()
+            registry.touch(node_id)
         except Exception as e:
             logger.error(f"Error processing datagram: {e}")
             traceback.print_exc()
@@ -69,10 +73,12 @@ class XRNodeManager:
         XRNodeManager.manager = self
         self.zmq_context = zmq.asyncio.Context.instance()
         self.host_ip: str = host_ip
-        self.xr_nodes_info: Dict[str, XRNodeInfo] = {}
-        self.xr_node_heartbeat: Dict[str, float] = {}
+        self.xr_nodes = XRNodeRegistry()
         self.executor = ThreadPoolExecutor(max_workers=3)
         self.server_future = self.executor.submit(self.thread_task)
+        self.web_server: Optional[SimPubWebServer] = None
+        self.web_server_future: Optional[concurrent.futures.Future] = None
+        self._start_web_server()
         self.discovery_transport = None  # Track the transport for cleanup
         # Wait for the loop
         while not hasattr(self, "loop"):
@@ -93,6 +99,49 @@ class XRNodeManager:
                 "Event loop is not running, cannot start discovery loop"
             )
 
+    def _start_web_server(self):
+        if self.web_server is not None:
+            return
+        try:
+            self.web_server = SimPubWebServer(
+                self.xr_nodes, host="127.0.0.1", port=5000
+            )
+            self.web_server_future = self.executor.submit(
+                self.web_server.serve_forever
+            )
+            logger.info(
+                "Web dashboard is running at http://127.0.0.1:5000"
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to start web dashboard on 127.0.0.1:5000: {e}"
+            )
+            traceback.print_exc()
+
+    def _stop_web_server(self):
+        if self.web_server is None:
+            return
+        try:
+            self.web_server.shutdown()
+            if self.web_server_future is not None:
+                try:
+                    self.web_server_future.result(timeout=2)
+                except concurrent.futures.TimeoutError:
+                    logger.warning(
+                        "Timed out while waiting for web dashboard shutdown"
+                    )
+                except Exception as e:  # pragma: no cover - defensive
+                    logger.error(
+                        "Error waiting for web dashboard to stop: %s",
+                        e,
+                    )
+        except Exception as e:
+            logger.error("Error during web dashboard shutdown: %s", e)
+            traceback.print_exc()
+        finally:
+            self.web_server = None
+            self.web_server_future = None
+
     def create_socket(self, socket_type: int):
         return self.zmq_context.socket(socket_type)
 
@@ -110,6 +159,7 @@ class XRNodeManager:
     def stop_node(self):
         logger.info("Start to stop the node")
         self.running = False
+        self._stop_web_server()
         try:
             if self.loop.is_running():
                 self.loop.call_soon_threadsafe(self.stop_tasks)
@@ -213,12 +263,11 @@ class XRNodeManager:
                     f"Failed to get node info from {node_ip}:{service_port}"
                 )
                 return
-            self.xr_nodes_info[node_id] = loads(
-                node_info_bytes.decode("utf-8")
-            )
-            self.xr_nodes_info[node_id]["ip"] = node_ip
+            node_info: XRNodeInfo = loads(node_info_bytes.decode("utf-8"))
+            node_info["ip"] = node_ip
+            self.xr_nodes.update_info(node_id, node_info)
             logger.info(
-                f"Registering node info: {self.xr_nodes_info[node_id]['name']}"
+                f"Registering node info: {node_info['name']}"
                 f"/{node_id} at {node_ip}:{service_port}"
             )
         except Exception as e:
@@ -228,22 +277,19 @@ class XRNodeManager:
     async def check_node_heartbeat(self):
         """Check the heartbeat of registered nodes and remove offline nodes."""
         while self.running:
-            offline_nodes = [
-                node_id
-                for node_id, last_heartbeat in self.xr_node_heartbeat.items()
-                if time.time() - last_heartbeat > 5.0  # 5 seconds timeout
-            ]
-            for node_id in offline_nodes:
+            offline_nodes = self.xr_nodes.remove_offline(timeout=5.0)
+            for node_id, entry in offline_nodes:
+                node_name = entry.info["name"] if entry.info else node_id
                 logger.warning(
-                    f"Node {self.xr_nodes_info[node_id]['name']} "
-                    f"{node_id} is offline for 5s, removing it"
+                    f"Node {node_name} {node_id} is offline for 5s,"
+                    " removing it"
                 )
-                del self.xr_nodes_info[node_id]
-                del self.xr_node_heartbeat[node_id]
             await async_sleep(1)
 
 
-def init_xr_node_manager(ip_addr: Optional[str] = None) -> XRNodeManager:
+def init_xr_node_manager(
+    ip_addr: Optional[str] = None
+) -> XRNodeManager:
     if XRNodeManager.manager is not None:
         if ip_addr is None:
             return XRNodeManager.manager

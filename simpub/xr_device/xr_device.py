@@ -46,7 +46,10 @@ class XRDevice:
     async def checking_connection(self):
         logger.info(f"checking the connection to {self.device_name}")
         while self.running:
-            for node_info in self.manager.xr_nodes_info.values():
+            for entry in self.manager.xr_nodes.values():
+                node_info = entry.info
+                if node_info is None:
+                    continue
                 if node_info["name"] != self.device_name:
                     continue
                 if node_info["nodeID"] == self.device_id:
@@ -137,4 +140,3 @@ class XRDevice:
         logger.info(f"  Port: {node_info['port']}")
         logger.info(f"  Services: {node_info['serviceList']}")
         logger.info(f"  Topics: {node_info['topicDict']}")
-

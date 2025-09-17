@@ -1,6 +1,14 @@
-from app import create_app
+from __future__ import annotations
 
-app = create_app()
+from ..core.utils import XRNodeRegistry
+from .server import SimPubWebServer
+
+
+def main() -> None:
+    registry = XRNodeRegistry()
+    server = SimPubWebServer(registry)
+    server.serve_forever()
+
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    main()
