@@ -9,34 +9,13 @@
 <body>
     <div class="dashboard">
         <div class="sidebar">
-            <h1>IRXR Dashboard</h1>
+            <h1>IRIS Dashboard</h1>
             <button id="scan-button" class="sidebar-btn">Scan</button>
-            <div id="device-container"></div>
         </div>
         <div class="content">
-            <div id="resultContainer"></div>
+            <div id="device-container"></div>
         </div>
     </div>
-
-    <template id="master-template">
-        <div class="device-panel">
-            <div class="device-header" 
-                 data-name=""
-                 data-node-id="" 
-                 data-ip="" 
-                 data-service-port="" 
-                 data-topic-port="">
-                <span class="device-name">Name</span>
-            </div>
-            <div class="device-info">
-                <span class="device-type">Type</span>
-                <span class="device-ip">IP Address</span>
-            </div>
-            <div class="device-actions">
-                <button class="action-btn interactive-btn">Interactive View</button>
-            </div>
-        </div>
-    </template>
 
     <template id="xr-template">
         <div class="device-panel">
@@ -44,20 +23,27 @@
                  data-name=""
                  data-node-id="" 
                  data-ip="" 
-                 data-service-port="" 
-                 data-topic-port="">
+                 data-port="">
                 <span class="device-name">Name</span>
             </div>
             <div class="device-info">
-                <span class="device-type">Type</span>
-                <span class="device-ip">IP Address</span>
+                <div class="info-item">
+                    <span class="info-label">Type</span>
+                    <span class="info-value device-type">Type</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">IP Address</span>
+                    <span class="info-value device-ip">IP Address</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Node ID</span>
+                    <span class="info-value device-id">Node ID</span>
+                </div>
             </div>
             <div class="device-actions">
                 <div class="action-grid">
-                    <button class="action-btn start-btn">Start QR Alignment</button>
-                    <button class="action-btn stop-btn">Stop QR Alignment</button>
+                    <button class="action-btn start-btn">Teleport Scene</button>
                     <button class="action-btn rename-btn">Rename</button>
-                    <button class="action-btn view-btn">View Capture</button>
                     <button class="action-btn env-occlusion-btn">Environment Occlusion</button>
                     <button class="action-btn log-btn">Log</button>
                 </div>
