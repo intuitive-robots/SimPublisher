@@ -80,7 +80,9 @@ class MetaQuest3(XRDevice):
         device_name: str,
     ) -> None:
         super().__init__(device_name)
-        self.last_motion_controller_data: Optional[MetaQuest3MotionControllerData] = None
+        self.last_motion_controller_data: Optional[
+            MetaQuest3MotionControllerData
+        ] = None
         self.motion_controller_data: Optional[
             MetaQuest3MotionControllerData
         ] = None
@@ -125,7 +127,10 @@ class MetaQuest3(XRDevice):
         if self.motion_controller_data is None:
             return
         for button, callbacks in self.button_press_event.items():
-            if self.motion_controller_data[button] and not self.last_motion_controller_data[button]:
+            if (
+                self.motion_controller_data[button]
+                and not self.last_motion_controller_data[button]
+            ):
                 [callback() for callback in callbacks]
         left_hand = self.motion_controller_data["left"]
         last_left_hand = self.last_motion_controller_data["left"]

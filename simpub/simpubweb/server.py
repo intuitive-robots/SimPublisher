@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import traceback
+from functools import wraps
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 from flask import Flask, jsonify, render_template, request
 from werkzeug.serving import BaseWSGIServer, make_server
@@ -11,8 +12,21 @@ from ..core.utils import XRNodeRegistry
 from .app.utils import read_qr_alignment_data, send_zmq_request
 
 
+_ROUTES: List[Tuple[str, str, Dict[str, object]]] = []
+
+
+def route(rule: str, **options: object):
+    """Decorator for registering SimPubWebServer routes."""
+
+    def decorator(func):
+        _ROUTES.append((func.__name__, rule, dict(options)))
+        return func
+
+    return decorator
+
+
 class SimPubWebServer:
-    """Flask-based web interface backed by an XR node registry."""
+    """Flask server exposing XR node management endpoints."""
 
     def __init__(
         self,
@@ -23,39 +37,36 @@ class SimPubWebServer:
         self.xr_nodes = xr_nodes
         self.host = host
         self.port = port
-        template_dir = Path(__file__).resolve().parent / "app" / "templates"
-        self.app = Flask(__name__, template_folder=str(template_dir))
+        root_dir = Path(__file__).resolve().parent / "app"
+        template_dir = root_dir / "templates"
+        static_dir = root_dir / "static"
+        self.app = Flask(
+            __name__,
+            template_folder=str(template_dir),
+            static_folder=str(static_dir),
+            static_url_path="/static",
+        )
         self.app.config["XR_NODE_REGISTRY"] = xr_nodes
         self._server: Optional[BaseWSGIServer] = None
         self._context = None
         self._started: bool = False
-        self._register_routes()
+
+        for handler_name, rule, options in _ROUTES:
+            self._register_route(handler_name, rule, options)
 
     # ------------------------------------------------------------------
-    # Route registration and handlers
+    # Route handlers
     # ------------------------------------------------------------------
-    def _register_routes(self) -> None:
-        self.app.route("/", methods=["GET"])(self.index)
-        self.app.route("/scan", methods=["GET"])(self.scan)
-        self.app.route("/teleport-scene", methods=["POST"])(
-            self.start_qr_alignment
-        )
-        self.app.route("/stop-qr-alignment", methods=["POST"])(
-            self.stop_qr_alignment
-        )
-        self.app.route("/rename-device", methods=["POST"])(self.rename_device)
-        self.app.route("/env-occlusion", methods=["POST"])(self.env_occlusion)
-
+    @route("/", methods=["GET"])
     def index(self):
         return render_template("index.html")
 
+    @route("/scan", methods=["GET"])
     def scan(self):
         try:
             nodes = []
             for node in self.xr_nodes.registered_infos():
                 node_payload = dict(node)
-                node_payload.setdefault("ip", node.get("ip"))
-                node_payload["servicePort"] = node_payload.get("port")
                 nodes.append(node_payload)
             return jsonify({"status": "success", "nodes": nodes})
         except Exception as exc:
@@ -70,6 +81,7 @@ class SimPubWebServer:
                 500,
             )
 
+    @route("/teleport-scene", methods=["POST"])
     def start_qr_alignment(self):
         payload = request.get_json(silent=True) or {}
         try:
@@ -121,6 +133,7 @@ class SimPubWebServer:
                 500,
             )
 
+    @route("/stop-qr-alignment", methods=["POST"])
     def stop_qr_alignment(self):
         payload = request.get_json(silent=True) or {}
         try:
@@ -150,6 +163,7 @@ class SimPubWebServer:
                 500,
             )
 
+    @route("/rename-device", methods=["POST"])
     def rename_device(self):
         payload = request.get_json(silent=True) or {}
         new_name = payload.get("newName")
@@ -168,9 +182,7 @@ class SimPubWebServer:
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            response = send_zmq_request(
-                ip, service_port, "Rename", request=new_name
-            )
+            response = send_zmq_request(ip, service_port, "Rename", request=new_name)
             return jsonify(
                 {
                     "status": "success",
@@ -190,6 +202,7 @@ class SimPubWebServer:
                 500,
             )
 
+    @route("/env-occlusion", methods=["POST"])
     def env_occlusion(self):
         payload = request.get_json(silent=True) or {}
         try:
@@ -224,21 +237,25 @@ class SimPubWebServer:
     # ------------------------------------------------------------------
     def _extract_connection_info(
         self, payload: dict[str, object]
-    ) -> tuple[str, str, int]:
-        name = payload.get("name")
-        ip = payload.get("ip")
-        service_port = payload.get("servicePort", payload.get("port"))
-        if not name:
-            raise ValueError("Device name is required")
-        if not ip:
-            raise ValueError("IP is required")
-        if service_port is None:
-            raise ValueError("Service port is required")
-        try:
-            port_value = int(service_port)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Invalid service port: {service_port}") from exc
-        return str(name), str(ip), port_value
+    ) -> Tuple[str, str, int]:
+        return _extract_connection_info(payload)
+
+    def _register_route(
+        self,
+        handler_name: str,
+        rule: str,
+        options: Dict[str, object],
+    ) -> None:
+        handler = getattr(self, handler_name)
+
+        @wraps(handler)
+        def bound_handler(*args, **kwargs):
+            return handler(*args, **kwargs)
+
+        self.app.add_url_rule(
+            rule,
+            view_func=bound_handler,
+        )
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
