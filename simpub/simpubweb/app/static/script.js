@@ -55,9 +55,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const ip = deviceHeader.getAttribute('data-ip');
         const port = deviceHeader.getAttribute('data-port');
 
-        // Start
-        clone.querySelector('.start-btn').addEventListener('click', () => {
-            sendPostRequest('/start-qr-alignment', { name, ip, servicePort: port }, 'Start QR Alignment');
+        // Teleport
+        clone.querySelector('.teleport-btn').addEventListener('click', () => {
+            sendPostRequest('/teleport-scene', { name, ip, servicePort: port }, 'Teleport Scene');
         });
 
         // Rename
