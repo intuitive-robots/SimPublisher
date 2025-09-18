@@ -20,7 +20,7 @@ from .utils import (
     XRNodeInfo,
     XRNodeRegistry,
 )
-from ..simpubweb.server import SimPubWebServer
+from ..simpubweb.simpub_web_server import SimPubWebServer
 
 
 # NOTE: asyncio.loop.sock_recvfrom can only be used after Python 3.11
@@ -109,9 +109,7 @@ class XRNodeManager:
             self.web_server_future = self.executor.submit(
                 self.web_server.serve_forever
             )
-            logger.info(
-                "Web dashboard is running at http://127.0.0.1:5000"
-            )
+            logger.info("Web dashboard is running at http://127.0.0.1:5000")
         except Exception as e:
             logger.error(
                 f"Failed to start web dashboard on 127.0.0.1:5000: {e}"
@@ -267,8 +265,8 @@ class XRNodeManager:
             node_info["ip"] = node_ip
             self.xr_nodes.update_info(node_id, node_info)
             logger.info(
-                f"Registering node info: {node_info['name']}"
-                f"/{node_id} at {node_ip}:{service_port}"
+                f"Node: {node_info['name']}/{node_id} "
+                f"at {node_ip}:{service_port} registered successfully"
             )
         except Exception as e:
             logger.error(f"Error in async_register_node_info: {e}")
@@ -287,9 +285,7 @@ class XRNodeManager:
             await async_sleep(1)
 
 
-def init_xr_node_manager(
-    ip_addr: Optional[str] = None
-) -> XRNodeManager:
+def init_xr_node_manager(ip_addr: Optional[str] = None) -> XRNodeManager:
     if XRNodeManager.manager is not None:
         if ip_addr is None:
             return XRNodeManager.manager

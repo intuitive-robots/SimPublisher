@@ -97,7 +97,9 @@ class XRNodeRegistry:
         return self._records.values()
 
     def registered_infos(self) -> List[XRNodeInfo]:
-        return [record.info for record in self._records.values() if record.info]
+        return [
+            record.info for record in self._records.values() if record.info
+        ]
 
     def __contains__(self, node_id: str) -> bool:
         return node_id in self._records
@@ -119,7 +121,9 @@ def request_log(func: Callable) -> Callable:
         if args and isinstance(args[0], list):
             # First argument should be messages: List[bytes]
             messages = args[0]
-            total_bytes = sum(len(msg) for msg in messages if isinstance(msg, bytes))
+            total_bytes = sum(
+                len(msg) for msg in messages if isinstance(msg, bytes)
+            )
             input_size_kb = total_bytes / 1024
             # Extract request name from first message
             if messages and isinstance(messages[0], bytes):
@@ -193,7 +197,7 @@ async def send_string_request_async(
     )
 
 
-def send_request_with_addr(
+def send_raw_request_with_addr(
     messages: List[bytes], addr: str, timeout: int = 2
 ) -> Optional[str]:
     """Send a REQ to an address with timeout to avoid blocking forever."""
@@ -219,6 +223,14 @@ def send_request_with_addr(
     finally:
         req_socket.close()
         return result
+
+
+def send_request_with_addr(
+    request_name: str, request: str, addr: str, timeout: int = 2
+) -> Optional[str]:
+    return send_raw_request_with_addr(
+        [request_name.encode(), request.encode()], addr, timeout
+    )
 
 
 def create_udp_socket() -> socket.socket:
