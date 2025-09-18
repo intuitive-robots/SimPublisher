@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ..core.utils import XRNodeRegistry
-from .server import SimPubWebServer
+from .simpub_web_server import SimPubWebServer
 
 
 def main() -> None:

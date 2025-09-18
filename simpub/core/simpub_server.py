@@ -73,23 +73,29 @@ class SimPublisher(ServerBase):
         )
 
     async def search_xr_device(self, node_manager: XRNodeManager):
+        # TODO: If Unity restarts too quickly (under 1 second),
+        # TODO: the scene may not be fully constructed when
+        # TODO: SimPublisher attempts to send it.
+        # TODO: In such cases, this function may fail
+        # TODO: and require a SimPublisher restart.
         while node_manager.running:
             for xr_node_id, node_entry in node_manager.xr_nodes.items():
-                xr_info = node_entry.info
-                if xr_info is None:
-                    continue
-                if xr_node_id in self.xr_device_set:
-                    continue
                 try:
+                    xr_info = node_entry.info
+                    if xr_info is None:
+                        continue
+                    if xr_node_id in self.xr_device_set:
+                        continue
                     self.xr_device_set.add(xr_node_id)
                     await self.send_scene_to_xr_device(xr_info)
                 except Exception as e:
                     logger.error(f"Error when sending scene to xr device: {e}")
                     traceback.print_exc()
-            await asyncio_sleep(0.1)
+            await asyncio_sleep(0.5)
 
     @func_timing
     async def send_scene_to_xr_device(self, xr_info: XRNodeInfo):
+        logger.info(f"Sending scene to xr device: {xr_info}")
         await send_request_with_addr_async(
             [
                 "DeleteSimScene".encode(),

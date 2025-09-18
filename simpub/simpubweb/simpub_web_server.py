@@ -10,6 +10,7 @@ from werkzeug.serving import BaseWSGIServer, make_server
 
 from ..core.utils import XRNodeRegistry
 from .app.utils import read_qr_alignment_data, send_zmq_request
+from ..core.utils import send_request_with_addr
 
 
 _ROUTES: List[Tuple[str, str, Dict[str, object]]] = []
@@ -82,7 +83,7 @@ class SimPubWebServer:
             )
 
     @route("/teleport-scene", methods=["POST"])
-    def start_qr_alignment(self):
+    def teleport_scene(self):
         payload = request.get_json(silent=True) or {}
         try:
             name, ip, service_port = self._extract_connection_info(payload)
@@ -133,36 +134,6 @@ class SimPubWebServer:
                 500,
             )
 
-    @route("/stop-qr-alignment", methods=["POST"])
-    def stop_qr_alignment(self):
-        payload = request.get_json(silent=True) or {}
-        try:
-            name, ip, service_port = self._extract_connection_info(payload)
-        except ValueError as exc:
-            return jsonify({"status": "error", "message": str(exc)}), 400
-        try:
-            response = send_zmq_request(
-                ip, service_port, f"{name}/StopQRAlignment", {}
-            )
-            return jsonify(
-                {
-                    "status": "success",
-                    "message": "Stopped QR Alignment",
-                    "response": response,
-                }
-            )
-        except Exception as exc:
-            traceback.print_exc()
-            return (
-                jsonify(
-                    {
-                        "status": "error",
-                        "message": f"Error during Stop QR Alignment: {exc}",
-                    }
-                ),
-                500,
-            )
-
     @route("/rename-device", methods=["POST"])
     def rename_device(self):
         payload = request.get_json(silent=True) or {}
@@ -182,7 +153,9 @@ class SimPubWebServer:
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            response = send_zmq_request(ip, service_port, "Rename", request=new_name)
+            response = send_request_with_addr(
+                "Rename", new_name, f"tcp://{ip}:{service_port}"
+            )
             return jsonify(
                 {
                     "status": "success",
@@ -238,7 +211,12 @@ class SimPubWebServer:
     def _extract_connection_info(
         self, payload: dict[str, object]
     ) -> Tuple[str, str, int]:
-        return _extract_connection_info(payload)
+        if not all(k in payload for k in ("name", "ip", "servicePort")):
+            raise ValueError("Missing required fields: name, ip, servicePort")
+        name = str(payload["name"])
+        ip = str(payload["ip"])
+        service_port = int(str(payload["servicePort"]))
+        return (name, ip, service_port)
 
     def _register_route(
         self,
@@ -254,7 +232,10 @@ class SimPubWebServer:
 
         self.app.add_url_rule(
             rule,
+            endpoint=handler_name,
             view_func=bound_handler,
+            provide_automatic_options=False,
+            **options,
         )
 
     # ------------------------------------------------------------------
