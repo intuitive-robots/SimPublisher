@@ -85,40 +85,29 @@ class SimPubWebServer:
     @route("/teleport-scene", methods=["POST"])
     def teleport_scene(self):
         payload = request.get_json(silent=True) or {}
+        # new_name = payload.get("newName")
+        # if not new_name:
+        #     return (
+        #         jsonify(
+        #             {
+        #                 "status": "error",
+        #                 "message": "New name is required",
+        #             }
+        #         ),
+        #         400,
+        #     )
         try:
-            name, ip, service_port = self._extract_connection_info(payload)
+            _, ip, service_port = self._extract_connection_info(payload)
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            qr_data = read_qr_alignment_data("QRAlignment.yaml")
-        except FileNotFoundError:
-            return (
-                jsonify(
-                    {
-                        "status": "error",
-                        "message": "QRAlignment.yaml file not found",
-                    }
-                ),
-                500,
-            )
-        except Exception as exc:
-            return (
-                jsonify(
-                    {
-                        "status": "error",
-                        "message": f"Error reading YAML: {exc}",
-                    }
-                ),
-                500,
-            )
-        try:
-            response = send_zmq_request(
-                ip, service_port, f"{name}/StartQRAlignment", qr_data
+            response = send_request_with_addr(
+                "ToggleGrab", "", f"tcp://{ip}:{service_port}"
             )
             return jsonify(
                 {
                     "status": "success",
-                    "message": "QR Calibration successful",
+                    "message": "Rename Device",
                     "response": response,
                 }
             )
@@ -128,7 +117,7 @@ class SimPubWebServer:
                 jsonify(
                     {
                         "status": "error",
-                        "message": f"Error during QR Calibration: {exc}",
+                        "message": f"Error during rename device: {exc}",
                     }
                 ),
                 500,
