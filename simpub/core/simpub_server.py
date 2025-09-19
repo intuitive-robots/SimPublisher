@@ -95,7 +95,7 @@ class SimPublisher(ServerBase):
 
     @func_timing
     async def send_scene_to_xr_device(self, xr_info: XRNodeInfo):
-        logger.info(f"Sending scene to xr device: {xr_info}")
+        logger.info(f"Sending scene to xr device: {xr_info['name']}")
         await send_request_with_addr_async(
             [
                 "DeleteSimScene".encode(),
