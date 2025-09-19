@@ -37,11 +37,63 @@ class IRISMSG(enum.Enum):
 class XRNodeInfo(TypedDict):
     name: str
     nodeID: str  # hash code since bytes is not JSON serializable
+    nodeInfoID: str  # hash code since bytes is not JSON serializable
     ip: IPAddress
     type: str
     port: int
     serviceList: List[ServiceName]
     topicDict: Dict[TopicName, int]
+
+
+def _format_services(services):
+    if not services:
+        return "    (none)"
+    return "\n".join(f"    • {s}" for s in sorted(services))
+
+
+def _format_topics(topics):
+    if not topics:
+        return "    (none)"
+    # sort by topic name
+    return "\n".join(
+        f"    • {k}: {v}"
+        for k, v in sorted(topics.items(), key=lambda kv: kv[0])
+    )
+
+
+def _box(text: str, title: str = "") -> str:
+    # simple unicode box with optional title
+    lines = text.splitlines()
+    inner_width = max(len(line) for line in lines) if lines else 0
+    if title:
+        header = (
+            f"┌─ {title} " + "─" * max(0, inner_width - len(title) - 1) + "┐"
+        )
+    else:
+        header = "┌" + "─" * inner_width + "┐"
+    body = "\n".join("│" + line.ljust(inner_width) + "│" for line in lines)
+    footer = "└" + "─" * inner_width + "┘"
+    return f"{header}\n{body}\n{footer}"
+
+
+def print_node_info(node_info: XRNodeInfo):
+    name = node_info.get("name", "?")
+    nodeID = node_info.get("nodeID", "?")
+    ip = node_info.get("ip", "?")
+    port = node_info.get("port", "?")
+    svcs = node_info.get("serviceList", []) or node_info.get("services", [])
+    topics = node_info.get("topicDict", {}) or node_info.get("topics", {})
+
+    content = (
+        f"Node     : {name}\n"
+        f"Node ID  : {nodeID}\n"
+        f"Address  : {ip}:{port}\n"
+        f"Services : {len(svcs)}\n"
+        f"{_format_services(svcs)}\n"
+        f"Topics   : {len(topics)}\n"
+        f"{_format_topics(topics)}"
+    )
+    logger.info("\n" + _box(content, title="Node Info"))
 
 
 @dataclass

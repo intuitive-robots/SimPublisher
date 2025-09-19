@@ -30,6 +30,7 @@ class MulticastDiscoveryProtocol(asyncio.DatagramProtocol):
 
     def __init__(self, node_manager: XRNodeManager):
         self.node_manager = node_manager
+        self.registry = node_manager.xr_nodes
         self.transport: Optional[asyncio.DatagramTransport] = None
 
     def connection_made(self, transport: asyncio.DatagramTransport):
@@ -40,18 +41,25 @@ class MulticastDiscoveryProtocol(asyncio.DatagramProtocol):
         """Handle incoming multicast discovery messages"""
         try:
             node_ip, message = addr[0], data.decode("utf-8")
-            node_id, service_port = message[:36], message[36:]
-            registry = self.node_manager.xr_nodes
-            entry = registry.get(node_id)
-            if entry is None or entry.info is None:
+            node_id, node_info_id, service_port = (
+                message[:36],
+                message[36:72],
+                message[72:],
+            )
+            entry = self.registry.get(node_id)
+            if (
+                entry is None
+                or entry.info is None
+                or entry.info["nodeInfoID"] != node_info_id
+            ):
                 # Schedule the async registration when node info is unknown
                 self.node_manager.submit_asyncio_task(
-                    self.node_manager.async_register_node_info,
+                    self.node_manager.register_node_info_async,
                     node_id,
                     node_ip,
                     service_port,
                 )
-            registry.touch(node_id)
+            self.registry.touch(node_id)
         except Exception as e:
             logger.error(f"Error processing datagram: {e}")
             traceback.print_exc()
@@ -249,7 +257,7 @@ class XRNodeManager:
             sock.close()
             logger.info("Multicast discovery loop stopped")
 
-    async def async_register_node_info(
+    async def register_node_info_async(
         self, node_id: str, node_ip: str, service_port: str
     ) -> None:
         try:
@@ -269,7 +277,7 @@ class XRNodeManager:
                 f"at {node_ip}:{service_port} registered successfully"
             )
         except Exception as e:
-            logger.error(f"Error in async_register_node_info: {e}")
+            logger.error(f"Error in register_node_info: {e}")
             traceback.print_exc()
 
     async def check_node_heartbeat(self):
