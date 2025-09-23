@@ -160,7 +160,7 @@ if __name__ == "__main__":
     # initialize device
     if args.device == "meta_quest3":
         virtual_controller = MQ3CartController(
-            MetaQuest3(device_name="IRLMQ3-1")
+            MetaQuest3(device_name="UnityEditor")
         )
     elif args.device == "real_robot":
         virtual_controller = RealRobotJointPDController("141.3.53.152")

@@ -8,7 +8,7 @@ from asyncio import sleep as async_sleep
 from ..core.log import logger
 from ..core.node_manager import init_xr_node_manager, XRNodeInfo
 from ..core.net_component import Subscriber
-from ..core.utils import AsyncSocket, send_request_async
+from ..core.utils import AsyncSocket, send_request_async, print_node_info
 
 
 class InputData:
@@ -46,7 +46,10 @@ class XRDevice:
     async def checking_connection(self):
         logger.info(f"checking the connection to {self.device_name}")
         while self.running:
-            for node_info in self.manager.xr_nodes_info.values():
+            for entry in self.manager.xr_nodes.values():
+                node_info = entry.info
+                if node_info is None:
+                    continue
                 if node_info["name"] != self.device_name:
                     continue
                 if node_info["nodeID"] == self.device_id:
@@ -57,6 +60,7 @@ class XRDevice:
                 self.device_id = node_info["nodeID"]
                 self.connected = True
                 self.subscribe_to_client(node_info)
+                print_node_info(node_info)
             await async_sleep(0.5)
         # if self.device_info is None:
         #     return
