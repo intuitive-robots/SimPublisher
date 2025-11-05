@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from json import dumps
 from typing import Dict
 
 import yaml
 import zmq
-from json import dumps
 
 
 def read_qr_alignment_data(filepath: str) -> dict:

@@ -8,6 +8,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import md5
 
+# support for IsaacSim versions < 4.5
+from importlib.metadata import version
+
 import numpy as np
 import numpy.typing as npt
 import omni
@@ -21,14 +24,11 @@ from tabulate import tabulate
 from usdrt import Usd as RtUsd
 from usdrt import UsdGeom as RtGeom
 
-# support for IsaacSim versions < 4.5
-from importlib.metadata import version
-
 if version("isaacsim") < "4.5":
     from omni.isaac.core.prims import XFormPrim as SingleXFormPrim
     from omni.isaac.core.utils.rotations import (
-        quat_to_rot_matrix,
         euler_angles_to_quat,
+        quat_to_rot_matrix,
     )
 else:
     from isaacsim.core.prims import SingleXFormPrim
@@ -713,9 +713,11 @@ class IsaacSimStageParser:
                                 index_buf=indices,
                                 uv_buf=uvs,
                             ),
-                            "material": mat_info.sim_mat
-                            if mat_info is not None
-                            else None,
+                            "material": (
+                                mat_info.sim_mat
+                                if mat_info is not None
+                                else None
+                            ),
                         }
                     )
 

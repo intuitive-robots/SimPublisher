@@ -8,10 +8,8 @@ from typing import Dict, List, Optional, Tuple
 from flask import Flask, jsonify, render_template, request
 from werkzeug.serving import BaseWSGIServer, make_server
 
-from ..core.utils import XRNodeRegistry
+from ..core.utils import XRNodeRegistry, send_request_with_addr
 from .app.utils import read_qr_alignment_data, send_zmq_request
-from ..core.utils import send_request_with_addr
-
 
 _ROUTES: List[Tuple[str, str, Dict[str, object]]] = []
 

@@ -1,8 +1,9 @@
 import logging
-from colorama import init, Fore
-from functools import wraps
 import time
-from typing import Callable, Any
+from functools import wraps
+from typing import Any, Callable
+
+from colorama import Fore, init
 
 init(autoreset=True)
 

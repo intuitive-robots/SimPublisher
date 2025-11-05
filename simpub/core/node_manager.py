@@ -1,26 +1,28 @@
 from __future__ import annotations
-import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, Callable
+
 import asyncio
-from asyncio import sleep as async_sleep
+import concurrent.futures
 import socket
 import struct
+import time
+import traceback
+from asyncio import sleep as async_sleep
+from concurrent.futures import ThreadPoolExecutor
+from json import loads
+from typing import Callable, Optional
+
 import zmq
 import zmq.asyncio
-import time
-from json import loads
-import traceback
 
+from ..simpubweb.simpub_web_server import SimPubWebServer
 from .log import logger
 from .utils import (
-    send_string_request_async,
-    MULTICAST_GRP,
     DISCOVERY_PORT,
+    MULTICAST_GRP,
     XRNodeInfo,
     XRNodeRegistry,
+    send_string_request_async,
 )
-from ..simpubweb.simpub_web_server import SimPubWebServer
 
 
 # NOTE: asyncio.loop.sock_recvfrom can only be used after Python 3.11
