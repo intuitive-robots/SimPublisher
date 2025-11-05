@@ -1,23 +1,24 @@
-from typing import Optional, TypedDict, Callable, Dict, List
-import json
 import enum
-
-# from asyncio import sleep as async_sleep
+import json
+from typing import Callable, Dict, List, Optional, TypedDict
 
 from simpub.core.net_component import Subscriber
+
 from .xr_device import XRDevice
 
 
-class MetaQuest3MotionController(TypedDict):
-    pos: List[float]
-    rot: List[float]
-    index_trigger: bool
-    hand_trigger: bool
+class MetaQuest3MotionControllerHand(TypedDict):
+    pos: List[float]  # Position [x, y, z]
+    rot: List[float]  # Rotation [x, y, z, w]
+    vel: List[float]  # Linear velocity [vx, vy, vz]
+    ang_vel: List[float]  # Angular velocity [wx, wy, wz]
+    index_trigger: bool  # Index trigger (front trigger)
+    hand_trigger: bool  # Hand trigger (grip)
 
 
 class MetaQuest3MotionControllerData(TypedDict):
-    left: MetaQuest3MotionController
-    right: MetaQuest3MotionController
+    left: MetaQuest3MotionControllerHand
+    right: MetaQuest3MotionControllerHand
     A: bool
     B: bool
     X: bool
@@ -181,7 +182,7 @@ class MetaQuest3(XRDevice):
         return self.motion_controller_data
 
     def update_hand_tracking(self, data: str):
-        self.hand_tracking_data: MetaQuest3HandTrackingData = json.loads(data)
+        self.hand_tracking_data = json.loads(data)
 
     def get_hand_tracking_data(self) -> Optional[MetaQuest3HandTrackingData]:
         return self.hand_tracking_data

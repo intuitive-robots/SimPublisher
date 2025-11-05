@@ -1,4 +1,5 @@
 from typing import List
+
 from gym.envs.mujoco.mujoco_env import MujocoEnv
 
 from .mj_publisher import MujocoPublisher

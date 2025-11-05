@@ -1,14 +1,16 @@
 from __future__ import annotations
-from dataclasses import dataclass, field, fields
-from typing import Optional, Tuple, List, Dict
-from enum import Enum
-import numpy as np
-import json
-import trimesh
-import io
-from hashlib import md5
-import cv2
+
 import abc
+import io
+import json
+from dataclasses import dataclass, field, fields
+from enum import Enum
+from hashlib import md5
+from typing import Dict, List, Optional, Tuple
+
+import cv2
+import numpy as np
+import trimesh
 
 
 class VisualType(str, Enum):

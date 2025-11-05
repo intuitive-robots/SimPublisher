@@ -65,8 +65,8 @@ pip install -e .
 1. Deploy the Unity application to your headset with the device name.
 Please refer to the [website](https://github.com/intuitive-robots/IRXR-Unity).
 
-2. Connect your simulation PC and headset to the same subnet. 
-For example, if your simulation PC address is `192.168.0.152`, 
+2. Connect your simulation PC and headset to the same subnet.
+For example, if your simulation PC address is `192.168.0.152`,
 the headset address should share the same prefix, such as `192.168.0.142` or `192.168.0.73`.
 We recommend using a single WiFi router for PC-headset communication to ensure optimal connectivity.
 Additionally, using a wired cable to connect your PC can significantly reduce latency.

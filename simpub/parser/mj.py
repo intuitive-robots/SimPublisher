@@ -1,11 +1,19 @@
+from typing import Callable, Dict, List
+
 import mujoco
 import numpy as np
-from typing import List, Dict, Callable
 
-from .simdata import SimObject, SimScene, SimTransform, SimVisual
-from .simdata import SimMaterial, SimTexture, SimMesh
-from .simdata import VisualType
 from ..core.log import logger
+from .simdata import (
+    SimMaterial,
+    SimMesh,
+    SimObject,
+    SimScene,
+    SimTexture,
+    SimTransform,
+    SimVisual,
+    VisualType,
+)
 
 
 def plane2unity_scale(scale: List[float]) -> List[float]:

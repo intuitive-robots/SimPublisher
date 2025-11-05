@@ -3,6 +3,7 @@ from collections.abc import Callable
 import numpy as np
 from isaaclab.devices import DeviceBase
 from isaacsim.core.utils.rotations import quat_to_euler_angles
+
 from simpub.xr_device.meta_quest3 import MetaQuest3
 
 

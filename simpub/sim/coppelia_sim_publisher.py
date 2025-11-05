@@ -1,19 +1,22 @@
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
-
-from ..parser.coppelia_sim import CoppeliasSimParser
-from ..parser.simdata import SimObject, SimScene, SimTransform, SimVisual
-from ..parser.simdata import SimMaterial, SimTexture, SimMesh
-from ..parser.simdata import VisualType
-from ..core.log import logger
-
-
 from mujoco import mj_name2id, mjtObj
-from typing import List, Dict, Tuple, Optional
-import numpy as np
 
+from ..core.log import logger
 from ..core.simpub_server import SimPublisher
+from ..parser.coppelia_sim import CoppeliasSimParser
 from ..parser.mj import MjModelParser
-from ..parser.simdata import SimObject
+from ..parser.simdata import (
+    SimMaterial,
+    SimMesh,
+    SimObject,
+    SimScene,
+    SimTexture,
+    SimTransform,
+    SimVisual,
+    VisualType,
+)
 
 
 class CoppeliaSimPublisher(SimPublisher):
