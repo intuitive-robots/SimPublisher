@@ -1,18 +1,18 @@
-from typing import Tuple, List, Union, Dict
-import genesis as gs
-from genesis.engine.entities import RigidEntity
-from genesis.engine.entities.rigid_entity import RigidLink, RigidGeom
-import numpy as np
+from typing import Dict, List, Tuple, Union
 
+import genesis as gs
+import numpy as np
+from genesis.engine.entities import RigidEntity
+from genesis.engine.entities.rigid_entity import RigidGeom, RigidLink
 
 from .simdata import (
-    SimScene,
+    SimMaterial,
+    SimMesh,
     SimObject,
+    SimScene,
     SimTransform,
     SimVisual,
     VisualType,
-    SimMaterial,
-    SimMesh,
 )
 
 

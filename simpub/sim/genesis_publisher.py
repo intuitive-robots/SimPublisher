@@ -1,15 +1,15 @@
-from typing import List, Optional, Dict, Tuple, Set
+from typing import Dict, List, Optional, Set, Tuple
+
 import numpy as np
 import taichi as ti
-
-from genesis.engine.scene import Scene as GSScene
 from genesis.engine.entities import RigidEntity
-from genesis.engine.entities.rigid_entity import RigidLink, RigidGeom
+from genesis.engine.entities.rigid_entity import RigidGeom, RigidLink
+from genesis.engine.scene import Scene as GSScene
 
-from ..parser.gs import GenesisSceneParser, gs2unity_pos, gs2unity_quat
+from ..core.node_manager import StrBytesService, Streamer, XRNodeManager
 from ..core.simpub_server import SimPublisher
-from ..core.node_manager import XRNodeManager, Streamer, StrBytesService
-from ..core.utils import send_request, HashIdentifier
+from ..core.utils import HashIdentifier, send_request
+from ..parser.gs import GenesisSceneParser, gs2unity_pos, gs2unity_quat
 
 
 @ti.data_oriented
