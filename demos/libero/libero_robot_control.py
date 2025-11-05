@@ -54,6 +54,28 @@ class MQ3CartController:
             self.last_state = (hand["pos"], hand["rot"])
         return action
 
+    def get_vel_action(self, obs):
+        input_data = self.meta_quest3.get_controller_data()
+        action = np.zeros(7)
+        if input_data is None:
+            return action
+        hand = input_data["right"]
+        if hand["hand_trigger"]:
+            action[0:3] = np.array(hand["vel"])
+            action[3:6] = np.array(hand["ang_vel"]) / 10
+            if hand["index_trigger"]:
+                action[-1] = 10
+            else:
+                action[-1] = -10
+            # print(action)
+        if not hand["hand_trigger"]:
+            self.last_state = None
+        else:
+            self.last_state = (hand["pos"], hand["rot"])
+        return action
+
+
+
 
 class RealRobotJointPDController:
     def __init__(self, real_robot_ip):
@@ -160,7 +182,7 @@ if __name__ == "__main__":
     # initialize device
     if args.device == "meta_quest3":
         virtual_controller = MQ3CartController(
-            MetaQuest3(device_name="UnityEditor")
+            MetaQuest3(device_name="IRL-MQ3-1")
         )
     elif args.device == "real_robot":
         virtual_controller = RealRobotJointPDController("141.3.53.152")
