@@ -41,15 +41,21 @@ def load_pose_4x4(path: str | None) -> np.ndarray | None:
     try:
         if p.suffix.lower() == ".npz":
             data = np.load(p)
-            for key in ("T_wc", "pose", "T", "matrix", "M"):
-                if key in data and data[key].shape == (4, 4):
-                    return data[key].astype(np.float32)
 
-            if "R" in data and "t" in data:
-                T = np.eye(4, dtype=np.float32)
-                T[:3, :3] = data["R"].reshape(3, 3)
-                T[:3, 3] = data["t"].reshape(3)
+            if "cam_to_world" in data and data["cam_to_world"].shape == (4, 4):
+                T = data["cam_to_world"].astype(np.float32)
+                print(f"[Pose] {p.name}: loaded cam_to_world:\n{T}")
                 return T
+        
+            # for key in ("T_wc", "pose", "T", "matrix", "M"):
+            #     if key in data and data[key].shape == (4, 4):
+            #         return data[key].astype(np.float32)
+
+            # if "R" in data and "t" in data:
+            #     T = np.eye(4, dtype=np.float32)
+            #     T[:3, :3] = data["R"].reshape(3, 3)
+            #     T[:3, 3] = data["t"].reshape(3)
+            #     return T
 
             print(f"[Pose] {p.name}: no 4x4 key (expected T_wc/pose/T/matrix/M)")
             return None
@@ -73,16 +79,16 @@ def pose_to_unity_coords(T_cam_to_cal: np.ndarray | None) -> np.ndarray | None:
     if T_cam_to_cal is None:
         return None
 
-    axis_swap = np.array(
+    S_Unity = np.array(
         [
             [1, 0, 0, 0],
+            [0, -1, 0, 0],
             [0, 0, 1, 0],
-            [0, 1, 0, 0],
             [0, 0, 0, 1],
         ],
         dtype=np.float32,
     )
-    return (axis_swap @ T_cam_to_cal).astype(np.float32)
+    return (S_Unity @ T_cam_to_cal).astype(np.float32)
 
 
 # ================= Intrinsics helpers ==================
@@ -230,9 +236,9 @@ class CameraPipeline(threading.Thread):
             p = Path(cam_cfg["pose_file"])
             if not p.is_absolute():
                 p = pose_dir / p
-            pose_raw = load_pose_4x4(str(p))
+            pose_raw = load_pose_4x4(str(p)) # give path to load_pose_4x4 and get back 4x4 numpy array
 
-        self.pose = pose_to_unity_coords(pose_raw)
+        self.pose = pose_to_unity_coords(pose_raw) # convert the 4x4 numpy array to unity coords
         if self.pose is None:
             self.pose = np.eye(4, dtype=np.float32)
 
