@@ -39,7 +39,7 @@ def run_hand_simulation():
         data = mj.MjData(model)
         net_manager = init_xr_node_manager("192.168.0.134")
         net_manager.start_discover_node_loop()
-        mq3 = MetaQuest3("UnityNode")
+        mq3 = MetaQuest3("IRL-MQ3-1")
         mq3.wait_for_connection()
         response = mq3.request("ToggleHandTracking", "")
         print(response)

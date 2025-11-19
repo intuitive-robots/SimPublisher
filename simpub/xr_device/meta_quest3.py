@@ -12,8 +12,8 @@ class MetaQuest3MotionControllerHand(TypedDict):
     rot: List[float]  # Rotation [x, y, z, w]
     vel: List[float]  # Linear velocity [vx, vy, vz]
     ang_vel: List[float]  # Angular velocity [wx, wy, wz]
-    index_trigger: bool  # Index trigger (front trigger)
-    hand_trigger: bool  # Hand trigger (grip)
+    index_trigger: float  # Index trigger (front trigger)
+    hand_trigger: float  # Hand trigger (grip)
 
 
 class MetaQuest3MotionControllerData(TypedDict):
