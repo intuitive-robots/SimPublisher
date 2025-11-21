@@ -8,7 +8,7 @@ from enum import Enum
 from hashlib import md5
 from typing import Dict, List, Optional, Tuple
 
-import cv2
+from PIL import Image
 import numpy as np
 import trimesh
 
@@ -269,12 +269,16 @@ class SimTexture(SimAsset):
         new_width = int(width // scale)
         new_height = int(height // scale)
         # Reshape and resize the texture data
-        compressed_image = cv2.resize(
-            image.reshape(height, width, -1),
-            (new_width, new_height),
-            interpolation=cv2.INTER_LINEAR,
-            # interpolation=cv2.INTER_AREA if scale > 2 else cv2.INTER_LINEAR,
-        )
+        # compressed_image = cv2.resize(
+        #     image.reshape(height, width, -1),
+        #     (new_width, new_height),
+        #     interpolation=cv2.INTER_LINEAR,
+        #     # interpolation=cv2.INTER_AREA if scale > 2 else cv2.INTER_LINEAR,
+        # )
+        img = image.reshape(height, width, -1)
+        pil_img = Image.fromarray(img)
+        pil_resized = pil_img.resize((new_width, new_height), Image.BILINEAR)
+        compressed_image = np.asarray(pil_resized)
         return compressed_image, new_height, new_width
 
     @staticmethod

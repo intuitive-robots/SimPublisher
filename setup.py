@@ -2,14 +2,15 @@ from setuptools import setup
 
 setup(
     name="simpub",
-    version="2.1.0",
+    version="2.2.0",
     install_requires=[
         "zmq",
         "numpy",
-        "scipy",
         "colorama",
-        "opencv-python",
         "trimesh",
+        "Pillow",
+        "flask",
+        "pyyaml",
     ],
     include_package_data=True,
     packages=["simpub", "simpub.parser", "simpub.sim"],

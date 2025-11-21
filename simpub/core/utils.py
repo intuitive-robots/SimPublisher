@@ -215,7 +215,7 @@ def request_log(func: Callable) -> Callable:
     return wrapper
 
 
-@request_log
+# @request_log
 async def send_request_async(
     messages: List[str], req_socket: AsyncSocket, timeout: int = 2
 ) -> Optional[bytes]:
