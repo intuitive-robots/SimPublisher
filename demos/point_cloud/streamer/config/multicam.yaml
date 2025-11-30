@@ -5,10 +5,10 @@ global:
   align_to_color: true
   preview: false
   pose_dir: ./poses
-  depth_min_mm: 400
-  depth_max_mm: 3000
-  roi_xywh: [160, 90, 960, 540]
-  downsample_stride: 4
+  depth_min_mm: 300
+  depth_max_mm: 2000
+  roi_xywh: [200, 120, 960, 540]
+  downsample_stride: 2
   median_ksize: 2
 
 cameras:
@@ -26,43 +26,46 @@ cameras:
   #   color_res: [1280, 720]
   #   pose_file: "C:/Users/yadhu/PointsPublisher/poses/cam2_Twc.txt"
 
-  # - id: 1
-  #   type: oak                 
-  #   mxid: "184430102111900E00"
-  #   port: 5555
-  #   color_res: [640, 360]
-  #   pose_file: "C:/Users/yadhu/PointsPublisher/poses/extrinsics_184430102111900E00_T_wc.txt"
+  - id: 1
+    type: oak                 
+    mxid: "1844301051D9B50F00"
+    port: 5555
+    color_res: [1280, 720]
+    pose_file: "extrinsics_1844301051D9B50F00.npz"
+    # align_file: "point_cloud_alignment_1844301051D9B50F00.npy"
 
-  # - id: 2
-  #   type: oak
-  #   mxid: "19443010B11CEF1200"
-  #   port: 5556
-  #   color_res: [640, 360]
-  #   pose_file: "C:/Users/yadhu/PointsPublisher/poses/extrinsics_19443010B11CEF1200_T_wc.txt"
+  - id: 2
+    type: oak
+    mxid: "184430102111900E00"
+    port: 5556
+    color_res: [1280, 720]
+    pose_file: "extrinsics_184430102111900E00.npz"
+    align_file: "point_cloud_alignment_184430102111900E00.npy"
+    
 
-    - id: 1
-      type: dummy
-      port: 5555
-      color_res: [1280, 720]
-      fov_deg: 70
-      pattern: checker
-      z_mm: 1500
-      amp_mm: 300
-      period_s: 5.0
-      # Optional test pose (push left)
-      pose_file: "cam1_Twc.txt"
+    # - id: 1
+    #   type: dummy
+    #   port: 5555
+    #   color_res: [1280, 720]
+    #   fov_deg: 70
+    #   pattern: checker
+    #   z_mm: 1500
+    #   amp_mm: 300
+    #   period_s: 5.0
+    #   # Optional test pose (push left)
+    #   pose_file: "cam1_Twc.txt"
 
-    - id: 2
-      type: dummy
-      port: 5556
-      color_res: [1280, 720]
-      fov_deg: 70
-      pattern: checker
-      z_mm: 1700
-      amp_mm: 200
-      period_s: 6.0
-      # Optional test pose (push right)
-      pose_file: "cam2_Twc.txt"
+    # - id: 2
+    #   type: dummy
+    #   port: 5556
+    #   color_res: [1280, 720]
+    #   fov_deg: 70
+    #   pattern: checker
+    #   z_mm: 1700
+    #   amp_mm: 200
+    #   period_s: 6.0
+    #   # Optional test pose (push right)
+    #   pose_file: "cam2_Twc.txt"
 
     # - id: 3
     #   type: dummy

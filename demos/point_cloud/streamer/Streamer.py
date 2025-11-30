@@ -27,50 +27,70 @@ from Source import (
     LuxonisCameraStrategy,
     DummyCameraStrategy,
 )
-
 # ==================== Pose loading =====================
-def load_pose_4x4(path: str | None) -> np.ndarray | None:
-    if not path:
+def load_pose_4x4(pose_path: str | None, align_path: str | None = None) -> np.ndarray | None:
+    """
+    Load a 4x4 cam_to_world matrix from pose_path.
+    If align_path is given and exists, apply:
+
+        T_final = A_align @ T_base
+    """
+    if not pose_path:
         return None
 
-    p = Path(path)
+    p = Path(pose_path)
     if not p.exists():
         print(f"[Pose] Not found: {p}")
         return None
 
+    T = None
+
     try:
+        # ---- 1) Load base cam_to_world into T ----
         if p.suffix.lower() == ".npz":
             data = np.load(p)
-
             if "cam_to_world" in data and data["cam_to_world"].shape == (4, 4):
                 T = data["cam_to_world"].astype(np.float32)
-                print(f"[Pose] {p.name}: loaded cam_to_world:\n{T}")
-                return T
-        
-            # for key in ("T_wc", "pose", "T", "matrix", "M"):
-            #     if key in data and data[key].shape == (4, 4):
-            #         return data[key].astype(np.float32)
+                print(f"[Pose] {p.name}: loaded base cam_to_world.")
+            else:
+                print(f"[Pose] {p.name}: no 4x4 'cam_to_world' in NPZ.")
+                return None
+        else:
+            # txt / npy fallback
+            try:
+                T = np.loadtxt(p, dtype=np.float32).reshape(4, 4)
+                print(f"[Pose] {p.name}: loaded 4x4 from text.")
+            except Exception:
+                T = np.load(p).astype(np.float32).reshape(4, 4)
+                print(f"[Pose] {p.name}: loaded 4x4 from npy.")
 
-            # if "R" in data and "t" in data:
-            #     T = np.eye(4, dtype=np.float32)
-            #     T[:3, :3] = data["R"].reshape(3, 3)
-            #     T[:3, 3] = data["t"].reshape(3)
-            #     return T
 
-            print(f"[Pose] {p.name}: no 4x4 key (expected T_wc/pose/T/matrix/M)")
+        if T is None:
+            print(f"[Pose] {p.name}: failed to load base pose.")
             return None
 
-        # txt / npy fallback
-        try:
-            T = np.loadtxt(p, dtype=np.float32).reshape(4, 4)
-            return T
-        except Exception:
-            T = np.load(p).astype(np.float32).reshape(4, 4)
-            return T
+        # ---- 2) If an alignment matrix exists, multiply it with T
+        if align_path:
+            ap = Path(align_path)
+            if ap.exists():
+                try:
+                    A = np.load(ap).astype(np.float32)
+                    if A.shape == (4, 4):
+                        T = A @ T
+                        print(f"[Pose] Applied alignment {ap.name} to {p.name}.")
+                    else:
+                        print(f"[Pose] {ap.name}: not 4x4, ignoring alignment.")
+                except Exception as e:
+                    print(f"[Pose] Failed to load alignment {ap}: {e}")
+            else:
+                print(f"[Pose] Alignment file not found: {ap}, ignoring.")
+
+        return T
 
     except Exception as e:
         print(f"[Pose] Failed to load {p}: {e}")
         return None
+
 
 
 # ================ Coordinate conversion =================
@@ -82,13 +102,31 @@ def pose_to_unity_coords(T_cam_to_cal: np.ndarray | None) -> np.ndarray | None:
     S_Unity = np.array(
         [
             [1, 0, 0, 0],
+            [0, 0, 1, 0],
+            [0, 1, 0, 0],
+            [0, 0, 0, 1],
+        ],
+        dtype=np.float32,
+    )
+
+    # camera frame Y flip to match unity
+    F_y = np.array(
+        [
+            [1, 0, 0, 0],
             [0, -1, 0, 0],
             [0, 0, 1, 0],
             [0, 0, 0, 1],
         ],
         dtype=np.float32,
     )
-    return (S_Unity @ T_cam_to_cal).astype(np.float32)
+    T = T_cam_to_cal.astype(np.float32)
+
+    T_cam_to_cal_flipped = T @ F_y
+
+    T_unity = S_Unity @ T_cam_to_cal_flipped
+    
+    # return (S_Unity @ T_cam_to_cal).astype(np.float32)
+    return T_unity.astype(np.float32)
 
 
 # ================= Intrinsics helpers ==================
@@ -201,7 +239,7 @@ def make_strategy(cam_cfg: dict, global_cfg: dict):
 FRAME_CACHE: dict[int, dict] = {}
 FRAME_LOCK = threading.Lock()
 
-
+ 
 # ============== Camera pipeline thread =================
 class CameraPipeline(threading.Thread):
     def __init__(
@@ -229,16 +267,27 @@ class CameraPipeline(threading.Thread):
         self.depth_max_mm = int(depth_max_mm)
         self.depth_cmap_code = int(depth_cmap_code)
 
-        # Pose
+        # Pose (extrinsics + optional alignment -> Unity coords)
         pose_raw = None
-        if cam_cfg.get("pose_file"):
+        pose_file = cam_cfg.get("pose_file")
+        if pose_file:
             pose_dir = Path(global_cfg.get("pose_dir", "."))
-            p = Path(cam_cfg["pose_file"])
+            p = Path(pose_file)
             if not p.is_absolute():
                 p = pose_dir / p
-            pose_raw = load_pose_4x4(str(p)) # give path to load_pose_4x4 and get back 4x4 numpy array
 
-        self.pose = pose_to_unity_coords(pose_raw) # convert the 4x4 numpy array to unity coords
+            align_path = None
+            align_file = cam_cfg.get("align_file")
+            if align_file:
+                ap = Path(align_file)
+                if not ap.is_absolute():
+                    ap = pose_dir / ap
+                align_path = str(ap)
+
+            pose_raw = load_pose_4x4(str(p), align_path)
+
+        # Convert to Unity coords (or identity)
+        self.pose = pose_to_unity_coords(pose_raw)
         if self.pose is None:
             self.pose = np.eye(4, dtype=np.float32)
 
@@ -342,7 +391,6 @@ class CameraPipeline(threading.Thread):
     def stop(self):
         self._running = False
 
-
 # ============== RGBD Streamer (SimPublisher wrapper) ==============
 class RGBDStreamer(BaseStreamer):
     def __init__(
@@ -408,7 +456,7 @@ class RGBDStreamer(BaseStreamer):
         )
 
 
-# ============== SimPublisher-style server ==============
+# ============== SimPublisher ==============
 class PointCloudSimPublisher(ServerBase):
     def __init__(
         self,

@@ -7,4 +7,3 @@ class CameraConfig:
     fy: float = 591.4252
     cx: float = 320.1326
     cy: float = 239.1477
-

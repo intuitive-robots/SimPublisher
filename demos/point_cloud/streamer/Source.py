@@ -115,16 +115,16 @@ class LuxonisCameraStrategy:
                  width: int = 1280,
                  height: int = 720,
                  color_res=None,               # optional [W,H] from YAML
-                 mxid: str | None = None,      # select device by MXID (recommended)
+                 mxid: str | None = None,      # select device by MXID
                  device_index: int = 0,        # fallback to index if no MXID
                  usb2mode: bool = False,       # diagnostic: force USB2 if needed
                  fps: int = 30,
                  align_to_color: bool = True,  # kept for API symmetry
                  # Quality/robustness knobs (sane defaults)
                  enable_lrc: bool = True,      # REQUIRED when aligning depth to RGB/CENTER on FW 1.2.x
-                 enable_subpixel: bool = False,
+                 enable_subpixel: bool = True,
                  enable_extended: bool = False,
-                 confidence: int = 230,        # 0..255; higher = cleaner (more holes)
+                 confidence: int = 180,        # 
                  median_kernel: str = "KERNEL_5x5",  # "OFF", "KERNEL_3x3", "KERNEL_5x5", "KERNEL_7x7"
                  **_):
         if color_res and len(color_res) == 2:
@@ -191,7 +191,7 @@ class LuxonisCameraStrategy:
         try:
             PM = dai.node.StereoDepth.PresetMode   # modern path
         except AttributeError:
-            PM = dai.StereoDepth.PresetMode        # older path
+            PM = dai.StereoDepth.PresetMode
         # Version-safe dense preset
         if hasattr(PM, "HIGH_DENSITY"):
             preset = PM.HIGH_DENSITY
@@ -206,6 +206,19 @@ class LuxonisCameraStrategy:
 
         # Confidence (cleaner, fewer speckles)
         stereo.initialConfig.setConfidenceThreshold(self.confidence)
+
+        cfg = stereo.initialConfig.get()
+
+        cfg.postProcessing.speckleFilter.enable = True
+        cfg.postProcessing.speckleFilter.speckleRange = 20
+
+        cfg.postProcessing.spatialFilter.enable = True
+        cfg.postProcessing.spatialFilter.holeFillingRadius = 2
+        cfg.postProcessing.spatialFilter.numIterations = 2
+
+        cfg.postProcessing.temporalFilter.enable = True
+
+        stereo.initialConfig.set(cfg)
 
         # Median filter (small kernel smooths speckle nicely)
         kernel_map = {
@@ -396,7 +409,7 @@ class AzureKinectCameraStrategy(CameraStrategy):
             return ColorResolution.RES_720P  # default
 
     def _get_depth_mode(self):
-        return DepthMode.WFOV_2X2BINNED # 640x576 (highest quality narrow FOV)
+        return DepthMode.NFOV_2X2BINNED # 640x576 (highest quality narrow FOV)
 
     def apply_filters(self, depth_frame):
         pass
