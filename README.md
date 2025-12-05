@@ -69,7 +69,7 @@ simpub @ git+https://github.com/intuitive-robots/SimPublisher.git
 ## Usage
 
 1. Deploy the Unity application to your headset with the device name.
-Please refer to the [website](https://github.com/intuitive-robots/IRXR-Unity).
+Please refer to the [IRIS-Viz](https://github.com/intuitive-robots/IRIS-Viz) and the [Meta Quest 3 deployment documentation](https://intuitive-robots.github.io/iris-project-page/xr_application/meta_quest3.html)
 
 2. Connect your simulation PC and headset to the same subnet.
 For example, if your simulation PC address is `192.168.0.152`,
@@ -77,7 +77,7 @@ the headset address should share the same prefix, such as `192.168.0.142` or `19
 We recommend using a single WiFi router for PC-headset communication to ensure optimal connectivity.
 Additionally, using a wired cable to connect your PC can significantly reduce latency.
 
-3. Run the usage examples under the folder `/demos/`, then wear the headset, start the Unity application and enjoy!
+3. Run the usage examples under the folder [`demos/`](./demos), then wear the headset, start the Unity application and enjoy!
 
 ### Isaac Sim
-Please check [this](./demos/IsaacSim/README.md) for information on how to set up SimPub with Isaac Sim.
+Please check [this readme](./demos/IsaacSim/README.md) for information on how to set up SimPub with Isaac Sim.
