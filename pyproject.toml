@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simpub"
+version = "2.2.0"
+description="A cross-environment tool to publish objects from simulation for Augmented Reality and Human Robot Interaction."
+dependencies = [
+    "numpy",
+    "colorama",
+    "trimesh",
+    "Pillow",
+    "flask",
+    "pyyaml",
+    "zmq",
+]
+maintainers = [
+  { name = "Xinkai Jiang" },
+]
+authors = [
+  { name = "Xinkai Jiang" },
+]
+readme = "README.md"
+license-files = ["LICENSE"]
+
+[project.urls]
+Projectpage = "https://intuitive-robots.github.io/iris-project-page/"
+Documentation = "https://intuitive-robots.github.io/iris-project-page/introduction/overview.html"
