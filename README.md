@@ -9,6 +9,13 @@
 
 A versatile Python tool designed to seamlessly render objects from simulations or sensors to Mixed Reality (MR) and Augmented Reality (AR) headsets.
 
+## Community & Support
+
+We now have a Discord community channel! 🎉  
+If you have questions, feedback, or want to get involved, feel free to join us and chat with the team.
+
+👉 **Discord Channel:** https://discord.gg/snZKtnqjE5
+
 ## Table of Contents
 - [Introduction](#Introduction)
 - [Features](#Features)
