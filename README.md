@@ -55,16 +55,15 @@ These applications are built based on a Unity Package named [IRIS-Viz](https://g
 - HoloLens 2
 
 ## Installation
-
-1. Install the dependencies:
+Clone and install this repository:
 ```bash
-pip install zmq trimesh
-```
-
-2. Install this repository:
-```bash
-cd $the_path_to_this_project
+git clone https://github.com/intuitive-robots/SimPublisher.git
+cd SimPublisher
 pip install -e .
+```
+or add the following line to your requirements.txt / package dependencies:
+```
+simpub @ git+https://github.com/intuitive-robots/SimPublisher.git
 ```
 
 ## Usage
