@@ -192,6 +192,36 @@ class SimPubWebServer:
                 500,
             )
 
+    @route("/toggle-qr-tracking", methods=["POST"])
+    def toggle_qr_tracking(self):
+        payload = request.get_json(silent=True) or {}
+        try:
+            _, ip, service_port = self._extract_connection_info(payload)
+        except ValueError as exc:
+            return jsonify({"status": "error", "message": str(exc)}), 400
+        try:
+            response = send_request_with_addr(
+                "ToggleQRTracking", "", f"tcp://{ip}:{service_port}"
+            )
+            return jsonify(
+                {
+                    "status": "success",
+                    "message": "Toggle QR Tracking",
+                    "response": response,
+                }
+            )
+        except Exception as exc:
+            traceback.print_exc()
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": f"Error during Toggle QR Tracking: {exc}",
+                    }
+                ),
+                500,
+            )
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

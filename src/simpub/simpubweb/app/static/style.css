@@ -181,6 +181,20 @@ body {
     background: linear-gradient(180deg, #ffffff 0%, #ecf9f8 100%);
 }
 
+.action-btn.toggle-qr-btn.active {
+    background: linear-gradient(180deg, #00a78f 0%, #007a65 100%);
+    color: #ffffff;
+    border-color: rgba(0, 120, 100, 0.95);
+    box-shadow: 0 12px 26px -16px rgba(0, 120, 100, 0.45),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+}
+
+.action-btn.toggle-qr-btn.active:hover {
+    background: linear-gradient(180deg, #009977 0%, #00664f 100%);
+    border-color: rgba(0, 110, 90, 0.95);
+}
+
 @keyframes cardFade {
     to {
         opacity: 1;
