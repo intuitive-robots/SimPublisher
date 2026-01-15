@@ -9,7 +9,7 @@ from flask import Flask, jsonify, render_template, request
 from werkzeug.serving import BaseWSGIServer, make_server
 
 from ..core.utils import XRNodeRegistry, send_request_with_addr
-from .app.utils import read_qr_alignment_data, send_zmq_request
+from .app.utils import create_scene_config_file, read_qr_alignment_data, send_zmq_request
 
 _ROUTES: List[Tuple[str, str, Dict[str, object]]] = []
 
@@ -205,7 +205,7 @@ class SimPubWebServer:
         try:
             scene_path = Path.cwd() / "Scene.json"
             if not scene_path.exists():
-                scene_path = Path(__file__).resolve().parents[3] / "Scene.json"
+                create_scene_config_file(output_filepath=scene_path)
             scene_text = scene_path.read_text(encoding="utf-8")
         except Exception as exc:
             traceback.print_exc()
