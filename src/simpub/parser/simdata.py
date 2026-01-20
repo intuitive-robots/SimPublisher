@@ -358,6 +358,14 @@ class SimObject(SimData):
             "children": [child.to_dict() for child in self.children],
         }
 
+    def find_child(self, name: str) -> Optional[SimObject]:
+        if self.name == name:
+            return self
+        for child in self.children:
+            result = child.find_child(name)
+            if result is not None:
+                return result
+        return None
 
 class SimScene:
     def __init__(self) -> None:

@@ -217,7 +217,7 @@ def request_log(func: Callable) -> Callable:
 
 # @request_log
 async def send_request_async(
-    messages: List[str], req_socket: AsyncSocket, timeout: int = 2
+    messages: List[bytes], req_socket: AsyncSocket, timeout: int = 2
 ) -> Optional[bytes]:
     result = None
     try:

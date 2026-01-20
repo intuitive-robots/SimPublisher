@@ -300,6 +300,7 @@ def init_xr_node_manager(ip_addr: Optional[str] = None) -> XRNodeManager:
         if ip_addr is None:
             return XRNodeManager.manager
         else:
+            return XRNodeManager.manager
             raise RuntimeError(
                 "XRNodeManager is already initialized, "
                 "cannot reinitialize with a different IP address."
