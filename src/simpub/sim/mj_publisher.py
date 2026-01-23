@@ -5,7 +5,7 @@ from mujoco import mj_name2id, mjtObj
 
 from ..core.simpub_server import SimPublisher
 from ..parser.mj import MjModelParser
-from ..parser.simdata import SimObject
+from ..parser.simdata import SimObject, TreeNode
 
 
 class MujocoPublisher(SimPublisher):
@@ -36,16 +36,16 @@ class MujocoPublisher(SimPublisher):
         )
         self.set_update_objects(self.sim_scene.root)
 
-    def set_update_objects(self, obj: Optional[SimObject]):
-        if obj is None:
+    def set_update_objects(self, obj: TreeNode):
+        if obj.data is None:
             return
-        if obj.name in self.no_tracked_objects:
+        if obj.data["name"] in self.no_tracked_objects:
             return
-        body_id = mj_name2id(self.mj_model, mjtObj.mjOBJ_BODY, obj.name)
+        body_id = mj_name2id(self.mj_model, mjtObj.mjOBJ_BODY, obj.data["name"])
         pos = self.mj_data.xpos[body_id]
         rot = self.mj_data.xquat[body_id]
         trans: Tuple[np.ndarray, np.ndarray] = (pos, rot)
-        self.tracked_obj_trans[obj.name] = trans
+        self.tracked_obj_trans[obj.data["name"]] = trans
         for child in obj.children:
             self.set_update_objects(child)
 

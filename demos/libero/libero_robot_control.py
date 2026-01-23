@@ -24,7 +24,7 @@ from libero.libero.envs import TASK_MAPPING
 from libero_example import select_file_from_txt, RobosuitePublisher
 
 from simpub.xr_device.meta_quest3 import MetaQuest3
-
+import time
 
 class MQ3CartController:
     def __init__(self, meta_quest3: MetaQuest3):
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     # Wrap this with visualization wrapper
     env = VisualizationWrapper(env)
     obs = env.reset()
-    publisher = RobosuitePublisher(env, args.host)
+    publisher = RobosuitePublisher(env, "192.168.0.134")
     # initialize device
     if args.device == "meta_quest3":
         virtual_controller = MQ3CartController(
@@ -192,4 +192,5 @@ if __name__ == "__main__":
         )
     while True:
         obs, _, _, _ = env.step(virtual_controller.get_action(obs))
-        env.render()
+        # env.render()
+        time.sleep(0.1)

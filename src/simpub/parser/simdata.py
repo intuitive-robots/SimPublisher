@@ -6,12 +6,192 @@ import json
 from dataclasses import dataclass, field, fields
 from enum import Enum
 from hashlib import md5
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TypedDict
+import msgpack
 
 from PIL import Image
 import numpy as np
 import trimesh
 
+
+class SimTransform(TypedDict):
+    pos: List[float]
+    rot: List[float]
+    scale: List[float]
+
+
+class SimMesh(TypedDict):
+    indices: bytes
+    vertices: bytes
+    normals: bytes
+    uv: Optional[bytes]
+
+class SimTexture(TypedDict):
+    width: int
+    height: int
+    textureType: str
+    textureScale: Tuple[float, float]
+    textureData: bytes
+
+class SimMaterial(TypedDict):
+    color: List[float]
+    emissionColor: List[float]
+    specular: float
+    shininess: float
+    reflectance: float
+    texture: Optional[SimTexture]
+
+class SimVisual(TypedDict):
+    name: str
+    type: str
+    mesh: Optional[SimMesh]
+    material: Optional[SimMaterial]
+    trans: SimTransform
+
+class SimObject(TypedDict):
+    name: str
+    parent: str
+    trans: SimTransform
+    visuals: List[SimVisual]
+
+class SimSceneSetting(TypedDict):
+    name: str
+
+
+
+class TreeNode:
+    def __init__(self) -> None:
+        self.data: Optional[SimObject] = None
+        self.children: List[TreeNode] = []
+
+    def add_data(self, data: SimObject) -> None:
+        self.data = data
+
+    def add_child(self, child_node: TreeNode) -> None:
+        self.children.append(child_node)
+
+# @dataclass
+# class SimData:
+#     def to_dict(self):
+#         return {
+#             f.name: getattr(self, f.name)
+#             for f in fields(self)
+#             if not f.metadata.get("exclude", False)
+#         }
+
+#     def serialize(self) -> bytes:
+#         data = msgpack.packb(self.to_dict(), use_bin_type=True)
+#         assert isinstance(data, bytes), "msgpack serialization failed"
+#         return data
+
+# @dataclass
+# class SimTransform(SimData):
+#     pos: List[float] = field(default_factory=lambda: [0, 0, 0])
+#     rot: List[float] = field(default_factory=lambda: [0, 0, 0, 1])
+#     scale: List[float] = field(default_factory=lambda: [1, 1, 1])
+
+
+
+
+# @dataclass
+# class SimVisual(SimData):
+#     name: str
+#     type: VisualType
+#     trans: SimTransform
+#     mesh: Optional[SimMesh] = None
+#     material: Optional[SimMaterial] = None
+#     # TODO： easily set up transparency
+#     # def setup_transparency(self):
+#     #     if self.material is not None:
+#     #         self.material = self
+
+#     def to_dict(self) -> Dict:
+#         return {
+#             "name": self.name,
+#             "type": self.type.value,
+#             "trans": self.trans.to_dict(),
+#             "mesh": self.mesh.to_dict() if self.mesh else None,
+#             "material": self.material.to_dict() if self.material else None,
+#         }
+
+
+
+
+# @dataclass
+# class SimMaterial(SimData):
+#     # All the color values are within the 0 - 1.0 range
+#     color: List[float]
+#     emissionColor: Optional[List[float]] = None
+#     specular: float = 0.5
+#     shininess: float = 0.5
+#     reflectance: float = 0.0
+#     texture: Optional[SimTexture] = None
+
+#     def to_dict(self):
+#         data = super().to_dict()
+#         if self.texture is not None:
+#             data["texture"] = self.texture.to_dict()
+#         return data
+
+
+# @dataclass
+# class SimMesh(SimData):
+#     # (offset: bytes, count: int)
+#     indices: bytes
+#     vertices: bytes
+#     normals: bytes
+#     uv: Optional[bytes] = None
+
+
+# @dataclass
+# class SimTexture(SimData):
+#     hash: str
+#     width: int
+#     height: int
+#     # TODO: new texture type
+#     textureType: str
+#     textureScale: Tuple[int, int]
+#     textureData: bytes
+
+
+# @dataclass
+# class SimObject(SimData):
+#     name: str
+#     trans: SimTransform = field(default_factory=SimTransform)
+#     visuals: List[SimVisual] = field(default_factory=list)
+#     children: List[SimObject] = field(default_factory=list)
+
+#     def to_dict(self) -> Dict:
+#         return {
+#             "name": self.name,
+#             "trans": self.trans.to_dict(),
+#             "visuals": [visual.to_dict() for visual in self.visuals],
+#         }
+
+#     def find_child(self, name: str) -> Optional[SimObject]:
+#         if self.name == name:
+#             return self
+#         for child in self.children:
+#             result = child.find_child(name)
+#             if result is not None:
+#                 return result
+#         return None
+
+class SimScene:
+    def __init__(self, name: str = "DefaultSceneName") -> None:
+        self.root: TreeNode = TreeNode()
+        self.setting: SimSceneSetting = SimSceneSetting(name=name)
+
+    @property
+    def name(self) -> str:
+        return self.setting["name"]
+
+    def process_sim_obj(self, kt_node: TreeNode) -> None:
+        # for visual in sim_obj.visuals:
+        #     if visual.mesh is not None:
+        #         visual.mesh.generate_normals(self.raw_data)
+        for child in kt_node.children:
+            self.process_sim_obj(child)
 
 class VisualType(str, Enum):
     CUBE = "CUBE"
@@ -23,390 +203,95 @@ class VisualType(str, Enum):
     MESH = "MESH"
     NONE = "NONE"
 
+def create_mesh(trimesh_obj: trimesh.Trimesh, uvs: Optional[np.ndarray]) -> SimMesh:
+    trimesh_obj.fix_normals()
+    vertices = trimesh_obj.vertices
+    indices = trimesh_obj.faces
+    normals = trimesh_obj.vertex_normals
+    # Vertices
+    vertices = vertices.astype(np.float32)
+    num_vertices = vertices.shape[0]
+    vertices = vertices[:, [1, 2, 0]]
+    vertices[:, 0] = -vertices[:, 0]
+    vertices = vertices.flatten()
+    # Indices / faces
+    indices = indices.astype(np.int32)
+    indices = indices[:, [2, 1, 0]]
+    indices = indices.flatten()
+    # Normals
+    normals = normals.astype(np.float32)
+    normals = normals[:, [1, 2, 0]]
+    normals[:, 0] = -normals[:, 0]
+    normals = normals.flatten()
+    assert normals.size == num_vertices * 3, (
+        f"Number of vertex normals ({normals.shape[0]}) must be equal "
+        f"to number of vertices ({num_vertices})"
+    )
+    assert np.max(indices) < num_vertices, (
+        f"Index value exceeds number of vertices: {np.max(indices)} >= "
+        f"{num_vertices}"
+    )
+    assert (
+        indices.size % 3 == 0
+    ), f"Number of indices ({indices.size}) must be a multiple of 3"
+    return SimMesh(
+        vertices=generate_bytes(vertices),
+        indices=generate_bytes(indices),
+        normals=generate_bytes(normals),
+        uv=generate_bytes(uvs) if uvs is not None else None,
+    )
 
-@dataclass
-class SimData:
-    def to_dict(self):
-        return {
-            f.name: getattr(self, f.name)
-            for f in fields(self)
-            if not f.metadata.get("exclude", False)
-        }
-
-    def serialize(self) -> str:
-        return json.dumps(self.to_dict())
-
-
-@dataclass
-class SimMaterial(SimData):
-    # All the color values are within the 0 - 1.0 range
-    color: List[float]
-    emissionColor: Optional[List[float]] = None
-    specular: float = 0.5
-    shininess: float = 0.5
-    reflectance: float = 0.0
-    texture: Optional[SimTexture] = None
-
-    def to_dict(self):
-        data = super().to_dict()
-        if self.texture is not None:
-            data["texture"] = self.texture.to_dict()
-        return data
-
-
-@dataclass
-class SimAsset(SimData):
-    hash: str
-    # scene: SimScene = field(init=True, metadata={"exclude": True})
-
-    # def __post_init__(self):
-    #     raw_data = self.generate_raw_data()
-    #     self.hash = self.generate_hash(raw_data)
-
-    @abc.abstractmethod
-    def generate_raw_data(self) -> bytes:
-        raise NotImplementedError
-
-    @staticmethod
-    def generate_hash(data: bytes) -> str:
-        return md5(data).hexdigest()
-
-    @staticmethod
-    def write_to_buffer(
-        bin_buffer: io.BytesIO,
-        data: np.ndarray,
-    ) -> Tuple[int, int]:
-        # change all float np array to float32 and all int np array to int32
-        if data.dtype == np.float64:
-            data = data.astype(np.float32)
-        elif data.dtype == np.int64:
-            data = data.astype(np.int32)
-        byte_data = data.tobytes()
-        layout = bin_buffer.tell(), len(byte_data)
-        bin_buffer.write(byte_data)
-        return layout
-
-    def update_raw_data(
-        self, raw_data: Dict[str, bytes], new_data: bytes
-    ) -> None:
-        if self.hash in raw_data:
-            raw_data.pop(self.hash)
-        self.hash = md5(new_data).hexdigest()
-        raw_data[self.hash] = new_data
+def create_texture(
+    image_flaten_array: np.ndarray,
+    image_height: int,
+    image_width: int,
+    texture_scale: Tuple[int, int] = field(default_factory=lambda: (1, 1)),
+    texture_type: str = "2D",
+    quality: int = 75,
+) -> SimTexture:
+    image_array = image_flaten_array.reshape((image_height, image_width, -1))
+    img = Image.fromarray(image_array)
+    buffer = io.BytesIO()
+    # compress the image to JPEG format
+    img.save(buffer, format="JPEG", quality=quality, optimize=True)
+    image_bytes = buffer.getvalue()
+    return SimTexture(
+        width=image_array.shape[1],
+        height=image_array.shape[0],
+        textureType=texture_type,
+        textureScale=texture_scale,
+        textureData=image_bytes,
+    )
 
 
-@dataclass
-class SimMesh(SimAsset):
-    # (offset: bytes, count: int)
-    verticesLayout: Tuple[int, int]
-    indicesLayout: Tuple[int, int]
-    normalsLayout: Tuple[int, int]
-    uvLayout: Optional[Tuple[int, int]] = None
 
-    @staticmethod
-    def create_mesh(
-        scene: SimScene,
-        vertices: np.ndarray,
-        faces: np.ndarray,
-        vertex_normals: Optional[np.ndarray] = None,
-        face_normals: Optional[np.ndarray] = None,
-        mesh_texcoord: Optional[np.ndarray] = None,
-        vertex_uvs: Optional[np.ndarray] = None,
-        faces_uv: Optional[np.ndarray] = None,
-    ) -> SimMesh:
-        uvs = None
-        if vertex_uvs is not None:
-            assert vertex_uvs.shape[0] == vertices.shape[0], (
-                f"Number of vertex uvs ({vertex_uvs.shape[0]}) must be equal "
-                f"to number of vertices ({vertices.shape[0]})"
-            )
-            uvs = vertex_uvs.flatten()
-        elif faces_uv is not None and mesh_texcoord is None:
-            vertices, faces = SimMesh.generate_vertex_by_faces(vertices, faces)
-            uvs = faces_uv.flatten()
-        elif mesh_texcoord is not None and faces_uv is not None:
-            if mesh_texcoord.shape[0] == vertices.shape[0]:
-                uvs = mesh_texcoord
-            else:
-                (
-                    vertices,
-                    faces,
-                    uvs,
-                    vertex_normals,
-                ) = SimMesh.generate_vertex_uv_from_face_uv(
-                    vertices,
-                    faces_uv,
-                    faces,
-                    mesh_texcoord,
-                )
-            assert uvs.shape[0] == vertices.shape[0], (
-                f"Number of mesh texcoords ({mesh_texcoord.shape[0]}) must be "
-                f"equal to number of vertices ({vertices.shape[0]})"
-            )
-            uvs = uvs.flatten()
-        # create trimesh object
-        trimesh_obj = trimesh.Trimesh(
-            vertices=vertices,
-            faces=faces,
-            vertex_normals=vertex_normals,
-            face_normals=face_normals,
-            process=False,
-        )
-        trimesh_obj.fix_normals()
-        vertices = trimesh_obj.vertices
-        indices = trimesh_obj.faces
-        normals = trimesh_obj.vertex_normals
-        # Vertices
-        vertices = vertices.astype(np.float32)
-        num_vertices = vertices.shape[0]
-        vertices = vertices[:, [1, 2, 0]]
-        vertices[:, 0] = -vertices[:, 0]
-        vertices = vertices.flatten()
-        # Indices / faces
-        indices = indices.astype(np.int32)
-        indices = indices[:, [2, 1, 0]]
-        indices = indices.flatten()
-        # Normals
-        normals = normals.astype(np.float32)
-        normals = normals[:, [1, 2, 0]]
-        normals[:, 0] = -normals[:, 0]
-        normals = normals.flatten()
-        assert normals.size == num_vertices * 3, (
-            f"Number of vertex normals ({normals.shape[0]}) must be equal "
-            f"to number of vertices ({num_vertices})"
-        )
-        assert np.max(indices) < num_vertices, (
-            f"Index value exceeds number of vertices: {np.max(indices)} >= "
-            f"{num_vertices}"
-        )
-        assert (
-            indices.size % 3 == 0
-        ), f"Number of indices ({indices.size}) must be a multiple of 3"
-        # write to buffer
-        bin_buffer = io.BytesIO()
-        vertices_layout = SimMesh.write_to_buffer(bin_buffer, vertices)
-        indices_layout = SimMesh.write_to_buffer(bin_buffer, indices)
-        normals_layout = SimMesh.write_to_buffer(bin_buffer, normals)
-        # UVs
-        uv_layout = (0, 0)
-        if uvs is not None:
-            assert uvs.size == num_vertices * 2, (
-                f"Number of vertex uvs ({uvs.shape[0]}) must be equal to "
-                f"number of vertices ({num_vertices})"
-            )
-            uv_layout = SimMesh.write_to_buffer(bin_buffer, uvs)
-        bin_data = bin_buffer.getvalue()
-        hash = SimMesh.generate_hash(bin_data)
-        scene.raw_data[hash] = bin_data
-        return SimMesh(
-            hash=hash,
-            verticesLayout=vertices_layout,
-            indicesLayout=indices_layout,
-            normalsLayout=normals_layout,
-            uvLayout=uv_layout,
-        )
+def generate_raw_data(self) -> bytes:
+    raise NotImplementedError
 
-    @staticmethod
-    def generate_vertex_by_faces(
-        vertices: np.ndarray,
-        faces: np.ndarray,
-    ):
-        new_vertices = []
-        for face in faces:
-            new_vertices.append(vertices[face])
-        new_vertices = np.concatenate(new_vertices)
-        new_faces = np.arange(new_vertices.shape[0]).reshape(-1, 3)
-        return new_vertices, new_faces
+def generate_hash(data: bytes) -> str:
+    return md5(data).hexdigest()
 
-    @staticmethod
-    def generate_vertex_uv_from_face_uv(
-        vertices: np.ndarray,
-        face_texcoord: np.ndarray,
-        faces: np.ndarray,
-        mesh_texcoord: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, None]:
-        new_vertices = []
-        new_faces = []
-        vertex_texcoord = []
-        for face, face_texcoord in zip(faces, face_texcoord):
-            new_vertices.append(vertices[face])
-            vertex_texcoord.append(mesh_texcoord[face_texcoord])
-        for item in new_vertices:
-            assert item.shape == (3, 3), f"Shape of item is {item.shape}"
-        new_vertices = np.concatenate(new_vertices)
-        vertex_texcoord = np.concatenate(vertex_texcoord)
-        new_faces = np.arange(new_vertices.shape[0]).reshape(-1, 3)
-        return new_vertices, new_faces, vertex_texcoord, None
+def generate_bytes(data: np.ndarray) -> bytes:
+    # change all float np array to float32 and all int np array to int32
+    if data.dtype == np.float64:
+        data = data.astype(np.float32)
+    elif data.dtype == np.int64:
+        data = data.astype(np.int32)
+    return data.tobytes()
 
-
-@dataclass
-class SimTexture(SimAsset):
-    width: int
-    height: int
-    # TODO: new texture type
-    textureType: str
-    textureScale: Tuple[int, int]
-
-    @staticmethod
-    def compress_image(
-        image: np.ndarray,
-        height: int,
-        width: int,
-        max_texture_size_kb: int = 5000,
-        min_scale: float = 0.5,
-    ) -> Tuple[np.ndarray, int, int]:
-        # compress the texture data
-        max_texture_size = max_texture_size_kb * 1024
-        # Compute scale factor based on texture size
-        scale = np.sqrt(image.nbytes / max_texture_size)
-        # Adjust scale factor for small textures
-        if scale < 1:  # Texture is already under the limit
-            scale = 1  # No resizing needed
-        elif scale < 1 + min_scale:  # Gradual scaling for small images
-            scale = 1 + (scale - 1) * min_scale
-        else:  # Normal scaling for larger textures
-            scale = int(scale) + 1
-        new_width = int(width // scale)
-        new_height = int(height // scale)
-        # Reshape and resize the texture data
-        # compressed_image = cv2.resize(
-        #     image.reshape(height, width, -1),
-        #     (new_width, new_height),
-        #     interpolation=cv2.INTER_LINEAR,
-        #     # interpolation=cv2.INTER_AREA if scale > 2 else cv2.INTER_LINEAR,
-        # )
-        img = image.reshape(height, width, -1)
-        pil_img = Image.fromarray(img)
-        pil_resized = pil_img.resize((new_width, new_height), Image.BILINEAR)
-        compressed_image = np.asarray(pil_resized)
-        return compressed_image, new_height, new_width
-
-    @staticmethod
-    def create_texture(
-        image: np.ndarray,
-        height: int,
-        width: int,
-        scene: SimScene,
-        texture_scale: Tuple[int, int] = field(default_factory=lambda: (1, 1)),
-        texture_type: str = "2D",
-    ) -> SimTexture:
-        image = image.astype(np.uint8)
-        image, height, width = SimTexture.compress_image(image, height, width)
-        image_byte = image.astype(np.uint8).tobytes()
-        hash = SimTexture.generate_hash(image_byte)
-        scene.raw_data[hash] = image_byte
-        return SimTexture(
-            hash=hash,
-            width=image.shape[1],
-            height=image.shape[0],
-            textureType=texture_type,
-            textureScale=texture_scale,
-        )
-
-
-@dataclass
-class SimTransform(SimData):
-    pos: List[float] = field(default_factory=lambda: [0, 0, 0])
-    rot: List[float] = field(default_factory=lambda: [0, 0, 0, 1])
-    scale: List[float] = field(default_factory=lambda: [1, 1, 1])
-
-    def __add__(self, other: SimTransform):
-        pos = np.array(self.pos) + np.array(other.pos)
-        rot = np.array(self.rot) + np.array(other.rot)
-        scale = np.array(self.scale) * np.array(other.scale)
-        return SimTransform(
-            pos=pos.tolist(),
-            rot=rot.tolist(),
-            scale=scale.tolist(),
-        )
-
-
-@dataclass
-class SimVisual(SimData):
-    name: str
-    type: VisualType
-    trans: SimTransform
-    mesh: Optional[SimMesh] = None
-    material: Optional[SimMaterial] = None
-    # TODO： easily set up transparency
-    # def setup_transparency(self):
-    #     if self.material is not None:
-    #         self.material = self
-
-    def to_dict(self) -> Dict:
-        return {
-            "name": self.name,
-            "type": self.type.value,
-            "trans": self.trans.to_dict(),
-            "mesh": self.mesh.to_dict() if self.mesh else None,
-            "material": self.material.to_dict() if self.material else None,
-        }
-
-
-@dataclass
-class SimObject(SimData):
-    name: str
-    trans: SimTransform = field(default_factory=SimTransform)
-    visuals: List[SimVisual] = field(default_factory=list)
-    children: List[SimObject] = field(default_factory=list)
-
-    def to_dict(self) -> Dict:
-        return {
-            "name": self.name,
-            "trans": self.trans.to_dict(),
-            "visuals": [visual.to_dict() for visual in self.visuals],
-            "children": [child.to_dict() for child in self.children],
-        }
-
-    def find_child(self, name: str) -> Optional[SimObject]:
-        if self.name == name:
-            return self
-        for child in self.children:
-            result = child.find_child(name)
-            if result is not None:
-                return result
-        return None
-
-class SimScene:
-    def __init__(self) -> None:
-        self.root: Optional[SimObject] = None
-        self.name: str = "DefaultSceneName"
-        self.raw_data: Dict[str, bytes] = dict()
-
-    def serialize(self) -> str:
-        if self.root is None:
-            raise ValueError("Root object is not set")
-        dict_data = {
-            "name": self.name,
-        }
-        return json.dumps(dict_data)
-
-    def process_sim_obj(self, sim_obj: SimObject) -> None:
-        # for visual in sim_obj.visuals:
-        #     if visual.mesh is not None:
-        #         visual.mesh.generate_normals(self.raw_data)
-        for child in sim_obj.children:
-            self.process_sim_obj(child)
-
-    def get_all_assets(
-        self, sim_obj: SimObject
-    ) -> List[Tuple[str, SimVisual, bytes, bytes]]:
-        assets: List[Tuple[str, SimVisual, bytes, bytes]] = []
-        mesh_data, texture_data = b"", b""
-        for visual in sim_obj.visuals:
-            if (
-                visual.mesh is None
-                and visual.material is not None
-                and visual.material.texture is None
-            ):
-                continue
-            if visual.mesh is not None:
-                mesh_data = self.raw_data.get(visual.mesh.hash, b"")
-            if visual.material and visual.material.texture:
-                texture_data = self.raw_data.get(
-                    visual.material.texture.hash, b""
-                )
-            assets.append((sim_obj.name, visual, mesh_data, texture_data))
-        for child in sim_obj.children:
-            assets.extend(self.get_all_assets(child))
-        return assets
+def create_material(
+    color: List[float],
+    emissionColor: Optional[List[float]] = None,
+    specular: float = 0.5,
+    shininess: float = 0.5,
+    reflectance: float = 0.0,
+    texture: Optional[SimTexture] = None,
+) -> SimMaterial:
+    return SimMaterial(
+        color=color,
+        emissionColor=emissionColor if emissionColor is not None else [0, 0, 0],
+        specular=specular,
+        shininess=shininess,
+        reflectance=reflectance,
+        texture=texture,
+    )

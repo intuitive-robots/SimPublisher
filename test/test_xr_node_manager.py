@@ -1,5 +1,3 @@
-import random
-
 from simpub.core import init_xr_node_manager
 
 # from simpub.xr_device.meta_quest3 import MetaQuest3

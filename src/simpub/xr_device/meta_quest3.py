@@ -2,7 +2,7 @@ import enum
 import json
 from typing import Callable, Dict, List, Optional, TypedDict
 
-from simpub.core.net_component import Subscriber
+import pyzlc
 
 from .xr_device import XRDevice
 
@@ -88,12 +88,8 @@ class MetaQuest3(XRDevice):
             MetaQuest3MotionControllerData
         ] = None
         self.hand_tracking_data: Optional[MetaQuest3HandTrackingData] = None
-        self.sub_list.append(
-            Subscriber("MotionController", self.update_motion_controller)
-        )
-        self.sub_list.append(
-            Subscriber("HandTracking", self.update_hand_tracking)
-        )
+        pyzlc.register_subscriber_handler("MotionController", self.update_motion_controller)
+        pyzlc.register_subscriber_handler("HandTracking", self.update_hand_tracking)
         # self.start_vib_pub = Publisher(f"{device_name}/StartVibration")
         # self.stop_vib_pub = Publisher(f"{device_name}/StopVibration")
         self.button_press_event: Dict[str, List[Callable]] = {

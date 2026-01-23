@@ -1,12 +1,17 @@
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Tuple
 
 import mujoco
 import numpy as np
+import trimesh
+from trimesh.visual import TextureVisuals
 
 from ..core.log import logger
 from .simdata import (
     SimMaterial,
-    SimMesh,
+    TreeNode,
+    create_mesh,
+    create_texture,
+    create_material,
     SimObject,
     SimScene,
     SimTexture,
@@ -66,13 +71,13 @@ def scale2unity(scale: List[float], visual_type: str) -> List[float]:
 
 
 MJModelGeomTypeMap = {
-    mujoco.mjtGeom.mjGEOM_SPHERE: VisualType.SPHERE,
-    mujoco.mjtGeom.mjGEOM_CAPSULE: VisualType.CAPSULE,
-    mujoco.mjtGeom.mjGEOM_ELLIPSOID: VisualType.CAPSULE,
-    mujoco.mjtGeom.mjGEOM_CYLINDER: VisualType.CYLINDER,
-    mujoco.mjtGeom.mjGEOM_BOX: VisualType.CUBE,
-    mujoco.mjtGeom.mjGEOM_MESH: VisualType.MESH,
-    mujoco.mjtGeom.mjGEOM_PLANE: VisualType.PLANE,
+    mujoco.mjtGeom.mjGEOM_SPHERE: VisualType.SPHERE,  # type: ignore
+    mujoco.mjtGeom.mjGEOM_CAPSULE: VisualType.CAPSULE,  # type: ignore
+    mujoco.mjtGeom.mjGEOM_ELLIPSOID: VisualType.CAPSULE,  # type: ignore
+    mujoco.mjtGeom.mjGEOM_CYLINDER: VisualType.CYLINDER,  # type: ignore
+    mujoco.mjtGeom.mjGEOM_BOX: VisualType.CUBE,  # type: ignore
+    mujoco.mjtGeom.mjGEOM_MESH: VisualType.MESH,  # type: ignore
+    mujoco.mjtGeom.mjGEOM_PLANE: VisualType.PLANE,  # type: ignore
 }
 
 
@@ -100,71 +105,72 @@ class MjModelParser:
         return self.sim_scene
 
     def parse_model(self, mj_model):
-        sim_scene = SimScene()
-        sim_scene.name = "MujocoScene"
+        sim_scene = SimScene("MujocoScene")
         self.sim_scene = sim_scene
         # create a dictionary to store the body hierarchy
-        body_hierarchy = {}
+        body_hierarchy: Dict[int, Tuple[int, TreeNode]] = {}
         for body_id in range(mj_model.nbody):
-            sim_object, parent_id = self.process_body(mj_model, body_id)
-            if sim_object is None:
-                continue
+            object_node, parent_id = self.process_body(mj_model, body_id)
+            # if object_node is None:
+            #     continue
             # update the body hierarchy dictionary
-            body_hierarchy[body_id] = {
-                "parent_id": parent_id,
-                "sim_object": sim_object,
-            }
+            body_hierarchy[body_id] = (parent_id, object_node)
         # create a tree structure from the body hierarchy
         for body_id, body_info in body_hierarchy.items():
-            parent_id = body_info["parent_id"]
+            parent_id = body_info[0]
             if parent_id == -1:
-                continue
+                sim_scene.root = body_info[1]
             if parent_id in body_hierarchy:
                 parent_info = body_hierarchy[parent_id]
-                parent_object: SimObject = parent_info["sim_object"]
-                parent_object.children.append(body_info["sim_object"])
+                parent_object: TreeNode = parent_info[1]
+                # assert parent_object.data is not None, "Parent object data should not be None."
+                parent_object.children.append(body_info[1])
+        assert sim_scene.root is not None, "The root of the SimScene is None."
         return sim_scene
 
-    def process_body(self, mj_model, body_id: int):
-        body_name = mujoco.mj_id2name(
-            mj_model, mujoco.mjtObj.mjOBJ_BODY, body_id
-        )
+    def process_body(self, mj_model, body_id: int) -> Tuple[TreeNode, int]:
+        body_name = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_BODY, body_id)  # type: ignore
         # if body_name in self.no_rendered_objects:
         #     return None, -1
+        if body_name == "mount0_controller_box":
+            x = 1
         parent_id = mj_model.body_parentid[body_id]
-        sim_object = SimObject(name=body_name)
+        parent_name = "root"
+        if parent_id != -1:
+            parent_name = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_BODY, parent_id)  # type: ignore
+        object_node = TreeNode()
         if parent_id == body_id:
-            self.sim_scene.root = sim_object
+            self.sim_scene.root = object_node
             parent_id = -1
         # update the transform information
-        trans = sim_object.trans
-        trans.pos = mj2unity_pos(mj_model.body_pos[body_id].tolist())
-        trans.rot = mj2unity_quat(mj_model.body_quat[body_id].tolist())
-        # if the body does not have any geom, return the object
+        trans = SimTransform(
+            pos=mj2unity_pos(mj_model.body_pos[body_id].tolist()),
+            rot=mj2unity_quat(mj_model.body_quat[body_id].tolist()),
+            scale=[1, 1, 1],
+        )
+        visuals_list = []
         if (
-            mj_model.body_geomadr[body_id] == -1
-            or body_name in self.no_rendered_objects
+            mj_model.body_geomadr[body_id] != -1
+            and body_name not in self.no_rendered_objects
         ):
-            return sim_object, parent_id
-        # process the geoms attached to the body
-        num_geoms = mj_model.body_geomnum[body_id]
-        for geom_id in range(
-            mj_model.body_geomadr[body_id],
-            mj_model.body_geomadr[body_id] + num_geoms,
-        ):
-            geom_group = int(mj_model.geom_group[geom_id])
-            # check if the geom participates in rendering
-            if geom_group not in self.visible_geoms_groups:
-                continue
-
-            sim_visual = self.process_geoms(mj_model, geom_id)
-            sim_object.visuals.append(sim_visual)
-        return sim_object, parent_id
+            # process the geoms attached to the body
+            num_geoms = mj_model.body_geomnum[body_id]
+            for geom_id in range(
+                mj_model.body_geomadr[body_id],
+                mj_model.body_geomadr[body_id] + num_geoms,
+            ):
+                geom_group = int(mj_model.geom_group[geom_id])
+                # check if the geom participates in rendering
+                if geom_group not in self.visible_geoms_groups:
+                    continue
+                sim_visual = self.process_geoms(mj_model, geom_id)
+                visuals_list.append(sim_visual)
+        object_node.data = SimObject(name=body_name, parent=parent_name, trans=trans, visuals=visuals_list)
+        assert object_node.data is not None, "Object node data should not be None."
+        return object_node, parent_id
 
     def process_geoms(self, mj_model, geom_id: int):
-        geom_name = mujoco.mj_id2name(
-            mj_model, mujoco.mjtObj.mjOBJ_GEOM, geom_id
-        )
+        geom_name = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_GEOM, geom_id)  # type: ignore
         geom_type = mj_model.geom_type[geom_id]
         geom_pos = mj2unity_pos(mj_model.geom_pos[geom_id].tolist())
         geom_quat = mj2unity_quat(mj_model.geom_quat[geom_id].tolist())
@@ -174,22 +180,23 @@ class MjModelParser:
         )
         trans = SimTransform(pos=geom_pos, rot=geom_quat, scale=geom_scale)
         geom_color = mj_model.geom_rgba[geom_id].tolist()
-        sim_visual = SimVisual(
-            name=geom_name,
-            type=visual_type,
-            trans=trans,
-        )
         # attach mesh id if geom type is mesh
-        if geom_type == mujoco.mjtGeom.mjGEOM_MESH:
+        mesh = None
+        if geom_type == mujoco.mjtGeom.mjGEOM_MESH:  # type: ignore
             mesh_id = mj_model.geom_dataid[geom_id]
-            sim_visual.mesh = self.process_mesh(mj_model, mesh_id)
+            mesh = self.process_mesh(mj_model, mesh_id)
         # attach material id if geom has an associated material
         mat_id = mj_model.geom_matid[geom_id]
+        material = create_material(geom_color)
         if mat_id != -1:
-            sim_visual.material = self.process_material(mj_model, mat_id)
-        else:
-            sim_visual.material = SimMaterial(geom_color)
-        return sim_visual
+            material = self.process_material(mj_model, mat_id)
+        return SimVisual(
+            name=geom_name,
+            type=visual_type,
+            mesh=mesh,
+            material=material,
+            trans=trans,
+        )
 
     def process_mesh(self, mj_model, mesh_id: int):
         # vertices
@@ -209,38 +216,50 @@ class MjModelParser:
         else:
             start_norm = start_vert
             num_norm = num_verts
-        norms = None
-        if num_norm == num_verts:
-            norms = mj_model.mesh_normal[start_norm : start_norm + num_norm]
-            norms = norms.astype(np.float32)
+        assert num_norm == num_verts, "The number of normals must equal to the number of vertices."
+        norms = mj_model.mesh_normal[start_norm : start_norm + num_norm]
+        norms = norms.astype(np.float32)
         # uv coordinates
         start_uv = mj_model.mesh_texcoordadr[mesh_id]
-        mesh_texcoord = None
+        # mesh_texcoord = None
+        trimesh_visual = None
         faces_uv = None
         if start_uv != -1:
             num_texcoord = mj_model.mesh_texcoordnum[mesh_id]
-            mesh_texcoord = mj_model.mesh_texcoord[
-                start_uv : start_uv + num_texcoord
-            ]
-            faces_uv = mj_model.mesh_facetexcoord[
-                start_face : start_face + num_faces
-            ]
-        mesh = SimMesh.create_mesh(
-            scene=self.sim_scene,
-            vertices=vertices,
-            faces=faces,
-            vertex_normals=norms,
-            mesh_texcoord=mesh_texcoord,
-            faces_uv=faces_uv,
-        )
-        return mesh
+            all_uv_coords = mj_model.mesh_texcoord[start_uv : start_uv + num_texcoord]
+            faces_uv_idx = mj_model.mesh_facetexcoord[start_face : start_face + num_faces]
+            flattened_vertices = vertices[faces].reshape(-1, 3)
+            flattened_norms = norms[faces].reshape(-1, 3)
+            flattened_uvs = all_uv_coords[faces_uv_idx].reshape(-1, 2)
+            flattened_faces = np.arange(len(flattened_vertices)).reshape(-1, 3)
+            trimesh_visual = TextureVisuals(uv=flattened_uvs)
+            trimesh_obj = trimesh.Trimesh(
+                vertices=flattened_vertices,
+                faces=flattened_faces,
+                vertex_normals=flattened_norms,
+                visual=trimesh_visual,
+                process=False,
+            )
+        else:
+            trimesh_obj = trimesh.Trimesh(
+                vertices=vertices,
+                faces=faces,
+                vertex_normals=norms,
+                process=False,
+            )
+        trimesh_obj.unmerge_vertices()
+        trimesh_obj.fix_normals()
+        # faces_uv = faces_uv.astype(np.int32) if faces_uv is not None else None
+        return create_mesh(trimesh_obj, faces_uv)
 
     def process_material(self, mj_model, mat_id: int):
         # build material information
         mat_color = mj_model.mat_rgba[mat_id]
-        mat_emissionColor = mj_model.mat_emission[mat_id] * mat_color
         mat_color = mat_color.tolist()
-        mat_emissionColor = mat_emissionColor.tolist()
+        # TODO: emission color processing
+        mat_emissionColor = [0.0, 0.0, 0.0, 1.0]
+        # mat_emissionColor = mj_model.mat_emission[mat_id] * mat_color
+        # mat_emissionColor = mat_emissionColor.tolist()
         mat_specular = float(mj_model.mat_specular[mat_id])
         mat_shininess = float(mj_model.mat_shininess[mat_id])
         mat_reflectance = float(mj_model.mat_reflectance[mat_id])
@@ -261,7 +280,7 @@ class MjModelParser:
             )
         if tex_id != -1:
             mat_texture = self.process_texture(mj_model, tex_id)
-            mat_texture.textureScale = mj_model.mat_texrepeat[mat_id].tolist()
+            mat_texture["textureScale"] = mj_model.mat_texrepeat[mat_id].tolist()
         material = SimMaterial(
             color=mat_color,
             emissionColor=mat_emissionColor,
@@ -294,6 +313,4 @@ class MjModelParser:
             tex_data: np.ndarray = mj_model.tex_rgb[
                 start_tex : start_tex + num_tex_data
             ]
-        return SimTexture.create_texture(
-            tex_data, tex_height, tex_width, self.sim_scene
-        )
+        return create_texture(tex_data, tex_height, tex_width)

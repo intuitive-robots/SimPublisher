@@ -5,34 +5,33 @@ import traceback
 from asyncio import sleep as asyncio_sleep
 from typing import Dict, List, Optional, Set
 
-from ..parser.simdata import SimObject, SimScene
+import pyzlc
+from pyzlc.sockets.publisher import Streamer
+
 from .log import func_timing, logger
-from .net_component import Streamer
-from .node_manager import XRNodeManager, init_xr_node_manager
+from ..parser.simdata import TreeNode, SimScene
+
+
 from .utils import (
     HashIdentifier,
-    XRNodeInfo,
-    get_zmq_socket_url,
-    send_request_with_addr_async,
+    XRNodeInfo
 )
 
 
 class ServerBase(abc.ABC):
-    def __init__(self, ip_addr: str):
+    def __init__(self, server_name: str, ip_addr: str):
         self.ip_addr: str = ip_addr
-        self.node_manager = init_xr_node_manager(ip_addr)
+        pyzlc.init(server_name, ip_addr)
+        assert pyzlc.LanComNode.instance is not None, "LanComNode is not initialized."
+        self.node_manager = pyzlc.LanComNode.instance
         self.initialize()
-        self.node_manager.start_discover_node_loop()
 
     def spin(self):
-        self.node_manager.spin()
+        pyzlc.spin()
 
     @abc.abstractmethod
     def initialize(self):
         raise NotImplementedError
-
-    def shutdown(self):
-        self.node_manager.stop_node()
 
 
 class MsgServer(ServerBase):
@@ -59,7 +58,7 @@ class SimPublisher(ServerBase):
             self.no_tracked_objects = []
         else:
             self.no_tracked_objects = no_tracked_objects
-        super().__init__(ip_addr)
+        super().__init__(sim_scene.name, ip_addr)
 
     def initialize(self) -> None:
         self.scene_update_streamer = Streamer(
@@ -69,25 +68,22 @@ class SimPublisher(ServerBase):
             start_streaming=True,
         )
         self.xr_device_set: Set[HashIdentifier] = set()
-        self.node_manager.submit_asyncio_task(
-            self.search_xr_device, self.node_manager
-        )
+        pyzlc.submit_loop_task(self.search_xr_device())
 
-    async def search_xr_device(self, node_manager: XRNodeManager):
+    async def search_xr_device(self):
         # TODO: If Unity restarts too quickly (under 1 second),
         # TODO: the scene may not be fully constructed when
         # TODO: SimPublisher attempts to send it.
         # TODO: In such cases, this function may fail
         # TODO: and require a SimPublisher restart.
-        while node_manager.running:
-            for xr_node_id, node_entry in node_manager.xr_nodes.items():
+        while pyzlc.is_running():
+            for xr_info in pyzlc.get_nodes_info():
+                if not xr_info["name"].startswith("IRIS/Device/"):
+                    continue
+                if xr_info["nodeID"] in self.xr_device_set:
+                    continue
+                self.xr_device_set.add(xr_info["nodeID"])
                 try:
-                    xr_info = node_entry.info
-                    if xr_info is None:
-                        continue
-                    if xr_node_id in self.xr_device_set:
-                        continue
-                    self.xr_device_set.add(xr_node_id)
                     await self.send_scene_to_xr_device(xr_info)
                 except Exception as e:
                     logger.error(f"Error when sending scene to xr device: {e}")
@@ -97,95 +93,51 @@ class SimPublisher(ServerBase):
     @func_timing
     async def send_scene_to_xr_device(self, xr_info: XRNodeInfo):
         logger.info(f"Sending scene to xr device: {xr_info['name']}")
-        await send_request_with_addr_async(
-            [
-                "DeleteSimScene".encode(),
-                self.sim_scene.name.encode(),
-            ],
-            f"tcp://{xr_info['ip']}:{xr_info['port']}",
+        node_prefix = f"{xr_info['name']}"
+        await pyzlc.wait_for_service_async(f"{node_prefix}/DeleteSimScene", timeout=5.0)
+        await pyzlc.async_call(
+            f"{node_prefix}/DeleteSimScene",
+            self.sim_scene.name,
         )
-        await send_request_with_addr_async(
-            [
-                "SpawnSimScene".encode(),
-                self.sim_scene.serialize().encode(),
-            ],
-            f"tcp://{xr_info['ip']}:{xr_info['port']}",
+        await pyzlc.async_call(
+            f"{node_prefix}/SpawnSimScene",
+            self.sim_scene.setting,
         )
         if self.sim_scene.root is None:
             logger.warning("The SimScene root is None, nothing to send.")
             return
-        await self.send_rigid_body_streamer(
-            xr_info,
-            self.sim_scene,
+        scene_prefix = f"{node_prefix}/{self.sim_scene.name}"
+        await pyzlc.wait_for_service_async(
+            f"{scene_prefix}/SubscribeRigidObjectsController", timeout=1.0
         )
+        await pyzlc.async_call(
+            f"{scene_prefix}/SubscribeRigidObjectsController",
+            self.scene_update_streamer.url,
+        )
+        # print("Subscribed RigidObjectsController", self.scene_update_streamer.url)
         await self.send_objects_to_xr_device(
-            xr_info,
-            self.sim_scene,
             self.sim_scene.root,
+            scene_prefix,
         )
-        await self.send_assets_to_xr_device(
-            xr_info,
-            self.sim_scene,
+        # await self.send_objects_to_xr_device(
+        #     xr_info,
+        #     self.sim_scene,
+        #     self.sim_scene.root,
+        # )
+        # await self.send_assets_to_xr_device(
+        #     xr_info,
+        #     self.sim_scene,
+        # )
+
+    async def send_objects_to_xr_device(self, sim_object_node: TreeNode, scene_prefix: str):
+        # print(f"Sending object {sim_object_node.data['name']} to xr device")
+        assert sim_object_node.data is not None, "SimObject node data is None"
+        await pyzlc.async_call(
+            f"{scene_prefix}/CreateSimObject",
+            sim_object_node.data,
         )
-
-    async def send_objects_to_xr_device(
-        self,
-        xr_info: XRNodeInfo,
-        sim_scene: SimScene,
-        sim_object: SimObject,
-        parent: Optional[SimObject] = None,
-    ):
-        await send_request_with_addr_async(
-            [
-                f"{sim_scene.name}/CreateSimObject".encode(),
-                parent.name.encode() if parent else "".encode(),
-                sim_object.serialize().encode(),
-            ],
-            f"tcp://{xr_info['ip']}:{xr_info['port']}",
-        )
-
-    async def send_assets_to_xr_device(
-        self,
-        xr_info: XRNodeInfo,
-        sim_scene: SimScene,
-    ):
-        if sim_scene.root is None:
-            logger.warning("The SimScene root is None, nothing to send.")
-            return
-        for (
-            name,
-            sim_visual,
-            mesh_raw_data,
-            texture_raw_data,
-        ) in sim_scene.get_all_assets(sim_scene.root):
-            await send_request_with_addr_async(
-                [
-                    f"{sim_scene.name}/CreateVisual".encode(),
-                    name.encode(),
-                    sim_visual.serialize().encode(),
-                    mesh_raw_data,
-                    texture_raw_data,
-                ],
-                f"tcp://{xr_info['ip']}:{xr_info['port']}",
-            )
-
-    async def send_rigid_body_streamer(
-        self,
-        xr_info: XRNodeInfo,
-        sim_scene: SimScene,
-    ):
-        url = get_zmq_socket_url(self.scene_update_streamer.socket)
-        await send_request_with_addr_async(
-            [
-                f"{sim_scene.name}/SubscribeRigidObjectsController".encode(),
-                url.encode(),
-                "RigidObjectUpdate".encode(),
-            ],
-            f"tcp://{xr_info['ip']}:{xr_info['port']}",
-        )
-
-    def _on_asset_request(self, req: str) -> bytes:
-        return self.sim_scene.raw_data[req]
+        for child in sim_object_node.children:
+            await self.send_objects_to_xr_device(child, scene_prefix)
 
     @abc.abstractmethod
     def get_update(self) -> Dict:
