@@ -9,8 +9,6 @@ from dataclasses import dataclass
 from hashlib import md5
 
 # support for IsaacSim versions < 4.5
-from importlib.metadata import version
-
 import numpy as np
 import numpy.typing as npt
 import omni
@@ -24,7 +22,23 @@ from tabulate import tabulate
 from usdrt import Usd as RtUsd
 from usdrt import UsdGeom as RtGeom
 
-if version("isaacsim") < "4.5":
+# Detect Isaac Sim version - handle both pip and binary installations
+def _get_isaacsim_version():
+    """Get Isaac Sim version, handling both pip and binary installations."""
+    try:
+        from importlib.metadata import version
+        return version("isaacsim")
+    except Exception:
+        # Binary installation - check for new module structure (>= 4.5)
+        try:
+            import isaacsim.core.prims
+            return "5.0"  # New structure exists, assume >= 4.5
+        except ImportError:
+            return "4.0"  # Old structure
+
+_isaacsim_version = _get_isaacsim_version()
+
+if _isaacsim_version < "4.5":
     from omni.isaac.core.prims import XFormPrim as SingleXFormPrim
     from omni.isaac.core.utils.rotations import (
         euler_angles_to_quat,

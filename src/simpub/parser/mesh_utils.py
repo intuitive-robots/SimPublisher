@@ -1,14 +1,18 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import numpy.typing as npt
 
 
+def _empty_array():
+    return np.array([])
+
+
 @dataclass
 class Mesh:
-    vertex_buf: npt.NDArray = np.array([])
-    # normal_buf: npt.NDArray = np.array([])
-    index_buf: npt.NDArray = np.array([])
+    vertex_buf: npt.NDArray = field(default_factory=_empty_array)
+    # normal_buf: npt.NDArray = field(default_factory=_empty_array)
+    index_buf: npt.NDArray = field(default_factory=_empty_array)
     uv_buf: npt.NDArray | None = None
 
     def __post_init__(self):

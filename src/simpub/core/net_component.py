@@ -102,9 +102,10 @@ class ByteStreamer(Streamer):
         self,
         topic: str,
         update_func: Callable[[], bytes],
-        fps: int,
+        fps: int = 45,
+        start_streaming: bool = False,
     ):
-        super().__init__(topic, update_func, fps)
+        super().__init__(topic, update_func, fps, start_streaming)
         self.update_func: Callable[[], bytes]
 
     def generate_byte_msg(self) -> bytes:
