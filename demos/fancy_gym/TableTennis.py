@@ -8,7 +8,7 @@ env_name = "TableTennis2D-v0"
 env = fancy_gym.make(env_name, seed=1)
 obs = env.reset()
 
-publisher = FancyGymPublisher(env, "192.168.0.134")
+publisher = FancyGymPublisher(env, "192.168.0.103")
 
 while True:
     action = env.action_space.sample()

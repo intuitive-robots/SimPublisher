@@ -9,7 +9,7 @@ from flask import Flask, jsonify, render_template, request
 from werkzeug.serving import BaseWSGIServer, make_server
 
 from ..core.utils import XRNodeRegistry, send_request_with_addr
-from .app.utils import read_qr_alignment_data, send_zmq_request
+from .app.utils import create_scene_config_file, read_qr_alignment_data, send_zmq_request
 
 _ROUTES: List[Tuple[str, str, Dict[str, object]]] = []
 
@@ -199,9 +199,29 @@ class SimPubWebServer:
             _, ip, service_port = self._extract_connection_info(payload)
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
+
+        # Prefer Scene.json located at the current Python working directory.
+        # Fall back to the previous relative path if not present.
+        try:
+            scene_path = Path.cwd() / "Scene.json"
+            if not scene_path.exists():
+                create_scene_config_file(output_filepath=scene_path)
+            scene_text = scene_path.read_text(encoding="utf-8")
+        except Exception as exc:
+            traceback.print_exc()
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": f"Failed to read Scene.json: {exc}",
+                    }
+                ),
+                500,
+            )
+
         try:
             response = send_request_with_addr(
-                "ToggleQRTracking", "", f"tcp://{ip}:{service_port}"
+                "ToggleQRTracking", scene_text, f"tcp://{ip}:{service_port}"
             )
             return jsonify(
                 {
