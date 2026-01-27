@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import traceback
 from asyncio import sleep as asyncio_sleep
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, TypedDict
 
 import pyzlc
 from pyzlc.sockets.publisher import Streamer
@@ -21,7 +21,7 @@ from .utils import (
 class ServerBase(abc.ABC):
     def __init__(self, server_name: str, ip_addr: str):
         self.ip_addr: str = ip_addr
-        pyzlc.init(server_name, ip_addr)
+        pyzlc.init(server_name, ip_addr, group="239.255.10.10", group_port=7720)
         assert pyzlc.LanComNode.instance is not None, "LanComNode is not initialized."
         self.node_manager = pyzlc.LanComNode.instance
         self.initialize()
@@ -37,6 +37,10 @@ class ServerBase(abc.ABC):
 class MsgServer(ServerBase):
     def initialize(self):
         pass
+
+
+class RigidObjectUpdateData(TypedDict):
+    data: Dict[str, List[float]]
 
 
 class SimPublisher(ServerBase):
@@ -94,6 +98,7 @@ class SimPublisher(ServerBase):
     async def send_scene_to_xr_device(self, xr_info: XRNodeInfo):
         logger.info(f"Sending scene to xr device: {xr_info['name']}")
         node_prefix = f"{xr_info['name']}"
+        print(xr_info)
         await pyzlc.wait_for_service_async(f"{node_prefix}/DeleteSimScene", timeout=5.0)
         await pyzlc.async_call(
             f"{node_prefix}/DeleteSimScene",
@@ -101,7 +106,7 @@ class SimPublisher(ServerBase):
         )
         await pyzlc.async_call(
             f"{node_prefix}/SpawnSimScene",
-            self.sim_scene.setting,
+            self.sim_scene.config,
         )
         if self.sim_scene.root is None:
             logger.warning("The SimScene root is None, nothing to send.")
@@ -114,20 +119,11 @@ class SimPublisher(ServerBase):
             f"{scene_prefix}/SubscribeRigidObjectsController",
             self.scene_update_streamer.url,
         )
-        # print("Subscribed RigidObjectsController", self.scene_update_streamer.url)
         await self.send_objects_to_xr_device(
             self.sim_scene.root,
             scene_prefix,
         )
-        # await self.send_objects_to_xr_device(
-        #     xr_info,
-        #     self.sim_scene,
-        #     self.sim_scene.root,
-        # )
-        # await self.send_assets_to_xr_device(
-        #     xr_info,
-        #     self.sim_scene,
-        # )
+        await self.send_lights_to_xr_device(scene_prefix)
 
     async def send_objects_to_xr_device(self, sim_object_node: TreeNode, scene_prefix: str):
         # print(f"Sending object {sim_object_node.data['name']} to xr device")
@@ -139,6 +135,14 @@ class SimPublisher(ServerBase):
         for child in sim_object_node.children:
             await self.send_objects_to_xr_device(child, scene_prefix)
 
+    async def send_lights_to_xr_device(self, scene_prefix: str):
+        for light in self.sim_scene.lights:
+            await pyzlc.async_call(
+                f"{scene_prefix}/CreateLight",
+                light,
+            )
+
+
     @abc.abstractmethod
-    def get_update(self) -> Dict:
+    def get_update(self) -> RigidObjectUpdateData:
         raise NotImplementedError

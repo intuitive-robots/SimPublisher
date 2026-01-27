@@ -14,10 +14,11 @@ from .simdata import (
     create_material,
     SimObject,
     SimScene,
-    SimTexture,
+    LightConfig,
     SimTransform,
     SimVisual,
     VisualType,
+    SimSceneConfig
 )
 
 
@@ -62,7 +63,6 @@ ScaleMap: Dict[str, Callable] = {
     VisualType.NONE: lambda x: capsule2unity_scale(x),
 }
 
-
 def scale2unity(scale: List[float], visual_type: str) -> List[float]:
     if visual_type in ScaleMap:
         return ScaleMap[visual_type](scale)
@@ -98,15 +98,26 @@ class MjModelParser:
         else:
             self.no_rendered_objects = no_rendered_objects
         self.visible_geoms_groups = visible_geoms_groups
+        self.parse_config(mj_model)
         self.parse_model(mj_model)
         self.sim_scene.process_sim_obj(self.sim_scene.root)
 
     def parse(self):
         return self.sim_scene
 
+    def parse_config(self, mj_model):
+        self.sim_scene = SimScene(
+            SimSceneConfig(
+                name="MujocoScene",
+                pos=[0, 0, 0],
+                rot=[0, 0, 0, 1],
+                scale=[1, 1, 1],
+            ),
+        )
+        self.sim_scene.lights = self.process_lights(mj_model)
+
     def parse_model(self, mj_model):
-        sim_scene = SimScene("MujocoScene")
-        self.sim_scene = sim_scene
+        sim_scene = self.sim_scene
         # create a dictionary to store the body hierarchy
         body_hierarchy: Dict[int, Tuple[int, TreeNode]] = {}
         for body_id in range(mj_model.nbody):
@@ -132,15 +143,12 @@ class MjModelParser:
         body_name = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_BODY, body_id)  # type: ignore
         # if body_name in self.no_rendered_objects:
         #     return None, -1
-        if body_name == "mount0_controller_box":
-            x = 1
         parent_id = mj_model.body_parentid[body_id]
         parent_name = "root"
         if parent_id != -1:
             parent_name = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_BODY, parent_id)  # type: ignore
         object_node = TreeNode()
         if parent_id == body_id:
-            self.sim_scene.root = object_node
             parent_id = -1
         # update the transform information
         trans = SimTransform(
@@ -164,6 +172,8 @@ class MjModelParser:
                 if geom_group not in self.visible_geoms_groups:
                     continue
                 sim_visual = self.process_geoms(mj_model, geom_id)
+                if sim_visual["name"] is None:
+                    sim_visual["name"] = f"{body_name}_geom_{geom_id}"
                 visuals_list.append(sim_visual)
         object_node.data = SimObject(name=body_name, parent=parent_name, trans=trans, visuals=visuals_list)
         assert object_node.data is not None, "Object node data should not be None."
@@ -209,42 +219,24 @@ class MjModelParser:
         num_faces = mj_model.mesh_facenum[mesh_id]
         faces = mj_model.mesh_face[start_face : start_face + num_faces]
         faces = faces.astype(np.int32)
-        # normals
-        if hasattr(mj_model, "mesh_normaladr"):
-            start_norm = mj_model.mesh_normaladr[mesh_id]
-            num_norm = mj_model.mesh_normalnum[mesh_id]
-        else:
-            start_norm = start_vert
-            num_norm = num_verts
-        assert num_norm == num_verts, "The number of normals must equal to the number of vertices."
-        norms = mj_model.mesh_normal[start_norm : start_norm + num_norm]
-        norms = norms.astype(np.float32)
-        # uv coordinates
+        # uv
         start_uv = mj_model.mesh_texcoordadr[mesh_id]
-        # mesh_texcoord = None
-        trimesh_visual = None
         faces_uv = None
         if start_uv != -1:
             num_texcoord = mj_model.mesh_texcoordnum[mesh_id]
             all_uv_coords = mj_model.mesh_texcoord[start_uv : start_uv + num_texcoord]
             faces_uv_idx = mj_model.mesh_facetexcoord[start_face : start_face + num_faces]
-            flattened_vertices = vertices[faces].reshape(-1, 3)
-            flattened_norms = norms[faces].reshape(-1, 3)
             flattened_uvs = all_uv_coords[faces_uv_idx].reshape(-1, 2)
-            flattened_faces = np.arange(len(flattened_vertices)).reshape(-1, 3)
-            trimesh_visual = TextureVisuals(uv=flattened_uvs)
             trimesh_obj = trimesh.Trimesh(
-                vertices=flattened_vertices,
-                faces=flattened_faces,
-                vertex_normals=flattened_norms,
-                visual=trimesh_visual,
+                vertices=vertices,
+                faces=faces,
+                visual=TextureVisuals(uv=flattened_uvs),
                 process=False,
             )
         else:
             trimesh_obj = trimesh.Trimesh(
                 vertices=vertices,
                 faces=faces,
-                vertex_normals=norms,
                 process=False,
             )
         trimesh_obj.unmerge_vertices()
@@ -314,3 +306,44 @@ class MjModelParser:
                 start_tex : start_tex + num_tex_data
             ]
         return create_texture(tex_data, tex_height, tex_width)
+
+    def process_lights(self, mj_model) -> List[LightConfig]:
+        """
+        Extracts light data from MuJoCo mjModel and mjData and converts
+        them to Unity-compatible coordinates and formats.
+        """
+        lights = []
+        
+        for i in range(mj_model.nlight):
+            # 1. Get Light Name from MuJoCo constants
+            name_adr = mj_model.name_lightadr[i]
+            light_name = mj_model.names[name_adr:].split(b'\x00')[0].decode()
+            parent_id = mj_model.light_bodyid[i]
+            parent_name = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_BODY, parent_id)  # type: ignore
+            if parent_name is None:
+                parent_name = "root"
+            is_directional = bool(mj_model.light_directional[i])
+            # If cutoff is small, it acts as a Spot light; if 180, it's a Point light
+            cutoff = float(mj_model.light_cutoff[i])
+            if is_directional:
+                l_type = "Directional"
+            elif cutoff < 180:
+                l_type = "Spot"
+            else:
+                l_type = "Point"
+
+            # 4. Map MuJoCo properties to Unity Light fields
+            config: LightConfig = {
+                "name": light_name,
+                "parent": parent_name,
+                "lightType": l_type,
+                "color": mj_model.light_diffuse[i].tolist(),
+                "intensity": 1.0,  # Default scale, can be tuned based on 'light_attenuation'
+                "position": mj2unity_pos(mj_model.light_pos[i].tolist()),
+                "direction": mj2unity_pos(mj_model.light_dir[i].tolist()),
+                "range": 20.0,     # Unity specific: distance where light hits zero
+                "spotAngle": cutoff * 2, # MuJoCo cutoff is half-angle, Unity is full-angle
+                "shadowType": "Soft" if mj_model.light_castshadow[i] else "None"
+            }
+            lights.append(config)
+        return lights

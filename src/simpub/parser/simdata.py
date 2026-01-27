@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-import abc
 import io
-import json
-from dataclasses import dataclass, field, fields
 from enum import Enum
 from hashlib import md5
-from typing import Dict, List, Optional, Tuple, TypedDict
-import msgpack
+from typing import Literal, List, Optional, Tuple, TypedDict
 
 from PIL import Image
 import numpy as np
@@ -54,10 +50,23 @@ class SimObject(TypedDict):
     trans: SimTransform
     visuals: List[SimVisual]
 
-class SimSceneSetting(TypedDict):
+class SimSceneConfig(TypedDict):
     name: str
+    pos: List[float]
+    rot: List[float]
+    scale: List[float]
 
-
+class LightConfig(TypedDict):
+    name: str
+    parent: Optional[str]
+    lightType: Literal["Directional", "Point", "Spot"]
+    color: List[float]        # [R, G, B]
+    intensity: float          # Multiplier or Lux
+    position: List[float]     # [X, Y, Z] in Unity coordinates
+    direction: List[float]    # [X, Y, Z] forward vector for Unity
+    range: float              # Attenuation distance
+    spotAngle: float         # Full cone angle in degrees
+    shadowType: str          # "None", "Hard", "Soft"
 
 class TreeNode:
     def __init__(self) -> None:
@@ -70,121 +79,16 @@ class TreeNode:
     def add_child(self, child_node: TreeNode) -> None:
         self.children.append(child_node)
 
-# @dataclass
-# class SimData:
-#     def to_dict(self):
-#         return {
-#             f.name: getattr(self, f.name)
-#             for f in fields(self)
-#             if not f.metadata.get("exclude", False)
-#         }
-
-#     def serialize(self) -> bytes:
-#         data = msgpack.packb(self.to_dict(), use_bin_type=True)
-#         assert isinstance(data, bytes), "msgpack serialization failed"
-#         return data
-
-# @dataclass
-# class SimTransform(SimData):
-#     pos: List[float] = field(default_factory=lambda: [0, 0, 0])
-#     rot: List[float] = field(default_factory=lambda: [0, 0, 0, 1])
-#     scale: List[float] = field(default_factory=lambda: [1, 1, 1])
-
-
-
-
-# @dataclass
-# class SimVisual(SimData):
-#     name: str
-#     type: VisualType
-#     trans: SimTransform
-#     mesh: Optional[SimMesh] = None
-#     material: Optional[SimMaterial] = None
-#     # TODO： easily set up transparency
-#     # def setup_transparency(self):
-#     #     if self.material is not None:
-#     #         self.material = self
-
-#     def to_dict(self) -> Dict:
-#         return {
-#             "name": self.name,
-#             "type": self.type.value,
-#             "trans": self.trans.to_dict(),
-#             "mesh": self.mesh.to_dict() if self.mesh else None,
-#             "material": self.material.to_dict() if self.material else None,
-#         }
-
-
-
-
-# @dataclass
-# class SimMaterial(SimData):
-#     # All the color values are within the 0 - 1.0 range
-#     color: List[float]
-#     emissionColor: Optional[List[float]] = None
-#     specular: float = 0.5
-#     shininess: float = 0.5
-#     reflectance: float = 0.0
-#     texture: Optional[SimTexture] = None
-
-#     def to_dict(self):
-#         data = super().to_dict()
-#         if self.texture is not None:
-#             data["texture"] = self.texture.to_dict()
-#         return data
-
-
-# @dataclass
-# class SimMesh(SimData):
-#     # (offset: bytes, count: int)
-#     indices: bytes
-#     vertices: bytes
-#     normals: bytes
-#     uv: Optional[bytes] = None
-
-
-# @dataclass
-# class SimTexture(SimData):
-#     hash: str
-#     width: int
-#     height: int
-#     # TODO: new texture type
-#     textureType: str
-#     textureScale: Tuple[int, int]
-#     textureData: bytes
-
-
-# @dataclass
-# class SimObject(SimData):
-#     name: str
-#     trans: SimTransform = field(default_factory=SimTransform)
-#     visuals: List[SimVisual] = field(default_factory=list)
-#     children: List[SimObject] = field(default_factory=list)
-
-#     def to_dict(self) -> Dict:
-#         return {
-#             "name": self.name,
-#             "trans": self.trans.to_dict(),
-#             "visuals": [visual.to_dict() for visual in self.visuals],
-#         }
-
-#     def find_child(self, name: str) -> Optional[SimObject]:
-#         if self.name == name:
-#             return self
-#         for child in self.children:
-#             result = child.find_child(name)
-#             if result is not None:
-#                 return result
-#         return None
-
 class SimScene:
-    def __init__(self, name: str = "DefaultSceneName") -> None:
+    def __init__(self, config: SimSceneConfig) -> None:
+        self.config: SimSceneConfig = config
         self.root: TreeNode = TreeNode()
-        self.setting: SimSceneSetting = SimSceneSetting(name=name)
+        self.lights: List[LightConfig] = []
 
     @property
     def name(self) -> str:
-        return self.setting["name"]
+        return self.config["name"]
+
 
     def process_sim_obj(self, kt_node: TreeNode) -> None:
         # for visual in sim_obj.visuals:
@@ -234,18 +138,22 @@ def create_mesh(trimesh_obj: trimesh.Trimesh, uvs: Optional[np.ndarray]) -> SimM
     assert (
         indices.size % 3 == 0
     ), f"Number of indices ({indices.size}) must be a multiple of 3"
+    uv_data = None
+    if hasattr(trimesh_obj, 'visual') and getattr(trimesh_obj.visual, 'uv', None) is not None:
+        # Ensure float32 for Unity compatibility
+        uv_data = getattr(trimesh_obj.visual, 'uv')
     return SimMesh(
         vertices=generate_bytes(vertices),
         indices=generate_bytes(indices),
         normals=generate_bytes(normals),
-        uv=generate_bytes(uvs) if uvs is not None else None,
+        uv=generate_bytes(uv_data) if uv_data is not None else None,
     )
 
 def create_texture(
     image_flaten_array: np.ndarray,
     image_height: int,
     image_width: int,
-    texture_scale: Tuple[int, int] = field(default_factory=lambda: (1, 1)),
+    texture_scale: Tuple[int, int] = (1, 1),
     texture_type: str = "2D",
     quality: int = 75,
 ) -> SimTexture:
