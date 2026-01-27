@@ -88,8 +88,8 @@ class MetaQuest3(XRDevice):
             MetaQuest3MotionControllerData
         ] = None
         self.hand_tracking_data: Optional[MetaQuest3HandTrackingData] = None
-        pyzlc.register_subscriber_handler("MotionController", self.update_motion_controller)
-        pyzlc.register_subscriber_handler("HandTracking", self.update_hand_tracking)
+        pyzlc.register_subscriber_handler(f"{device_name}/MotionController", self.update_motion_controller)
+        pyzlc.register_subscriber_handler(f"{device_name}/HandTracking", self.update_hand_tracking)
         # self.start_vib_pub = Publisher(f"{device_name}/StartVibration")
         # self.stop_vib_pub = Publisher(f"{device_name}/StopVibration")
         self.button_press_event: Dict[str, List[Callable]] = {

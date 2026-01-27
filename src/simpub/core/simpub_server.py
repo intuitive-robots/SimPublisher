@@ -118,7 +118,10 @@ class SimPublisher(ServerBase):
     async def send_scene_to_xr_device(self, xr_info: XRNodeInfo):
         logger.info(f"Sending scene to xr device: {xr_info['name']}")
         node_prefix = f"{xr_info['name']}"
-        await pyzlc.wait_for_service_async(f"{node_prefix}/DeleteSimScene", timeout=5.0)
+        flag = await pyzlc.wait_for_service_async(f"{node_prefix}/DeleteSimScene", timeout=5.0)
+        if not flag:
+            logger.error(f"Timeout waiting for {node_prefix}/DeleteSimScene service")
+            return
         await pyzlc.async_call(
             f"{node_prefix}/DeleteSimScene",
             self.sim_scene.name,
