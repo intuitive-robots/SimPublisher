@@ -8,8 +8,10 @@ from typing import Dict, List, Optional, Tuple
 from flask import Flask, jsonify, render_template, request
 from werkzeug.serving import BaseWSGIServer, make_server
 
+import pyzlc
+
 from ..core.utils import XRNodeRegistry, send_request_with_addr
-from .app.utils import create_scene_config_file, read_qr_alignment_data, send_zmq_request
+from .app.utils import create_scene_config_file, send_zmq_request
 
 _ROUTES: List[Tuple[str, str, Dict[str, object]]] = []
 
@@ -29,11 +31,9 @@ class SimPubWebServer:
 
     def __init__(
         self,
-        xr_nodes: XRNodeRegistry,
         host: str = "127.0.0.1",
         port: int = 5000,
     ) -> None:
-        self.xr_nodes = xr_nodes
         self.host = host
         self.port = port
         root_dir = Path(__file__).resolve().parent / "app"
@@ -45,7 +45,6 @@ class SimPubWebServer:
             static_folder=str(static_dir),
             static_url_path="/static",
         )
-        self.app.config["XR_NODE_REGISTRY"] = xr_nodes
         self._server: Optional[BaseWSGIServer] = None
         self._context = None
         self._started: bool = False
@@ -64,8 +63,10 @@ class SimPubWebServer:
     def scan(self):
         try:
             nodes = []
-            for node in self.xr_nodes.registered_infos():
-                node_payload = dict(node)
+            for xr_info in pyzlc.get_nodes_info():
+                if not xr_info["name"].startswith("IRIS/Device/"):
+                    continue
+                node_payload = dict(xr_info)
                 nodes.append(node_payload)
             return jsonify({"status": "success", "nodes": nodes})
         except Exception as exc:

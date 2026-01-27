@@ -4,13 +4,14 @@ import abc
 import traceback
 from asyncio import sleep as asyncio_sleep
 from typing import Dict, List, Optional, Set, TypedDict
+import concurrent.futures
 
 import pyzlc
 from pyzlc.sockets.publisher import Streamer
 
 from .log import func_timing, logger
 from ..parser.simdata import TreeNode, SimScene
-
+from ..simpubweb.simpub_web_server import SimPubWebServer
 
 from .utils import (
     HashIdentifier,
@@ -21,10 +22,29 @@ from .utils import (
 class ServerBase(abc.ABC):
     def __init__(self, server_name: str, ip_addr: str):
         self.ip_addr: str = ip_addr
-        pyzlc.init(server_name, ip_addr, group="239.255.10.10", group_port=7720)
+        pyzlc.init(server_name, ip_addr, group="239.255.10.10", group_port=7720, group_name="IRIS")
         assert pyzlc.LanComNode.instance is not None, "LanComNode is not initialized."
         self.node_manager = pyzlc.LanComNode.instance
+        self.web_server: Optional[SimPubWebServer] = None
+        self.web_server_future: Optional[concurrent.futures.Future] = None
+        self._start_web_server()
         self.initialize()
+
+    def _start_web_server(self):
+        if self.web_server is not None:
+            return
+        try:
+            self.web_server = SimPubWebServer(host="127.0.0.1", port=5000)
+            self.web_server_future = pyzlc.submit_thread_pool_task(
+                self.web_server.serve_forever
+            )
+            logger.info("Web dashboard is running at http://127.0.0.1:5000")
+        except Exception as e:
+            logger.error(
+                f"Failed to start web dashboard on 127.0.0.1:5000: {e}"
+            )
+            traceback.print_exc()
+
 
     def spin(self):
         pyzlc.spin()
@@ -98,7 +118,6 @@ class SimPublisher(ServerBase):
     async def send_scene_to_xr_device(self, xr_info: XRNodeInfo):
         logger.info(f"Sending scene to xr device: {xr_info['name']}")
         node_prefix = f"{xr_info['name']}"
-        print(xr_info)
         await pyzlc.wait_for_service_async(f"{node_prefix}/DeleteSimScene", timeout=5.0)
         await pyzlc.async_call(
             f"{node_prefix}/DeleteSimScene",
