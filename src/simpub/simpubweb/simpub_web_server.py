@@ -4,6 +4,7 @@ import traceback
 from functools import wraps
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import msgpack
 
 from flask import Flask, jsonify, render_template, request
 from werkzeug.serving import BaseWSGIServer, make_server
@@ -11,7 +12,7 @@ from werkzeug.serving import BaseWSGIServer, make_server
 import pyzlc
 
 from ..core.utils import XRNodeRegistry, send_request_with_addr
-from .app.utils import create_scene_config_file, send_zmq_request
+from .app.utils import create_scene_config_file
 
 _ROUTES: List[Tuple[str, str, Dict[str, object]]] = []
 
@@ -96,12 +97,12 @@ class SimPubWebServer:
         #         400,
         #     )
         try:
-            _, ip, service_port = self._extract_connection_info(payload)
+            name, ip, service_port = self._extract_connection_info(payload)
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            response = send_request_with_addr(
-                "ToggleGrab", "", f"tcp://{ip}:{service_port}"
+            response = pyzlc.call(
+                name + "/ToggleGrab", " "
             )
             return jsonify(
                 {
@@ -137,12 +138,12 @@ class SimPubWebServer:
                 400,
             )
         try:
-            _, ip, service_port = self._extract_connection_info(payload)
+            name, ip, service_port = self._extract_connection_info(payload)
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            response = send_request_with_addr(
-                "Rename", new_name, f"tcp://{ip}:{service_port}"
+            response = pyzlc.call(
+                name + "/Rename", new_name
             )
             return jsonify(
                 {
@@ -171,8 +172,8 @@ class SimPubWebServer:
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            response = send_zmq_request(
-                ip, service_port, f"{name}/ToggleOcclusion", {}
+            response = pyzlc.call(
+                f"{name}/ToggleOcclusion", {}
             )
             return jsonify(
                 {
@@ -196,9 +197,12 @@ class SimPubWebServer:
     @route("/toggle-qr-tracking", methods=["POST"])
     def toggle_qr_tracking(self):
         payload = request.get_json(silent=True) or {}
+        name = payload.get("name", "")
         try:
             _, ip, service_port = self._extract_connection_info(payload)
+            print(f"ip: {ip}, service_port: {service_port}")
         except ValueError as exc:
+            print("message", str(exc))
             return jsonify({"status": "error", "message": str(exc)}), 400
 
         # Prefer Scene.json located at the current Python working directory.
@@ -221,9 +225,12 @@ class SimPubWebServer:
             )
 
         try:
-            response = send_request_with_addr(
-                "ToggleQRTracking", scene_text, f"tcp://{ip}:{service_port}"
-            )
+            print("trying to send toggle qr tracking request")
+            response = pyzlc.call(f"{name}/ToggleQRTracking", scene_text)
+            # packed_scene = msgpack.packb(scene_text)
+            # response = send_request_with_addr(
+            #     name + "/ToggleQRTracking", scene_text, f"tcp://{ip}:{service_port}"
+            # )
             return jsonify(
                 {
                     "status": "success",

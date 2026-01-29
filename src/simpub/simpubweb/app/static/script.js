@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const clone = xrTemplate.content.cloneNode(true);
         const deviceHeader = clone.querySelector('.device-header');
         const ip = nodeInfo.ip || (nodeInfo.addr && nodeInfo.addr.ip) || '';
-        const port = nodeInfo.port ?? '';
+        const port = nodeInfo.services[0].port ?? '';
 
         deviceHeader.setAttribute('data-name', nodeInfo.name || '');
         deviceHeader.setAttribute('data-node-id', nodeInfo.nodeID || '');
