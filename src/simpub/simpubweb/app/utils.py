@@ -26,6 +26,8 @@ def create_scene_config_file(scene_data: dict = None, output_filepath: Path = Pa
             "qrCode": "IRIS",
             "offset": { "x": 0, "y": 0, "z": -1, "rotX": 0, "rotY": 0, "rotZ": 0 }
         }
+    output_filepath = Path(output_filepath)
+    output_filepath.parent.mkdir(parents=True, exist_ok=True)
     with open(output_filepath, "w") as file:
         json.dump(scene_data, file)
 

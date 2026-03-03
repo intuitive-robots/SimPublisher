@@ -101,9 +101,7 @@ class SimPubWebServer:
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            response = pyzlc.call(
-                name + "/ToggleGrab", " "
-            )
+            response = pyzlc.call(name + "/ToggleGrab", " ")
             return jsonify(
                 {
                     "status": "success",
@@ -142,9 +140,7 @@ class SimPubWebServer:
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            response = pyzlc.call(
-                name + "/Rename", new_name
-            )
+            response = pyzlc.call(name + "/Rename", new_name)
             return jsonify(
                 {
                     "status": "success",
@@ -172,9 +168,7 @@ class SimPubWebServer:
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            response = pyzlc.call(
-                f"{name}/ToggleOcclusion", {}
-            )
+            response = pyzlc.call(f"{name}/ToggleOcclusion", {})
             return jsonify(
                 {
                     "status": "success",
@@ -208,7 +202,7 @@ class SimPubWebServer:
         # Prefer Scene.json located at the current Python working directory.
         # Fall back to the previous relative path if not present.
         try:
-            scene_path = Path.cwd() / "Scene.json"
+            scene_path = Path.home() / ".simpub" / "scene.json"
             if not scene_path.exists():
                 create_scene_config_file(output_filepath=scene_path)
             scene_text = scene_path.read_text(encoding="utf-8")
