@@ -172,15 +172,6 @@ class SimPublisher(ServerBase):
                 light,
             )
 
-    # def create_trajectory(self, trajectory_name: str, points: List[Dict[str, float]]):
-    #     await pyzlc.async_call(
-    #         f"{self.sim_scene.name}/CreateTrajectory",
-    #         {
-    #             "name": trajectory_name,
-    #             "points": points,
-    #         },
-    #     )
-
     @abc.abstractmethod
     def get_update(self) -> RigidObjectUpdateData:
         raise NotImplementedError
