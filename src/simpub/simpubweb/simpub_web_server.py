@@ -4,14 +4,11 @@ import traceback
 from functools import wraps
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import msgpack
-
 from flask import Flask, jsonify, render_template, request
 from werkzeug.serving import BaseWSGIServer, make_server
 
 import pyzlc
 
-from ..core.utils import XRNodeRegistry, send_request_with_addr
 from .app.utils import create_scene_config_file
 
 _ROUTES: List[Tuple[str, str, Dict[str, object]]] = []

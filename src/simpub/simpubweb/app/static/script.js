@@ -34,11 +34,15 @@ document.addEventListener('DOMContentLoaded', () => {
         deviceHeader.setAttribute('data-node-id', nodeInfo.nodeID || '');
         deviceHeader.setAttribute('data-ip', ip);
         deviceHeader.setAttribute('data-port', port);
-
-        clone.querySelector('.device-name').textContent = nodeInfo.name || 'Unknown Node';
-
+        
+        const nameParts = (nodeInfo.name || '').split('/').filter(Boolean);
+        const parsedType = nameParts.length >= 2 ? nameParts[nameParts.length - 2] : (nodeInfo.type || '');
+        const parsedName = nameParts.length >= 1 ? nameParts[nameParts.length - 1] : '';
+        
+        clone.querySelector('.device-name').textContent = parsedName || 'Unknown Node';
+        
         const typeEl = clone.querySelector('.device-type');
-        typeEl.textContent = nodeInfo.type || 'Unknown';
+        typeEl.textContent = parsedType || 'Unknown Type';
 
         const ipEl = clone.querySelector('.device-ip');
         ipEl.textContent = ip ? (port ? `${ip}:${port}` : ip) : 'Unavailable';
