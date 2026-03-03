@@ -28,7 +28,25 @@ class ServerBase(abc.ABC):
         self.web_server: Optional[SimPubWebServer] = None
         self.web_server_future: Optional[concurrent.futures.Future] = None
         self._start_web_server()
+        self.xr_device_set: Set[HashIdentifier] = set()
+        pyzlc.submit_loop_task(self.search_xr_device())
         self.initialize()
+
+    async def search_xr_device(self):
+        # TODO: If Unity restarts too quickly (under 1 second),
+        # TODO: the scene may not be fully constructed when
+        # TODO: SimPublisher attempts to send it.
+        # TODO: In such cases, this function may fail
+        # TODO: and require a SimPublisher restart.
+        while pyzlc.is_running():
+            for xr_info in pyzlc.get_nodes_info():
+                if not xr_info["name"].startswith("IRIS/Device/"):
+                    continue
+                if xr_info["nodeID"] in self.xr_device_set:
+                    continue
+                self.xr_device_set.add(xr_info["nodeID"])
+                await self.on_new_device_found(xr_info)
+            await asyncio_sleep(0.5)
 
     def _start_web_server(self):
         if self.web_server is not None:
@@ -51,6 +69,10 @@ class ServerBase(abc.ABC):
 
     @abc.abstractmethod
     def initialize(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def on_new_device_found(self, xr_info: XRNodeInfo):
         raise NotImplementedError
 
 
@@ -91,28 +113,14 @@ class SimPublisher(ServerBase):
             fps=self.fps,
             start_streaming=True,
         )
-        self.xr_device_set: Set[HashIdentifier] = set()
-        pyzlc.submit_loop_task(self.search_xr_device())
 
-    async def search_xr_device(self):
-        # TODO: If Unity restarts too quickly (under 1 second),
-        # TODO: the scene may not be fully constructed when
-        # TODO: SimPublisher attempts to send it.
-        # TODO: In such cases, this function may fail
-        # TODO: and require a SimPublisher restart.
-        while pyzlc.is_running():
-            for xr_info in pyzlc.get_nodes_info():
-                if not xr_info["name"].startswith("IRIS/Device/"):
-                    continue
-                if xr_info["nodeID"] in self.xr_device_set:
-                    continue
-                self.xr_device_set.add(xr_info["nodeID"])
-                try:
-                    await self.send_scene_to_xr_device(xr_info)
-                except Exception as e:
-                    logger.error(f"Error when sending scene to xr device: {e}")
-                    traceback.print_exc()
-            await asyncio_sleep(0.5)
+    async def on_new_device_found(self, xr_info: XRNodeInfo):
+        try:
+            await self.send_scene_to_xr_device(xr_info)
+        except Exception as e:
+            logger.error(f"Error when sending scene to xr device: {e}")
+            traceback.print_exc()
+
 
     @func_timing
     async def send_scene_to_xr_device(self, xr_info: XRNodeInfo):
@@ -164,6 +172,14 @@ class SimPublisher(ServerBase):
                 light,
             )
 
+    # def create_trajectory(self, trajectory_name: str, points: List[Dict[str, float]]):
+    #     await pyzlc.async_call(
+    #         f"{self.sim_scene.name}/CreateTrajectory",
+    #         {
+    #             "name": trajectory_name,
+    #             "points": points,
+    #         },
+    #     )
 
     @abc.abstractmethod
     def get_update(self) -> RigidObjectUpdateData:
