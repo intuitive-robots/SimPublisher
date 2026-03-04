@@ -79,45 +79,6 @@ class SimPubWebServer:
                 500,
             )
 
-    @route("/teleport-scene", methods=["POST"])
-    def teleport_scene(self):
-        payload = request.get_json(silent=True) or {}
-        # new_name = payload.get("newName")
-        # if not new_name:
-        #     return (
-        #         jsonify(
-        #             {
-        #                 "status": "error",
-        #                 "message": "New name is required",
-        #             }
-        #         ),
-        #         400,
-        #     )
-        try:
-            name, ip, service_port = self._extract_connection_info(payload)
-        except ValueError as exc:
-            return jsonify({"status": "error", "message": str(exc)}), 400
-        try:
-            response = pyzlc.call(name + "/ToggleGrab", " ")
-            return jsonify(
-                {
-                    "status": "success",
-                    "message": "Rename Device",
-                    "response": response,
-                }
-            )
-        except Exception as exc:
-            traceback.print_exc()
-            return (
-                jsonify(
-                    {
-                        "status": "error",
-                        "message": f"Error during rename device: {exc}",
-                    }
-                ),
-                500,
-            )
-
     @route("/rename-device", methods=["POST"])
     def rename_device(self):
         payload = request.get_json(silent=True) or {}
@@ -157,36 +118,8 @@ class SimPubWebServer:
                 500,
             )
 
-    @route("/env-occlusion", methods=["POST"])
-    def env_occlusion(self):
-        payload = request.get_json(silent=True) or {}
-        try:
-            name, ip, service_port = self._extract_connection_info(payload)
-        except ValueError as exc:
-            return jsonify({"status": "error", "message": str(exc)}), 400
-        try:
-            response = pyzlc.call(f"{name}/ToggleOcclusion", {})
-            return jsonify(
-                {
-                    "status": "success",
-                    "message": "ToggleOcclusion",
-                    "response": response,
-                }
-            )
-        except Exception as exc:
-            traceback.print_exc()
-            return (
-                jsonify(
-                    {
-                        "status": "error",
-                        "message": f"Error during Toggle Occlusion: {exc}",
-                    }
-                ),
-                500,
-            )
-
-    @route("/toggle-qr-tracking", methods=["POST"])
-    def toggle_qr_tracking(self):
+    @route("/apply-alignment-offset", methods=["POST"])
+    def apply_alignment_offset(self):
         payload = request.get_json(silent=True) or {}
         name = payload.get("name", "")
         try:
@@ -217,15 +150,11 @@ class SimPubWebServer:
 
         try:
             print("trying to send toggle qr tracking request")
-            response = pyzlc.call(f"{name}/ToggleQRTracking", scene_text)
-            # packed_scene = msgpack.packb(scene_text)
-            # response = send_request_with_addr(
-            #     name + "/ToggleQRTracking", scene_text, f"tcp://{ip}:{service_port}"
-            # )
+            response = pyzlc.call(f"{name}/ApplyAlignmentOffset", scene_text)
             return jsonify(
                 {
                     "status": "success",
-                    "message": "Toggle QR Tracking",
+                    "message": "Apply Alignment Offset",
                     "response": response,
                 }
             )
@@ -235,7 +164,7 @@ class SimPubWebServer:
                 jsonify(
                     {
                         "status": "error",
-                        "message": f"Error during Toggle QR Tracking: {exc}",
+                        "message": f"Error during Apply Alignment Offset: {exc}",
                     }
                 ),
                 500,

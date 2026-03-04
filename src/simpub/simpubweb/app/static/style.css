@@ -181,7 +181,7 @@ body {
     background: linear-gradient(180deg, #ffffff 0%, #ecf9f8 100%);
 }
 
-.action-btn.toggle-qr-btn.active {
+.action-btn.apply-alignment-btn.active {
     background: linear-gradient(180deg, #00a78f 0%, #007a65 100%);
     color: #ffffff;
     border-color: rgba(0, 120, 100, 0.95);
@@ -190,7 +190,7 @@ body {
     transform: translateY(-2px);
 }
 
-.action-btn.toggle-qr-btn.active:hover {
+.action-btn.apply-alignment-btn.active:hover {
     background: linear-gradient(180deg, #009977 0%, #00664f 100%);
     border-color: rgba(0, 110, 90, 0.95);
 }

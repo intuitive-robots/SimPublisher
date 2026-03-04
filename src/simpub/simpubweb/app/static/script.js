@@ -59,11 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const ip = deviceHeader.getAttribute('data-ip');
         const port = deviceHeader.getAttribute('data-port');
 
-        // Teleport
-        clone.querySelector('.teleport-btn').addEventListener('click', () => {
-            sendPostRequest('/teleport-scene', { name, ip, servicePort: port }, 'Teleport Scene');
-        });
-
         // Rename
         clone.querySelector('.rename-btn').addEventListener('click', () => {
             const newName = prompt('Enter new name for the device:');
@@ -74,16 +69,11 @@ document.addEventListener('DOMContentLoaded', () => {
             alert(`Device renamed to: ${newName}`);
         });
 
-        // Environment Occlusion
-        clone.querySelector('.env-occlusion-btn').addEventListener('click', () => {
-            sendPostRequest('/env-occlusion', { name, ip, servicePort: port }, 'Environment Occlusion');
-        });
-
-        // Toggle QR-Tracking
-        const toggleBtn = clone.querySelector('.toggle-qr-btn');
-        toggleBtn.addEventListener('click', () => {
+        // Apply Alignment Offset
+        const alignmentBtn = clone.querySelector('.apply-alignment-btn');
+        alignmentBtn.addEventListener('click', () => {
             // Use direct fetch here so we don't need to modify sendPostRequest
-            fetch('/toggle-qr-tracking', {
+            fetch('/apply-alignment-offset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, ip, servicePort: port }),
@@ -96,15 +86,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
                 .then(result => {
                     if (result && result.status === 'success') {
-                        console.log('Toggle QR Tracking succeeded, message:', result.message);
-                        toggleBtn.classList.toggle('active');
+                        console.log('Apply Alignment Offset succeeded, message:', result.message);
+                        alignmentBtn.classList.toggle('active');
                     } else {
-                        alert(`Toggle QR Tracking failed: ${result?.message || 'Unknown error'}`);
+                        alert(`Apply Alignment Offset failed: ${result?.message || 'Unknown error'}`);
                     }
                 })
                 .catch(error => {
-                    console.error('Toggle QR Tracking Error:', error);
-                    alert('Toggle QR Tracking failed.');
+                    console.error('Apply Alignment Offset Error:', error);
+                    alert('Apply Alignment Offset failed.');
                 });
         });
 
