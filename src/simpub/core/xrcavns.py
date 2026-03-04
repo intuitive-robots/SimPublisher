@@ -9,10 +9,14 @@ from .simpub_server import ServerBase
 from .utils import XRNodeInfo
 
 
+class TrajectoryWaypointDict(TypedDict):
+    pos: List[float]  # [x, y, z]
+    color: List[float]  # [r, g, b, a]
+
+
 class TrajectoryConfigDict(TypedDict):
     name: str
-    points: List[List[float]]
-    color: List[float]
+    waypoints: List[TrajectoryWaypointDict]
     width: float
     resolution: int
 
@@ -22,21 +26,20 @@ class XRTrajectory:
         self,
         cavns: XRCavns,
         name: str,
-        points: List[List[float]],
-        color: List[float],
+        waypoints: List[TrajectoryWaypointDict],
         width: float,
         resolution: int,
     ) -> None:
         self._cavns = cavns
         self.name = name
-        self.points = points
-        self.color = color
+        self.waypoints = waypoints
         self.width = width
         self.resolution = resolution
         self.valid = True
 
     def update(
         self,
+        waypoints: Optional[List[TrajectoryWaypointDict]] = None,
         points: Optional[List[List[Union[int, float]]]] = None,
         color: Optional[List[Union[int, float]]] = None,
         width: Optional[Union[int, float]] = None,
@@ -44,6 +47,7 @@ class XRTrajectory:
     ):
         self._cavns.update_trajectory(
             name=self.name,
+            waypoints=waypoints,
             points=points,
             color=color,
             width=width,
@@ -51,8 +55,7 @@ class XRTrajectory:
         )
         cfg = self._cavns._trajectories.get(self.name)
         if cfg is not None:
-            self.points = cfg["points"]
-            self.color = cfg["color"]
+            self.waypoints = cfg["waypoints"]
             self.width = cfg["width"]
             self.resolution = cfg["resolution"]
 
@@ -96,43 +99,59 @@ class XRCavns(ServerBase):
             list(self._trajectories.keys()),
         )
 
-
-    def _validate_trajectory_points(
-        self, points: List[List[Union[int, float]]]
-    ) -> List[List[float]]:
-        if not points:
-            raise ValueError("Trajectory points must be a non-empty list.")
-        validated: List[List[float]] = []
-        for idx, point in enumerate(points):
-            if point is None or len(point) < 3:
-                raise ValueError(
-                    f"Trajectory point at index {idx} must have at least 3 values."
-                )
-            validated.append([float(point[0]), float(point[1]), float(point[2])])
-        return validated
-
-    def _normalize_trajectory_color(
-        self, color: Optional[List[Union[int, float]]]
-    ) -> List[float]:
+    def _normalize_color(self, color: Optional[List[Union[int, float]]]) -> List[float]:
         if color is None:
             return [1.0, 1.0, 1.0, 1.0]
         if len(color) == 3:
             return [float(color[0]), float(color[1]), float(color[2]), 1.0]
         if len(color) >= 4:
-            return [
-                float(color[0]),
-                float(color[1]),
-                float(color[2]),
-                float(color[3]),
-            ]
-        logger.warning("Invalid trajectory color provided; using default [1,1,1,1].")
+            return [float(color[0]), float(color[1]), float(color[2]), float(color[3])]
+        logger.warning("Invalid color provided; using default [1,1,1,1].")
         return [1.0, 1.0, 1.0, 1.0]
+
+    def _normalize_position(self, pos: List[Union[int, float]]) -> List[float]:
+        if pos is None or len(pos) < 3:
+            raise ValueError("Position must have at least 3 values [x, y, z].")
+        return [float(pos[0]), float(pos[1]), float(pos[2])]
+
+    def _validate_waypoints(
+        self, waypoints: List[TrajectoryWaypointDict]
+    ) -> List[TrajectoryWaypointDict]:
+        if not waypoints:
+            raise ValueError("Waypoints must be a non-empty list.")
+        validated: List[TrajectoryWaypointDict] = []
+        for idx, wp in enumerate(waypoints):
+            if "pos" not in wp:
+                raise ValueError(f"Waypoint at index {idx} missing 'pos' field.")
+            validated.append(
+                {
+                    "pos": self._normalize_position(wp["pos"]),
+                    "color": self._normalize_color(wp.get("color")),
+                }
+            )
+        return validated
+
+    def _points_to_waypoints(
+        self,
+        points: List[List[Union[int, float]]],
+        color: Optional[List[Union[int, float]]] = None,
+    ) -> List[TrajectoryWaypointDict]:
+        """Convert legacy points + color format to waypoints format."""
+        normalized_color = self._normalize_color(color)
+        waypoints: List[TrajectoryWaypointDict] = []
+        for point in points:
+            waypoints.append(
+                {
+                    "pos": self._normalize_position(point),
+                    "color": normalized_color,
+                }
+            )
+        return waypoints
 
     def _build_trajectory_config(
         self,
         name: str,
-        points: List[List[Union[int, float]]],
-        color: Optional[List[Union[int, float]]] = None,
+        waypoints: List[TrajectoryWaypointDict],
         width: Union[int, float] = 0.01,
         resolution: int = 10,
     ) -> TrajectoryConfigDict:
@@ -140,8 +159,7 @@ class XRCavns(ServerBase):
         normalized_resolution = int(resolution) if int(resolution) > 0 else 10
         return {
             "name": name,
-            "points": self._validate_trajectory_points(points),
-            "color": self._normalize_trajectory_color(color),
+            "waypoints": self._validate_waypoints(waypoints),
             "width": normalized_width,
             "resolution": normalized_resolution,
         }
@@ -162,15 +180,32 @@ class XRCavns(ServerBase):
     def create_trajectory(
         self,
         name: str,
-        points: List[List[Union[int, float]]],
+        waypoints: Optional[List[TrajectoryWaypointDict]] = None,
+        points: Optional[List[List[Union[int, float]]]] = None,
         color: Optional[List[Union[int, float]]] = None,
         width: Union[int, float] = 0.01,
         resolution: int = 10,
     ) -> XRTrajectory:
+        """Create a trajectory.
+
+        Args:
+            name: Trajectory name
+            waypoints: List of waypoints with pos and color (new format)
+            points: List of [x,y,z] positions (legacy format, use with color)
+            color: Default color for all points (legacy format, used with points)
+            width: Line width
+            resolution: Interpolation segments per control point
+        """
+        if waypoints is not None:
+            final_waypoints = waypoints
+        elif points is not None:
+            final_waypoints = self._points_to_waypoints(points, color)
+        else:
+            raise ValueError("Must provide either 'waypoints' or 'points'.")
+
         config = self._build_trajectory_config(
             name=name,
-            points=points,
-            color=color,
+            waypoints=final_waypoints,
             width=width,
             resolution=resolution,
         )
@@ -179,8 +214,7 @@ class XRCavns(ServerBase):
         return XRTrajectory(
             cavns=self,
             name=name,
-            points=config["points"],
-            color=config["color"],
+            waypoints=config["waypoints"],
             width=config["width"],
             resolution=config["resolution"],
         )
@@ -188,6 +222,7 @@ class XRCavns(ServerBase):
     def update_trajectory(
         self,
         name: str,
+        waypoints: Optional[List[TrajectoryWaypointDict]] = None,
         points: Optional[List[List[Union[int, float]]]] = None,
         color: Optional[List[Union[int, float]]] = None,
         width: Optional[Union[int, float]] = None,
@@ -195,12 +230,18 @@ class XRCavns(ServerBase):
     ):
         if name not in self._trajectories:
             pyzlc.warning("Attempted to update non-existent trajectory '%s'", name)
+            return
 
         current = self._trajectories[name]
-        next_points = points if points is not None else current["points"]
-        next_color: Optional[List[Union[int, float]]] = (
-            color if color is not None else current["color"]
-        )
+
+        # Determine waypoints
+        if waypoints is not None:
+            final_waypoints = waypoints
+        elif points is not None:
+            final_waypoints = self._points_to_waypoints(points, color)
+        else:
+            final_waypoints = current["waypoints"]
+
         next_width = width if width is not None else current["width"]
         next_resolution = (
             resolution if resolution is not None else current["resolution"]
@@ -208,8 +249,7 @@ class XRCavns(ServerBase):
 
         config = self._build_trajectory_config(
             name=name,
-            points=next_points,
-            color=next_color,
+            waypoints=final_waypoints,
             width=next_width,
             resolution=next_resolution,
         )

@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-from json import dumps
 import json
-from typing import Dict
-
 from pathlib import Path
 import yaml
-import zmq
 
 
 def read_qr_alignment_data(filepath: str) -> dict:
@@ -30,26 +26,3 @@ def create_scene_config_file(scene_data: dict = None, output_filepath: Path = Pa
     output_filepath.parent.mkdir(parents=True, exist_ok=True)
     with open(output_filepath, "w") as file:
         json.dump(scene_data, file)
-
-# def send_zmq_request(
-#     ip: str, port: int, service_name: str, request: Dict, timeout: int = 1000
-# ) -> str:
-#     """Send a ZMQ REQ/REP request to the given IP and port."""
-#     context = zmq.Context()
-#     socket = context.socket(zmq.REQ)
-#     try:
-#         socket.connect(f"tcp://{ip}:{port}")
-#         socket.setsockopt(zmq.RCVTIMEO, timeout)
-#         socket.setsockopt(zmq.SNDTIMEO, timeout)
-#         if isinstance(request, str):
-#             socket.send_string("".join([service_name, "|", request]))
-#         else:
-#             socket.send_string("".join([service_name, "|", dumps(request)]))
-#         response = socket.recv_string()
-#         if response == "NOSERVICE":
-#             raise Exception("Service not found on the node.")
-#         return response
-#     except zmq.ZMQError as exc:
-#         raise zmq.ZMQError from exc
-#     finally:
-#         socket.close()
