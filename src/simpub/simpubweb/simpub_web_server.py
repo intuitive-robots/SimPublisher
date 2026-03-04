@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from flask import Flask, jsonify, render_template, request
 from werkzeug.serving import BaseWSGIServer, make_server
+import json
 
 import pyzlc
 
@@ -124,9 +125,9 @@ class SimPubWebServer:
         name = payload.get("name", "")
         try:
             _, ip, service_port = self._extract_connection_info(payload)
-            print(f"ip: {ip}, service_port: {service_port}")
+            pyzlc.debug(f"ip: {ip}, service_port: {service_port}")
         except ValueError as exc:
-            print("message", str(exc))
+            pyzlc.debug(f"message: {str(exc)}")
             return jsonify({"status": "error", "message": str(exc)}), 400
 
         # Prefer Scene.json located at the current Python working directory.
@@ -135,7 +136,8 @@ class SimPubWebServer:
             scene_path = Path.home() / ".simpub" / "scene.json"
             if not scene_path.exists():
                 create_scene_config_file(output_filepath=scene_path)
-            scene_text = scene_path.read_text(encoding="utf-8")
+            scene_offset_data = json.loads(scene_path.read_text())
+            pyzlc.debug(f"Read scene offset data from {scene_path}: {scene_offset_data}")
         except Exception as exc:
             traceback.print_exc()
             return (
@@ -149,8 +151,8 @@ class SimPubWebServer:
             )
 
         try:
-            print("trying to send toggle qr tracking request")
-            response = pyzlc.call(f"{name}/ApplyAlignmentOffset", scene_text)
+            pyzlc.debug("trying to send toggle qr tracking request")
+            response = pyzlc.call(f"{name}/ApplyAlignmentOffset", scene_offset_data)
             return jsonify(
                 {
                     "status": "success",
@@ -165,6 +167,34 @@ class SimPubWebServer:
                     {
                         "status": "error",
                         "message": f"Error during Apply Alignment Offset: {exc}",
+                    }
+                ),
+                500,
+            )
+
+    @route("/toggle-origin", methods=["POST"])
+    def toggle_origin(self):
+        payload = request.get_json(silent=True) or {}
+        try:
+            name, ip, service_port = self._extract_connection_info(payload)
+        except ValueError as exc:
+            return jsonify({"status": "error", "message": str(exc)}), 400
+        try:
+            response = pyzlc.call(f"{name}/ToggleOrigin", "ToggleOrigin")
+            return jsonify(
+                {
+                    "status": "success",
+                    "message": "Toggle Origin",
+                    "response": response,
+                }
+            )
+        except Exception as exc:
+            traceback.print_exc()
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": f"Error during Toggle Origin: {exc}",
                     }
                 ),
                 500,

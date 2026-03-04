@@ -98,6 +98,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         });
 
+        // Toggle Origin
+        const toggleOriginBtn = clone.querySelector('.toggle-origin-btn');
+        toggleOriginBtn.addEventListener('click', () => {
+            fetch('/toggle-origin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, ip, servicePort: port }),
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Request failed');
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    if (result && result.status === 'success') {
+                        console.log('Toggle Origin succeeded, message:', result.message);
+                        toggleOriginBtn.classList.toggle('active');
+                    } else {
+                        alert(`Toggle Origin failed: ${result?.message || 'Unknown error'}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Toggle Origin Error:', error);
+                    alert('Toggle Origin failed.');
+                });
+        });
+
         // Log
         clone.querySelector('.log-btn').addEventListener('click', () => {
             alert(`Log requested for Node: ${deviceHeader.getAttribute('data-node-id')}`);
