@@ -322,14 +322,17 @@ class MjModelParser:
             parent_name = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_BODY, parent_id)  # type: ignore
             if parent_name is None:
                 parent_name = "root"
-            is_directional = bool(mj_model.light_directional[i])
-            # If cutoff is small, it acts as a Spot light; if 180, it's a Point light
-            cutoff = float(mj_model.light_cutoff[i])
-            if is_directional:
-                l_type = "Directional"
-            elif cutoff < 180:
+            light_mode = int(mj_model.light_mode[i])
+            if light_mode == 0:
                 l_type = "Spot"
+            elif light_mode == 1:
+                l_type = "Directional"
+            elif light_mode == 2:
+                l_type = "Point"
             else:
+                logger.warning(
+                    f"Unsupported light mode {light_mode} for light {light_name}, defaulting to Point."
+                )
                 l_type = "Point"
 
             # 4. Map MuJoCo properties to Unity Light fields
@@ -342,7 +345,7 @@ class MjModelParser:
                 "position": mj2unity_pos(mj_model.light_pos[i].tolist()),
                 "direction": mj2unity_pos(mj_model.light_dir[i].tolist()),
                 "range": 20.0,     # Unity specific: distance where light hits zero
-                "spotAngle": cutoff * 2, # MuJoCo cutoff is half-angle, Unity is full-angle
+                "spotAngle": float(mj_model.light_cutoff[i]) * 2, # MuJoCo cutoff is half-angle, Unity is full-angle
                 "shadowType": "Soft" if mj_model.light_castshadow[i] else "None"
             }
             lights.append(config)
