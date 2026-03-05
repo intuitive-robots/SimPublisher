@@ -172,3 +172,5 @@ MUJOCO_LOG.TXT
 
 # texture cache for isaacsim
 .textures
+
+!Scene.json

@@ -4,12 +4,13 @@ import traceback
 from functools import wraps
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-
 from flask import Flask, jsonify, render_template, request
 from werkzeug.serving import BaseWSGIServer, make_server
+import json
 
-from ..core.utils import XRNodeRegistry, send_request_with_addr
-from .app.utils import read_qr_alignment_data, send_zmq_request
+import pyzlc
+
+from .app.utils import create_scene_config_file
 
 _ROUTES: List[Tuple[str, str, Dict[str, object]]] = []
 
@@ -29,11 +30,9 @@ class SimPubWebServer:
 
     def __init__(
         self,
-        xr_nodes: XRNodeRegistry,
         host: str = "127.0.0.1",
         port: int = 5000,
     ) -> None:
-        self.xr_nodes = xr_nodes
         self.host = host
         self.port = port
         root_dir = Path(__file__).resolve().parent / "app"
@@ -45,7 +44,6 @@ class SimPubWebServer:
             static_folder=str(static_dir),
             static_url_path="/static",
         )
-        self.app.config["XR_NODE_REGISTRY"] = xr_nodes
         self._server: Optional[BaseWSGIServer] = None
         self._context = None
         self._started: bool = False
@@ -64,8 +62,10 @@ class SimPubWebServer:
     def scan(self):
         try:
             nodes = []
-            for node in self.xr_nodes.registered_infos():
-                node_payload = dict(node)
+            for xr_info in pyzlc.get_nodes_info():
+                if not xr_info["name"].startswith("IRIS/Device/"):
+                    continue
+                node_payload = dict(xr_info)
                 nodes.append(node_payload)
             return jsonify({"status": "success", "nodes": nodes})
         except Exception as exc:
@@ -75,47 +75,6 @@ class SimPubWebServer:
                     {
                         "status": "error",
                         "message": f"Failed to fetch nodes: {exc}",
-                    }
-                ),
-                500,
-            )
-
-    @route("/teleport-scene", methods=["POST"])
-    def teleport_scene(self):
-        payload = request.get_json(silent=True) or {}
-        # new_name = payload.get("newName")
-        # if not new_name:
-        #     return (
-        #         jsonify(
-        #             {
-        #                 "status": "error",
-        #                 "message": "New name is required",
-        #             }
-        #         ),
-        #         400,
-        #     )
-        try:
-            _, ip, service_port = self._extract_connection_info(payload)
-        except ValueError as exc:
-            return jsonify({"status": "error", "message": str(exc)}), 400
-        try:
-            response = send_request_with_addr(
-                "ToggleGrab", "", f"tcp://{ip}:{service_port}"
-            )
-            return jsonify(
-                {
-                    "status": "success",
-                    "message": "Rename Device",
-                    "response": response,
-                }
-            )
-        except Exception as exc:
-            traceback.print_exc()
-            return (
-                jsonify(
-                    {
-                        "status": "error",
-                        "message": f"Error during rename device: {exc}",
                     }
                 ),
                 500,
@@ -136,13 +95,11 @@ class SimPubWebServer:
                 400,
             )
         try:
-            _, ip, service_port = self._extract_connection_info(payload)
+            name, ip, service_port = self._extract_connection_info(payload)
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            response = send_request_with_addr(
-                "Rename", new_name, f"tcp://{ip}:{service_port}"
-            )
+            response = pyzlc.call(name + "/Rename", new_name)
             return jsonify(
                 {
                     "status": "success",
@@ -162,21 +119,72 @@ class SimPubWebServer:
                 500,
             )
 
-    @route("/env-occlusion", methods=["POST"])
-    def env_occlusion(self):
+    @route("/apply-alignment-offset", methods=["POST"])
+    def apply_alignment_offset(self):
+        payload = request.get_json(silent=True) or {}
+        name = payload.get("name", "")
+        try:
+            _, ip, service_port = self._extract_connection_info(payload)
+            pyzlc.debug(f"ip: {ip}, service_port: {service_port}")
+        except ValueError as exc:
+            pyzlc.debug(f"message: {str(exc)}")
+            return jsonify({"status": "error", "message": str(exc)}), 400
+
+        # Prefer Scene.json located at the current Python working directory.
+        # Fall back to the previous relative path if not present.
+        try:
+            scene_path = Path.home() / ".simpub" / "scene.json"
+            if not scene_path.exists():
+                create_scene_config_file(output_filepath=scene_path)
+            scene_offset_data = json.loads(scene_path.read_text())
+            pyzlc.debug(f"Read scene offset data from {scene_path}: {scene_offset_data}")
+        except Exception as exc:
+            traceback.print_exc()
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": f"Failed to read Scene.json: {exc}",
+                    }
+                ),
+                500,
+            )
+
+        try:
+            pyzlc.debug("trying to send toggle qr tracking request")
+            response = pyzlc.call(f"{name}/ApplyAlignmentOffset", scene_offset_data)
+            return jsonify(
+                {
+                    "status": "success",
+                    "message": "Apply Alignment Offset",
+                    "response": response,
+                }
+            )
+        except Exception as exc:
+            traceback.print_exc()
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": f"Error during Apply Alignment Offset: {exc}",
+                    }
+                ),
+                500,
+            )
+
+    @route("/toggle-origin", methods=["POST"])
+    def toggle_origin(self):
         payload = request.get_json(silent=True) or {}
         try:
             name, ip, service_port = self._extract_connection_info(payload)
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            response = send_zmq_request(
-                ip, service_port, f"{name}/ToggleOcclusion", {}
-            )
+            response = pyzlc.call(f"{name}/ToggleOrigin", "ToggleOrigin")
             return jsonify(
                 {
                     "status": "success",
-                    "message": "ToggleOcclusion",
+                    "message": "Toggle Origin",
                     "response": response,
                 }
             )
@@ -186,37 +194,7 @@ class SimPubWebServer:
                 jsonify(
                     {
                         "status": "error",
-                        "message": f"Error during Toggle Occlusion: {exc}",
-                    }
-                ),
-                500,
-            )
-
-    @route("/toggle-qr-tracking", methods=["POST"])
-    def toggle_qr_tracking(self):
-        payload = request.get_json(silent=True) or {}
-        try:
-            _, ip, service_port = self._extract_connection_info(payload)
-        except ValueError as exc:
-            return jsonify({"status": "error", "message": str(exc)}), 400
-        try:
-            response = send_request_with_addr(
-                "ToggleQRTracking", "", f"tcp://{ip}:{service_port}"
-            )
-            return jsonify(
-                {
-                    "status": "success",
-                    "message": "Toggle QR Tracking",
-                    "response": response,
-                }
-            )
-        except Exception as exc:
-            traceback.print_exc()
-            return (
-                jsonify(
-                    {
-                        "status": "error",
-                        "message": f"Error during Toggle QR Tracking: {exc}",
+                        "message": f"Error during Toggle Origin: {exc}",
                     }
                 ),
                 500,
