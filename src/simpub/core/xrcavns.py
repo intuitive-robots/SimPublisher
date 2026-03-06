@@ -40,16 +40,12 @@ class XRTrajectory:
     def update(
         self,
         waypoints: Optional[List[TrajectoryWaypointDict]] = None,
-        points: Optional[List[List[Union[int, float]]]] = None,
-        color: Optional[List[Union[int, float]]] = None,
         width: Optional[Union[int, float]] = None,
         resolution: Optional[int] = None,
     ):
         self._cavns.update_trajectory(
             name=self.name,
             waypoints=waypoints,
-            points=points,
-            color=color,
             width=width,
             resolution=resolution,
         )
@@ -58,18 +54,6 @@ class XRTrajectory:
             self.waypoints = cfg["waypoints"]
             self.width = cfg["width"]
             self.resolution = cfg["resolution"]
-
-    def add_point(self, pos: List[Union[int, float]], color: List[Union[int, float]]):
-        self.add_points(points=[pos], color=[color])
-
-    def add_points(self, points: List[List[Union[int, float]]], color: List[List[Union[int, float]]]):
-        for p, c in zip(points, color):
-            new_waypoint: TrajectoryWaypointDict = {
-                "pos": p,
-                "color": c,
-            }
-            self.waypoints.append(new_waypoint)
-        self.update(waypoints=self.waypoints)
 
     def delete(self) -> None:
         self._cavns.delete_trajectory(self.name)
@@ -154,23 +138,6 @@ class XRCavns(ServerBase):
             )
         return validated
 
-    def _points_to_waypoints(
-        self,
-        points: List[List[Union[int, float]]],
-        color: Optional[List[Union[int, float]]] = None,
-    ) -> List[TrajectoryWaypointDict]:
-        """Convert legacy points + color format to waypoints format."""
-        normalized_color = self._normalize_color(color)
-        waypoints: List[TrajectoryWaypointDict] = []
-        for point in points:
-            waypoints.append(
-                {
-                    "pos": self._normalize_position(point),
-                    "color": normalized_color,
-                }
-            )
-        return waypoints
-
     def _build_trajectory_config(
         self,
         name: str,
@@ -203,9 +170,7 @@ class XRCavns(ServerBase):
     def create_trajectory(
         self,
         name: str,
-        waypoints: Optional[List[TrajectoryWaypointDict]] = None,
-        points: Optional[List[List[Union[int, float]]]] = None,
-        color: Optional[List[Union[int, float]]] = None,
+        waypoints: List[TrajectoryWaypointDict],
         width: Union[int, float] = 0.01,
         resolution: int = 10,
     ) -> XRTrajectory:
@@ -213,22 +178,13 @@ class XRCavns(ServerBase):
 
         Args:
             name: Trajectory name
-            waypoints: List of waypoints with pos and color (new format)
-            points: List of [x,y,z] positions (legacy format, use with color)
-            color: Default color for all points (legacy format, used with points)
+            waypoints: List of waypoints with pos and color
             width: Line width
             resolution: Interpolation segments per control point
         """
-        if waypoints is not None:
-            final_waypoints = waypoints
-        elif points is not None:
-            final_waypoints = self._points_to_waypoints(points, color)
-        else:
-            raise ValueError("Must provide either 'waypoints' or 'points'.")
-
         config = self._build_trajectory_config(
             name=name,
-            waypoints=final_waypoints,
+            waypoints=waypoints,
             width=width,
             resolution=resolution,
         )
@@ -246,8 +202,6 @@ class XRCavns(ServerBase):
         self,
         name: str,
         waypoints: Optional[List[TrajectoryWaypointDict]] = None,
-        points: Optional[List[List[Union[int, float]]]] = None,
-        color: Optional[List[Union[int, float]]] = None,
         width: Optional[Union[int, float]] = None,
         resolution: Optional[int] = None,
     ):
@@ -256,15 +210,7 @@ class XRCavns(ServerBase):
             return
 
         current = self._trajectories[name]
-
-        # Determine waypoints
-        if waypoints is not None:
-            final_waypoints = waypoints
-        elif points is not None:
-            final_waypoints = self._points_to_waypoints(points, color)
-        else:
-            final_waypoints = current["waypoints"]
-
+        final_waypoints = waypoints if waypoints is not None else current["waypoints"]
         next_width = width if width is not None else current["width"]
         next_resolution = (
             resolution if resolution is not None else current["resolution"]
