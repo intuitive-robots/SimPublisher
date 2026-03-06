@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, TypedDict, Union, Any
+from typing import Dict, List, Optional, TypedDict, Union, Any, Set
 
 import pyzlc
 
 from .log import logger
 from .simpub_server import ServerBase
-from .utils import XRNodeInfo
+from .utils import XRNodeInfo, HashIdentifier
 
 
 class TrajectoryWaypointDict(TypedDict):
@@ -59,6 +59,18 @@ class XRTrajectory:
             self.width = cfg["width"]
             self.resolution = cfg["resolution"]
 
+    def add_point(self, pos: List[Union[int, float]], color: List[Union[int, float]]):
+        self.add_points(points=[pos], color=[color])
+
+    def add_points(self, points: List[List[Union[int, float]]], color: List[List[Union[int, float]]]):
+        for p, c in zip(points, color):
+            new_waypoint: TrajectoryWaypointDict = {
+                "pos": p,
+                "color": c,
+            }
+            self.waypoints.append(new_waypoint)
+        self.update(waypoints=self.waypoints)
+
     def delete(self) -> None:
         self._cavns.delete_trajectory(self.name)
         self.valid = False
@@ -68,7 +80,18 @@ class XRCavns(ServerBase):
 
     def __init__(self, ip_addr: str = "127.0.0.1") -> None:
         self._trajectories: Dict[str, TrajectoryConfigDict] = {}
-        super().__init__(server_name="XRCavns", ip_addr=ip_addr)
+        self.node_manager = pyzlc.LanComNode.instance
+        if self.node_manager is None:
+            super().__init__(server_name="XRCavns", ip_addr=ip_addr)
+        elif self.node_manager.node_ip != ip_addr:
+            raise ValueError(
+                f"LanComNode already initialized with IP {self.node_manager.node_ip},"
+                f"cannot reinitialize with different IP {ip_addr}"
+            )
+        self.xr_device_set: Set[HashIdentifier] = set()
+        pyzlc.submit_loop_task(self.search_xr_device())
+        self.initialize()
+            
 
     def initialize(self) -> None:
         pass
@@ -112,7 +135,7 @@ class XRCavns(ServerBase):
     def _normalize_position(self, pos: List[Union[int, float]]) -> List[float]:
         if pos is None or len(pos) < 3:
             raise ValueError("Position must have at least 3 values [x, y, z].")
-        return [float(pos[0]), float(pos[1]), float(pos[2])]
+        return [-float(pos[1]), float(pos[2]), float(pos[0])]
 
     def _validate_waypoints(
         self, waypoints: List[TrajectoryWaypointDict]
