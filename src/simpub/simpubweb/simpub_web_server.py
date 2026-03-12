@@ -10,6 +10,8 @@ import json
 
 import pyzlc
 
+from ..core.utils import ZLC_GROUP_NAME
+
 from .app.utils import create_scene_config_file
 
 _ROUTES: List[Tuple[str, str, Dict[str, object]]] = []
@@ -62,7 +64,7 @@ class SimPubWebServer:
     def scan(self):
         try:
             nodes = []
-            for xr_info in pyzlc.get_nodes_info():
+            for xr_info in pyzlc.get_nodes_info(group_name=ZLC_GROUP_NAME):
                 if not xr_info["name"].startswith("IRIS/Device/"):
                     continue
                 node_payload = dict(xr_info)
@@ -99,7 +101,7 @@ class SimPubWebServer:
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            response = pyzlc.call(name + "/Rename", new_name)
+            response = pyzlc.call(name + "/Rename", new_name, group_name=ZLC_GROUP_NAME)
             return jsonify(
                 {
                     "status": "success",
@@ -152,7 +154,7 @@ class SimPubWebServer:
 
         try:
             pyzlc.debug("trying to send toggle qr tracking request")
-            response = pyzlc.call(f"{name}/ApplyAlignmentOffset", scene_offset_data)
+            response = pyzlc.call(f"{name}/ApplyAlignmentOffset", scene_offset_data, group_name=ZLC_GROUP_NAME)
             return jsonify(
                 {
                     "status": "success",
@@ -180,7 +182,7 @@ class SimPubWebServer:
         except ValueError as exc:
             return jsonify({"status": "error", "message": str(exc)}), 400
         try:
-            response = pyzlc.call(f"{name}/ToggleOrigin", "ToggleOrigin")
+            response = pyzlc.call(f"{name}/ToggleOrigin", "ToggleOrigin", group_name=ZLC_GROUP_NAME)
             return jsonify(
                 {
                     "status": "success",

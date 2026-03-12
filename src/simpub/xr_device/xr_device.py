@@ -7,12 +7,7 @@ from typing import Optional
 import pyzlc
 from pyzlc.utils.node_info import NodeInfo as XRNodeInfo
 
-
-
-class InputData:
-    def __init__(self, json_str: str) -> None:
-        self.json_str = json_str
-        self.data = json.loads(json_str)
+from ..core.utils import ZLC_GROUP_NAME, print_node_info
 
 
 class XRDevice:
@@ -20,16 +15,17 @@ class XRDevice:
 
     def __init__(
         self,
+        device_type: str,
         device_name: str = "UnityNode",
     ) -> None:
-        self.manager = pyzlc.get_node()
+        self.manager = pyzlc.get_node(group_name=ZLC_GROUP_NAME)
         self.running = True
         self.connected = False
         self.device_name = device_name
+        self.device_full_name = f"IRIS/Device/{device_type}/{device_name}"
         self.device_id: Optional[str] = None
         self.device_info: Optional[XRNodeInfo] = None
-        pyzlc.register_subscriber_handler(f"{device_name}/ConsoleLogger", self.print_log)
-        pyzlc.submit_loop_task(self.checking_connection())
+        pyzlc.submit_loop_task(self.checking_connection(), group_name=ZLC_GROUP_NAME)
 
     def wait_for_connection(self):
         """
@@ -40,10 +36,10 @@ class XRDevice:
             time.sleep(0.1)
 
     async def checking_connection(self):
-        pyzlc.info(f"checking the connection to {self.device_name}")
+        pyzlc.info(f"checking the connection to {self.device_full_name}")
         while self.running:
-            for node_info in pyzlc.get_nodes_info():
-                if node_info["name"] != self.device_name:
+            for node_info in pyzlc.get_nodes_info(group_name=ZLC_GROUP_NAME):
+                if node_info["name"] != self.device_full_name:
                     continue
                 if node_info["nodeID"] == self.device_id:
                     continue
@@ -52,7 +48,6 @@ class XRDevice:
                 self.device_info = node_info
                 self.device_id = node_info["nodeID"]
                 self.connected = True
-                # print_node_info(node_info)
             await async_sleep(0.5)
         # if self.device_info is None:
         #     return
@@ -106,11 +101,6 @@ class XRDevice:
     #     except Exception as e:
     #         pyzlc.error(f"Error occurred when waiting for a response: {e}")
     #         return ""
-
-    def print_log(self, log: str):
-        pyzlc.remote_log(f"{self.type} Log: {log}")
-    def get_controller_data(self) -> InputData:
-        raise NotImplementedError
 
     def disconnect(self):
         pyzlc.info(f"Disconnecting from {self.device_name}")

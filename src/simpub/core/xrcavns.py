@@ -7,7 +7,7 @@ import pyzlc
 from .log import logger
 from .simpub_server import ServerBase
 from .utils import XRNodeInfo, HashIdentifier
-
+from .utils import ZLC_GROUP_NAME
 
 class TrajectoryWaypointDict(TypedDict):
     pos: List[float]  # [x, y, z]
@@ -64,7 +64,7 @@ class XRCavns(ServerBase):
 
     def __init__(self, ip_addr: str = "127.0.0.1") -> None:
         self._trajectories: Dict[str, TrajectoryConfigDict] = {}
-        self.node_manager = pyzlc.LanComNode.instance
+        self.node_manager = pyzlc.LanComNode.get_instance(ZLC_GROUP_NAME)
         if self.node_manager is None:
             super().__init__(server_name="XRCavns", ip_addr=ip_addr)
         elif self.node_manager.node_ip != ip_addr:
@@ -73,7 +73,7 @@ class XRCavns(ServerBase):
                 f"cannot reinitialize with different IP {ip_addr}"
             )
         self.xr_device_set: Set[HashIdentifier] = set()
-        pyzlc.submit_loop_task(self.search_xr_device())
+        pyzlc.submit_loop_task(self.search_xr_device(), group_name=ZLC_GROUP_NAME)
         self.initialize()
             
 
@@ -87,6 +87,7 @@ class XRCavns(ServerBase):
                 await pyzlc.async_call(
                     f"{xr_info['name']}/SpawnTrajectory",
                     config,
+                    group_name=ZLC_GROUP_NAME
                 )
                 logger.debug(
                     "Sent existing trajectory '%s' to new device '%s'",
@@ -98,7 +99,7 @@ class XRCavns(ServerBase):
                     "Failed to send trajectory '%s' to device '%s': %s",
                     trajectory_name,
                     xr_info.get("name", "Unknown"),
-                    e,
+                    e
                 )
                 logger.debug("Exception details:", exc_info=True)
         pyzlc.info(
@@ -155,10 +156,10 @@ class XRCavns(ServerBase):
         }
 
     def _broadcast_trajectory_call(self, service_name: str, payload: Any):
-        for xr_info in pyzlc.get_nodes_info():
+        for xr_info in pyzlc.get_nodes_info(group_name=ZLC_GROUP_NAME):
             device_name = xr_info.get("name", "")
             try:
-                pyzlc.call(f"{device_name}/{service_name}", payload)
+                pyzlc.call(f"{device_name}/{service_name}", payload, group_name=ZLC_GROUP_NAME)
             except Exception as exc:
                 logger.error(
                     "Trajectory service call failed for %s/%s: %s",

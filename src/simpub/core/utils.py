@@ -13,6 +13,8 @@ import zmq.asyncio
 
 from .log import logger
 
+ZLC_GROUP_NAME = "IRIS"
+
 IPAddress = str
 Port = int
 TopicName = str

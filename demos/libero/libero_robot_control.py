@@ -24,7 +24,6 @@ from libero.libero.envs import TASK_MAPPING
 from libero_example import select_file_from_txt, RobosuitePublisher
 
 from simpub.xr_device.meta_quest3 import MetaQuest3
-import time
 import pyzlc
 
 class MQ3CartController:
@@ -75,54 +74,6 @@ class MQ3CartController:
             self.last_state = (hand["pos"], hand["rot"])
         return action
 
-
-
-
-class RealRobotJointPDController:
-    def __init__(self, real_robot_ip):
-        self.pgain = np.array(
-            [1000.0, 1000.0, 1000.0, 1000.0, 200.0, 200.0, 300.0]
-        )
-        self.dgain = np.array([50.0, 50.0, 50.0, 50.0, 6.0, 5.0, 6.0])
-
-        self.sub_socket = zmq.Context().socket(zmq.SUB)
-        self.sub_socket.connect(f"tcp://{real_robot_ip}:5555")
-        self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
-        self.data = None
-        self.sub_task = threading.Thread(target=self.subscribe_task)
-        self.sub_task.start()
-
-    def subscribe_task(self):
-        try:
-            print("Start to sub")
-            while True:
-                msg = self.sub_socket.recv_string()
-                # print(msg)
-                self.data = json.loads(msg)
-        except Exception as e:
-            print(e)
-
-    def get_action(self, obs):
-        """
-        Calculates the robot joint acceleration based on
-        - the current joint velocity
-        - the current joint positions
-
-        :param robot: instance of the robot
-        :return: target joint acceleration (num_joints, )
-        """
-        joint_pos, joint_vel = obs["robot0_joint_pos"], obs["robot0_joint_vel"]
-        if self.data is None:
-            return np.zeros(8)
-        qd_d = self.data["q"] - joint_pos
-        vd_d = self.data["dq"] - joint_vel
-        action = np.zeros(8)
-        action[0:7] = self.pgain * qd_d + self.dgain * vd_d  # original
-        if self.data["gripper_width"][0] < 0.9 * self.data["gripper_width"][1]:
-            action[-1] = 10
-        else:
-            action[-1] = -10
-        return action
 
 
 if __name__ == "__main__":
@@ -183,10 +134,8 @@ if __name__ == "__main__":
     # initialize device
     if args.device == "meta_quest3":
         virtual_controller = MQ3CartController(
-            MetaQuest3(device_name="IRL-MQ3-1")
+            MetaQuest3(device_name="IRL-MQ3-2")
         )
-    elif args.device == "real_robot":
-        virtual_controller = RealRobotJointPDController("141.3.53.152")
     else:
         raise Exception(
             "Invalid device choice: choose either 'keyboard' or 'spacemouse'."
@@ -194,4 +143,4 @@ if __name__ == "__main__":
     while True:
         obs, _, _, _ = env.step(virtual_controller.get_action(obs))
         # env.render()
-        pyzlc.sleep(0.1)
+        pyzlc.sleep(0.001)
