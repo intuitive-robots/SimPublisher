@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from typing import Dict, List, Optional, TypedDict, Union, Any, Set
-
 import pyzlc
 
-from .log import logger
 from .simpub_server import ServerBase
 from .utils import XRNodeInfo, HashIdentifier
 from .utils import ZLC_GROUP_NAME
@@ -81,7 +79,7 @@ class XRCavns(ServerBase):
         pass
 
     async def on_new_device_found(self, xr_info: XRNodeInfo):
-        logger.info("New XR device found: %s", xr_info.get("name", "Unknown"))
+        pyzlc.info("New XR device found: %s", xr_info.get("name", "Unknown"))
         for trajectory_name, config in self._trajectories.items():
             try:
                 await pyzlc.async_call(
@@ -89,19 +87,19 @@ class XRCavns(ServerBase):
                     config,
                     group_name=ZLC_GROUP_NAME
                 )
-                logger.debug(
+                pyzlc.debug(
                     "Sent existing trajectory '%s' to new device '%s'",
                     trajectory_name,
                     xr_info.get("name", "Unknown"),
                 )
             except Exception as e:
-                logger.error(
+                pyzlc.error(
                     "Failed to send trajectory '%s' to device '%s': %s",
                     trajectory_name,
                     xr_info.get("name", "Unknown"),
                     e
                 )
-                logger.debug("Exception details:", exc_info=True)
+                pyzlc.debug("Exception details:", exc_info=True)
         pyzlc.info(
             "Current trajectories in registry: %s",
             list(self._trajectories.keys()),
@@ -114,7 +112,7 @@ class XRCavns(ServerBase):
             return [float(color[0]), float(color[1]), float(color[2]), 1.0]
         if len(color) >= 4:
             return [float(color[0]), float(color[1]), float(color[2]), float(color[3])]
-        logger.warning("Invalid color provided; using default [1,1,1,1].")
+        pyzlc.warning("Invalid color provided; using default [1,1,1,1].")
         return [1.0, 1.0, 1.0, 1.0]
 
     def _normalize_position(self, pos: List[Union[int, float]]) -> List[float]:
@@ -161,7 +159,7 @@ class XRCavns(ServerBase):
             try:
                 pyzlc.call(f"{device_name}/{service_name}", payload, group_name=ZLC_GROUP_NAME)
             except Exception as exc:
-                logger.error(
+                pyzlc.error(
                     "Trajectory service call failed for %s/%s: %s",
                     device_name,
                     service_name,

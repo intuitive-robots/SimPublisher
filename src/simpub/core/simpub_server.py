@@ -10,7 +10,7 @@ import pyzlc
 from pyzlc.nodes.lancom_node import LanComNode
 from pyzlc import Streamer
 
-from .log import func_timing, logger
+from .utils import func_timing
 from ..parser.simdata import TreeNode, SimScene
 from ..simpubweb.simpub_web_server import SimPubWebServer
 
@@ -19,7 +19,6 @@ from .utils import (
     XRNodeInfo,
     ZLC_GROUP_NAME,
 )
-
 
 
 def init_xr_node_manager(node_name: str, node_ip: str) -> LanComNode:
@@ -68,9 +67,9 @@ class ServerBase(abc.ABC):
             self.web_server_future = pyzlc.submit_thread_pool_task(
                 self.web_server.serve_forever
             )
-            logger.info("Web dashboard is running at http://127.0.0.1:5000")
+            pyzlc.info("Web dashboard is running at http://127.0.0.1:5000")
         except Exception as e:
-            logger.error(
+            pyzlc.error(
                 f"Failed to start web dashboard on 127.0.0.1:5000: {e}"
             )
             traceback.print_exc()
@@ -131,17 +130,17 @@ class SimPublisher(ServerBase):
         try:
             await self.send_scene_to_xr_device(xr_info)
         except Exception as e:
-            logger.error(f"Error when sending scene to xr device: {e}")
+            pyzlc.error(f"Error when sending scene to xr device: {e}")
             traceback.print_exc()
 
 
     @func_timing
     async def send_scene_to_xr_device(self, xr_info: XRNodeInfo):
-        logger.info(f"Sending scene to xr device: {xr_info['name']}")
+        pyzlc.info(f"Sending scene to xr device: {xr_info['name']}")
         node_prefix = f"{xr_info['name']}"
         flag = await pyzlc.wait_for_service_async(f"{node_prefix}/DeleteSimScene", timeout=5.0, group_name=ZLC_GROUP_NAME)
         if not flag:
-            logger.error(f"Timeout waiting for {node_prefix}/DeleteSimScene service")
+            pyzlc.error(f"Timeout waiting for {node_prefix}/DeleteSimScene service")
             return
         await pyzlc.async_call(
             f"{node_prefix}/DeleteSimScene",
@@ -154,7 +153,7 @@ class SimPublisher(ServerBase):
             group_name=ZLC_GROUP_NAME
         )
         if self.sim_scene.root is None:
-            logger.warning("The SimScene root is None, nothing to send.")
+            pyzlc.warning("The SimScene root is None, nothing to send.")
             return
         scene_prefix = f"{node_prefix}/{self.sim_scene.name}"
         await pyzlc.wait_for_service_async(
