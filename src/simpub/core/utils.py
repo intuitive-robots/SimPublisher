@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from functools import wraps
 from traceback import print_exc
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
+from pyzlc.utils.node_info import NodeInfo as XRNodeInfo
 
 import zmq
 import zmq.asyncio
@@ -35,15 +36,15 @@ class IRISMSG(enum.Enum):
     STOP = "STOP"
 
 
-class XRNodeInfo(TypedDict):
-    name: str
-    nodeID: str  # hash code since bytes is not JSON serializable
-    nodeInfoID: str  # hash code since bytes is not JSON serializable
-    ip: IPAddress
-    type: str
-    port: int
-    serviceList: List[ServiceName]
-    topicDict: Dict[TopicName, int]
+# class XRNodeInfo(TypedDict):
+#     name: str
+#     nodeID: str  # hash code since bytes is not JSON serializable
+#     nodeInfoID: str  # hash code since bytes is not JSON serializable
+#     ip: IPAddress
+#     type: str
+#     port: int
+#     serviceList: List[ServiceName]
+#     topicDict: Dict[TopicName, int]
 
 
 def _format_services(services):
@@ -97,65 +98,65 @@ def print_node_info(node_info: XRNodeInfo):
     logger.info("\n" + _box(content, title="Node Info"))
 
 
-@dataclass
-class XRNodeEntry:
-    """Store XR node metadata alongside its last heartbeat."""
+# @dataclass
+# class XRNodeEntry:
+#     """Store XR node metadata alongside its last heartbeat."""
 
-    info: Optional[XRNodeInfo] = None
-    last_heartbeat: float = field(default_factory=lambda: 0.0)
+#     info: Optional[XRNodeInfo] = None
+#     last_heartbeat: float = field(default_factory=lambda: 0.0)
 
-    def touch(self) -> None:
-        self.last_heartbeat = time.time()
+#     def touch(self) -> None:
+#         self.last_heartbeat = time.time()
 
-    def update_info(self, info: XRNodeInfo) -> None:
-        self.info = info
-        self.touch()
+#     def update_info(self, info: XRNodeInfo) -> None:
+#         self.info = info
+#         self.touch()
 
 
-class XRNodeRegistry:
-    """Registry holding node information and heartbeat timestamps."""
+# class XRNodeRegistry:
+#     """Registry holding node information and heartbeat timestamps."""
 
-    def __init__(self) -> None:
-        self._records: Dict[str, XRNodeEntry] = {}
+#     def __init__(self) -> None:
+#         self._records: Dict[str, XRNodeEntry] = {}
 
-    def get(self, node_id: str) -> Optional[XRNodeEntry]:
-        return self._records.get(node_id)
+#     def get(self, node_id: str) -> Optional[XRNodeEntry]:
+#         return self._records.get(node_id)
 
-    def touch(self, node_id: str) -> XRNodeEntry:
-        record = self._records.setdefault(node_id, XRNodeEntry())
-        record.touch()
-        return record
+#     def touch(self, node_id: str) -> XRNodeEntry:
+#         record = self._records.setdefault(node_id, XRNodeEntry())
+#         record.touch()
+#         return record
 
-    def update_info(self, node_id: str, info: XRNodeInfo) -> XRNodeEntry:
-        record = self._records.setdefault(node_id, XRNodeEntry())
-        record.update_info(info)
-        return record
+#     def update_info(self, node_id: str, info: XRNodeInfo) -> XRNodeEntry:
+#         record = self._records.setdefault(node_id, XRNodeEntry())
+#         record.update_info(info)
+#         return record
 
-    def remove(self, node_id: str) -> None:
-        self._records.pop(node_id, None)
+#     def remove(self, node_id: str) -> None:
+#         self._records.pop(node_id, None)
 
-    def remove_offline(self, timeout: float) -> List[Tuple[str, XRNodeEntry]]:
-        now = time.time()
-        removed: List[Tuple[str, XRNodeEntry]] = []
-        for node_id, record in list(self._records.items()):
-            if record.last_heartbeat and now - record.last_heartbeat > timeout:
-                removed.append((node_id, record))
-                self._records.pop(node_id, None)
-        return removed
+#     def remove_offline(self, timeout: float) -> List[Tuple[str, XRNodeEntry]]:
+#         now = time.time()
+#         removed: List[Tuple[str, XRNodeEntry]] = []
+#         for node_id, record in list(self._records.items()):
+#             if record.last_heartbeat and now - record.last_heartbeat > timeout:
+#                 removed.append((node_id, record))
+#                 self._records.pop(node_id, None)
+#         return removed
 
-    def items(self):
-        return self._records.items()
+#     def items(self):
+#         return self._records.items()
 
-    def values(self):
-        return self._records.values()
+#     def values(self):
+#         return self._records.values()
 
-    def registered_infos(self) -> List[XRNodeInfo]:
-        return [
-            record.info for record in self._records.values() if record.info
-        ]
+#     def registered_infos(self) -> List[XRNodeInfo]:
+#         return [
+#             record.info for record in self._records.values() if record.info
+#         ]
 
-    def __contains__(self, node_id: str) -> bool:
-        return node_id in self._records
+#     def __contains__(self, node_id: str) -> bool:
+#         return node_id in self._records
 
 
 def request_log(func: Callable) -> Callable:
@@ -217,7 +218,7 @@ def request_log(func: Callable) -> Callable:
 
 # @request_log
 async def send_request_async(
-    messages: List[str], req_socket: AsyncSocket, timeout: int = 2
+    messages: List[bytes], req_socket: AsyncSocket, timeout: int = 2
 ) -> Optional[bytes]:
     result = None
     try:

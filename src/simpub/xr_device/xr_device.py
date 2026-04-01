@@ -4,12 +4,9 @@ import traceback
 from asyncio import sleep as async_sleep
 from typing import Optional
 
-import zmq
+import pyzlc
+from pyzlc.utils.node_info import NodeInfo as XRNodeInfo
 
-from ..core.log import logger
-from ..core.net_component import Subscriber
-from ..core.node_manager import XRNodeInfo, init_xr_node_manager
-from ..core.utils import AsyncSocket, print_node_info, send_request_async
 
 
 class InputData:
@@ -25,16 +22,14 @@ class XRDevice:
         self,
         device_name: str = "UnityNode",
     ) -> None:
-        self.manager = init_xr_node_manager()
+        self.manager = pyzlc.get_node()
         self.running = True
         self.connected = False
         self.device_name = device_name
         self.device_id: Optional[str] = None
         self.device_info: Optional[XRNodeInfo] = None
-        self.req_socket: AsyncSocket = self.manager.create_socket(zmq.REQ)
-        self.sub_list: list[Subscriber] = []
-        self.sub_list.append(Subscriber("ConsoleLogger", self.print_log))
-        self.manager.submit_asyncio_task(self.checking_connection)
+        pyzlc.register_subscriber_handler(f"{device_name}/ConsoleLogger", self.print_log)
+        pyzlc.submit_loop_task(self.checking_connection())
 
     def wait_for_connection(self):
         """
@@ -45,12 +40,9 @@ class XRDevice:
             time.sleep(0.1)
 
     async def checking_connection(self):
-        logger.info(f"checking the connection to {self.device_name}")
+        pyzlc.info(f"checking the connection to {self.device_name}")
         while self.running:
-            for entry in self.manager.xr_nodes.values():
-                node_info = entry.info
-                if node_info is None:
-                    continue
+            for node_info in pyzlc.get_nodes_info():
                 if node_info["name"] != self.device_name:
                     continue
                 if node_info["nodeID"] == self.device_id:
@@ -60,75 +52,66 @@ class XRDevice:
                 self.device_info = node_info
                 self.device_id = node_info["nodeID"]
                 self.connected = True
-                self.subscribe_to_client(node_info)
-                print_node_info(node_info)
+                # print_node_info(node_info)
             await async_sleep(0.5)
         # if self.device_info is None:
         #     return
         # self.connect_to_client(self.device_info)
 
-    def subscribe_to_client(self, info: XRNodeInfo):
-        try:
-            self.req_socket.connect(f"tcp://{info['ip']}:{info['port']}")
-            for sub in self.sub_list:
-                if sub.topic_name not in info["topicDict"]:
-                    continue
-                sub.start_connection(
-                    f"tcp://{info['ip']}:{info['topicDict'][sub.topic_name]}"
-                )
-                logger.info(
-                    f"Subscribed to {sub.topic_name} "
-                    f"on {info['ip']}:{info['port']}"
-                )
-            logger.remote_log(
-                f"{self.type} Connected to {self.device_name} "
-                f"at {info['ip']}:{info['port']}"
-            )
-        except Exception as e:
-            logger.error(
-                f"Failed to connect to {self.device_name} at "
-                f"{info['ip']}:{info['port']}: {e}"
-            )
-            traceback.print_exc()
-            return
+    # def subscribe_to_client(self, info: XRNodeInfo):
+    #     try:
+    #         self.req_socket.connect(f"tcp://{info['ip']}:{info['port']}")
+    #         for sub in self.sub_list:
+    #             if sub.topic_name not in info["topicDict"]:
+    #                 continue
+    #             sub.start_connection(
+    #                 f"tcp://{info['ip']}:{info['topicDict'][sub.topic_name]}"
+    #             )
+    #             pyzlc.info(
+    #                 f"Subscribed to {sub.topic_name} "
+    #                 f"on {info['ip']}:{info['port']}"
+    #             )
+    #         pyzlc.remote_log(
+    #             f"{self.type} Connected to {self.device_name} "
+    #             f"at {info['ip']}:{info['port']}"
+    #         )
+    #     except Exception as e:
+    #         pyzlc.error(
+    #             f"Failed to connect to {self.device_name} at "
+    #             f"{info['ip']}:{info['port']}: {e}"
+    #         )
+    #         traceback.print_exc()
+    #         return
 
-    def request(self, service_name: str, request: str) -> str:
-        if self.device_info is None:
-            logger.error(f"Device {self.device_name} is not connected")
-            return ""
-        if service_name not in self.device_info["serviceList"]:
-            logger.error(f'"{service_name}" Service is not available')
-            return ""
-        messages = [
-            service_name.encode(),
-            request.encode(),
-        ]
-        future = self.manager.submit_asyncio_task(
-            send_request_async, messages, self.req_socket
-        )
-        if future is None:
-            logger.error("Future is None")
-            return ""
-        try:
-            result = future.result()
-            return result
-        except Exception as e:
-            logger.error(f"Error occurred when waiting for a response: {e}")
-            return ""
-
-    def disconnect(self):
-        if self.device_info is None:
-            logger.error(
-                f"Device {self.device_name} is not "
-                "connected and it cannot be disconnected"
-            )
-            return
-        self.req_socket.disconnect(
-            f"tcp://{self.device_info['ip']}:{self.device_info['port']}"
-        )
+    # def request(self, service_name: str, request: str) -> str:
+    #     if self.device_info is None:
+    #         pyzlc.error(f"Device {self.device_name} is not connected")
+    #         return ""
+    #     if service_name not in self.device_info["serviceList"]:
+    #         pyzlc.error(f'"{service_name}" Service is not available')
+    #         return ""
+    #     messages = [
+    #         service_name.encode(),
+    #         request.encode(),
+    #     ]
+    #     future = self.manager.submit_asyncio_task(
+    #         send_request_async, messages, self.req_socket
+    #     )
+    #     if future is None:
+    #         pyzlc.error("Future is None")
+    #         return ""
+    #     try:
+    #         result = future.result()
+    #         return result
+    #     except Exception as e:
+    #         pyzlc.error(f"Error occurred when waiting for a response: {e}")
+    #         return ""
 
     def print_log(self, log: str):
-        logger.remote_log(f"{self.type} Log: {log}")
-
+        pyzlc.remote_log(f"{self.type} Log: {log}")
     def get_controller_data(self) -> InputData:
         raise NotImplementedError
+
+    def disconnect(self):
+        pyzlc.info(f"Disconnecting from {self.device_name}")
+        self.connected = False

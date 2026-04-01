@@ -22,7 +22,7 @@ authors = [
   { name = "Xinkai Jiang" },
 ]
 readme = "README.md"
-license-files = ["LICENSE"]
+# license-files = ["LICENSE"]
 
 [project.urls]
 Projectpage = "https://intuitive-robots.github.io/iris-project-page/"
