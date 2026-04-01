@@ -64,7 +64,7 @@ class XRCavns(ServerBase):
 
     def __init__(self, ip_addr: str = "127.0.0.1") -> None:
         self._trajectories: Dict[str, TrajectoryConfigDict] = {}
-        self.node_manager = pyzlc.LanComNode.get_instance(ZLC_GROUP_NAME)
+        self.node_manager = pyzlc.LanComNode.get(ZLC_GROUP_NAME)
         if self.node_manager is None:
             super().__init__(server_name="XRCavns", ip_addr=ip_addr)
         elif self.node_manager.node_ip != ip_addr:
