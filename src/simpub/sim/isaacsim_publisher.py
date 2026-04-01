@@ -51,6 +51,9 @@ class IsaacSimPublisher(SimPublisher):
             rt_prim = Rt.Xformable(rt_prim)
             pos = rt_prim.GetWorldPositionAttr().Get()
             rot = rt_prim.GetWorldOrientationAttr().Get()
+            # skip if transform attributes are not available yet
+            if pos is None or rot is None:
+                continue
             # convert pos and rot to unity coord system
             state[prim_name] = [
                 pos[1],
