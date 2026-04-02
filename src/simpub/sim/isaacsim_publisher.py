@@ -1,12 +1,11 @@
 import io
-
+from typing import Dict, List
 import numpy as np
 from pxr import Usd
 from usdrt import Rt
 from usdrt import UsdGeom as RtGeom
 
-from ..core.net_component import ByteStreamer
-from ..core.simpub_server import SimPublisher
+from ..core.simpub_server import RigidObjectUpdateData, SimPublisher
 from ..parser.isaacsim import IsaacSimStageParser
 
 
@@ -37,11 +36,11 @@ class IsaacSimPublisher(SimPublisher):
         super().__init__(self.sim_scene, host)
 
         # add deformable update streamer
-        self.deform_update_streamer = ByteStreamer(
-            "DeformUpdate", self.get_deform_update, start_streaming=True
-        )
+        # self.deform_update_streamer = ByteStreamer(
+        #     "DeformUpdate", self.get_deform_update, start_streaming=True
+        # )
 
-    def get_update(self) -> dict[str, list[float]]:
+    def get_update(self) -> RigidObjectUpdateData:
         state = {}
         for tracked_prim in self.tracked_prims:
             prim_name = tracked_prim["name"]
@@ -49,6 +48,7 @@ class IsaacSimPublisher(SimPublisher):
             # get prim with usdrt api (necessary for getting updates from physics simulation)
             rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
             rt_prim = Rt.Xformable(rt_prim)
+            rt_prim.SetWorldXformFromUsd()
             pos = rt_prim.GetWorldPositionAttr().Get()
             rot = rt_prim.GetWorldOrientationAttr().Get()
             # skip if transform attributes are not available yet
@@ -64,7 +64,7 @@ class IsaacSimPublisher(SimPublisher):
                 rot.GetImaginary()[0],
                 rot.GetReal(),
             ]
-        return state
+        return RigidObjectUpdateData(data=state)
 
     def get_deform_update(self) -> bytes:
         ###################################################

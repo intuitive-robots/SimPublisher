@@ -3,7 +3,6 @@ import json
 import math
 import os
 import uuid
-from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -65,18 +64,7 @@ else:
         quat_to_rot_matrix,
     )
 
-
-@dataclass
-class MaterialInfo:
-    sim_mat: SimMaterial
-    project_uvw: bool = False
-    use_world_coord: bool = False
-
-
-@dataclass
-class TextureInfo:
-    relative_path: Optional[str] = None
-    image: Optional[Image.Image] = None
+MaterialContext = Tuple[SimMaterial, bool, bool]
 
 
 class IsaacSimStageParser:
@@ -97,7 +85,7 @@ class IsaacSimStageParser:
         self.tracked_deform_prims: List[dict] = []
 
         self.texture_cache_dir = texture_cache_dir
-        self.texture_dict: Dict[str, TextureInfo] = {}
+        self.texture_dict: Dict[str, Dict[str, Optional[object]]] = {}
         self.texture_dict_path: Optional[str] = None
         self._load_texture_cache()
 
@@ -140,7 +128,7 @@ class IsaacSimStageParser:
         root: Usd.Prim,
         indent: int = 0,
         parent_path: Optional[str] = None,
-        inherited_material: Optional[MaterialInfo] = None,
+        inherited_material: Optional[MaterialContext] = None,
     ) -> Optional[TreeNode]:
         if not root or not root.IsValid():
             return None
@@ -178,14 +166,12 @@ class IsaacSimStageParser:
             "visuals": [],
         }
 
-        mat_info = self.process_prim_material(prim=root, indent=indent)
-        active_material = mat_info or inherited_material
-        self.parse_prim_geometries(
+        active_material = self.parse_prim_geometries(
             prim=root,
             prim_path=prim_path,
             sim_obj=sim_object,
             indent=indent,
-            mat_info=active_material,
+            inherited_material=inherited_material,
         )
 
         self._track_prim_if_needed(root, sim_object["name"], prim_path, indent)
@@ -244,8 +230,8 @@ class IsaacSimStageParser:
     def process_prim_material(
         self,
         prim: Usd.Prim,
-        indent: int,
-    ) -> Optional[MaterialInfo]:
+        indent: int = 0,
+    ) -> Optional[SimMaterial]:
         matapi = UsdShade.MaterialBindingAPI(prim)
         if matapi is None:
             return None
@@ -283,16 +269,37 @@ class IsaacSimStageParser:
                 )
                 sim_mat["texture"] = tex
 
-        mi = MaterialInfo(sim_mat=sim_mat)
+        return sim_mat
 
+    def _resolve_prim_projection_mode(self, prim: Usd.Prim) -> Tuple[bool, bool]:
+        matapi = UsdShade.MaterialBindingAPI(prim)
+        if matapi is None:
+            return False, False
+
+        binding = matapi.GetDirectBinding()
+        if not binding:
+            return False, False
+
+        mat = binding.GetMaterial()
+        if not mat:
+            return False, False
+
+        mat_prim = self.stage.GetPrimAtPath(mat.GetPath())
+        if not mat_prim:
+            return False, False
+
+        shader_children = mat_prim.GetAllChildren()
+        if not shader_children:
+            return False, False
+
+        mat_shader = UsdShade.Shader(shader_children[0])
         project_uvw_input = mat_shader.GetInput("project_uvw")
         if project_uvw_input and project_uvw_input.Get() is True:
-            mi.project_uvw = True
             world_coord_input = mat_shader.GetInput("world_or_object")
-            if world_coord_input and world_coord_input.Get() is True:
-                mi.use_world_coord = True
+            use_world_coord = bool(world_coord_input and world_coord_input.Get())
+            return True, use_world_coord
 
-        return mi
+        return False, False
 
     def compute_projected_uv(
         self,
@@ -351,20 +358,31 @@ class IsaacSimStageParser:
         prim_path: str,
         sim_obj: SimObject,
         indent: int,
-        mat_info: Optional[MaterialInfo] = None,
-    ) -> None:
+        inherited_material: Optional[MaterialContext] = None,
+    ) -> Optional[MaterialContext]:
         visibility_attr = prim.GetAttribute("visibility")
         if visibility_attr and str(visibility_attr.Get()) == "invisible":
-            return
+            return inherited_material
+
+        resolved_material = self.process_prim_material(prim, indent=indent)
+        if resolved_material is None:
+            active_material = inherited_material
+        else:
+            project_uvw, use_world_coord = self._resolve_prim_projection_mode(prim)
+            active_material = (resolved_material, project_uvw, use_world_coord)
 
         prim_type = prim.GetTypeName()
         if prim_type == "Mesh":
-            self._process_mesh_prim(prim, sim_obj, indent, mat_info)
-            return
+            self._process_mesh_prim(prim, sim_obj, indent, active_material)
+            return active_material
 
-        primitive_visual = self._process_primitive_prim(prim_type, prim_path, mat_info)
+        primitive_visual = self._process_primitive_prim(
+            prim_type, prim_path, active_material
+        )
         if primitive_visual is not None:
             sim_obj["visuals"].append(primitive_visual)
+
+        return active_material
 
     def build_mesh_buffer(self, mesh_obj: trimesh.Trimesh) -> SimVisual:
         mesh_data = create_mesh(mesh_obj, None)
@@ -393,7 +411,10 @@ class IsaacSimStageParser:
             raw_dict = json.load(f)
 
         for full_path, relative_path in raw_dict.items():
-            self.texture_dict[full_path] = TextureInfo(relative_path=relative_path)
+            self.texture_dict[full_path] = {
+                "relative_path": relative_path,
+                "image": None,
+            }
 
     def _store_texture_cache(self) -> None:
         if self.texture_dict_path is None:
@@ -402,9 +423,9 @@ class IsaacSimStageParser:
         with open(self.texture_dict_path, "w", encoding="utf-8") as f:
             json.dump(
                 {
-                    k: v.relative_path
+                    k: str(v["relative_path"])
                     for k, v in self.texture_dict.items()
-                    if v.relative_path
+                    if v.get("relative_path")
                 },
                 f,
             )
@@ -460,17 +481,18 @@ class IsaacSimStageParser:
     def _load_texture_image(self, texture_path: str) -> Optional[Image.Image]:
         if texture_path in self.texture_dict:
             tex_info = self.texture_dict[texture_path]
+            tex_image = tex_info.get("image")
+            tex_relative = tex_info.get("relative_path")
             if (
-                tex_info.image is None
-                and tex_info.relative_path
+                tex_image is None
+                and isinstance(tex_relative, str)
                 and self.texture_cache_dir
             ):
-                local_path = os.path.join(
-                    self.texture_cache_dir, tex_info.relative_path
-                )
+                local_path = os.path.join(self.texture_cache_dir, tex_relative)
                 if os.path.isfile(local_path):
-                    tex_info.image = Image.open(local_path)
-            return tex_info.image
+                    tex_info["image"] = Image.open(local_path)
+            cached_image = tex_info.get("image")
+            return cached_image if isinstance(cached_image, Image.Image) else None
 
         image: Optional[Image.Image] = None
         if texture_path.startswith(("http://", "https://")):
@@ -485,10 +507,10 @@ class IsaacSimStageParser:
             texture_file_name = f"{uuid.uuid4()}{ext}"
             texture_file_path = os.path.join(self.texture_cache_dir, texture_file_name)
             image.save(texture_file_path)
-            self.texture_dict[texture_path] = TextureInfo(
-                relative_path=texture_file_name,
-                image=image,
-            )
+            self.texture_dict[texture_path] = {
+                "relative_path": texture_file_name,
+                "image": image,
+            }
 
         return image
 
@@ -497,7 +519,7 @@ class IsaacSimStageParser:
         prim: Usd.Prim,
         sim_obj: SimObject,
         indent: int,
-        mat_info: Optional[MaterialInfo],
+        mat_info: Optional[MaterialContext],
     ) -> None:
         mesh_prim = UsdGeom.Mesh(prim)
         if not mesh_prim:
@@ -555,7 +577,7 @@ class IsaacSimStageParser:
         mesh_prim: UsdGeom.Mesh,
         vertices: np.ndarray,
         indices: np.ndarray,
-        mat_info: Optional[MaterialInfo],
+        mat_info: Optional[MaterialContext],
     ) -> List[dict]:
         mesh_subsets = UsdGeom.Subset.GetAllGeomSubsets(mesh_prim)
         if not mesh_subsets:
@@ -565,7 +587,7 @@ class IsaacSimStageParser:
                     "vertices": vertices,
                     "indices": indices,
                     "uv": uv_buf,
-                    "material": mat_info.sim_mat if mat_info is not None else None,
+                    "material": mat_info[0] if mat_info is not None else None,
                 }
             ]
 
@@ -578,9 +600,9 @@ class IsaacSimStageParser:
 
             subset_mat_info = self.process_prim_material(subset.GetPrim(), indent=0)
             subset_mat = (
-                subset_mat_info.sim_mat
+                subset_mat_info
                 if subset_mat_info is not None
-                else (mat_info.sim_mat if mat_info is not None else None)
+                else (mat_info[0] if mat_info is not None else None)
             )
 
             mesh_infos.append(
@@ -618,15 +640,15 @@ class IsaacSimStageParser:
         prim: Usd.Prim,
         indices: np.ndarray,
         vertices: np.ndarray,
-        mat_info: Optional[MaterialInfo],
+        mat_info: Optional[MaterialContext],
     ) -> Optional[np.ndarray]:
         primvars = UsdGeom.PrimvarsAPI(prim)
-        if mat_info is not None and mat_info.project_uvw:
+        if mat_info is not None and mat_info[1]:
             return self.compute_projected_uv(
                 prim=prim,
                 vertex_buf=vertices,
                 index_buf=indices,
-                use_world_coord=mat_info.use_world_coord,
+                use_world_coord=mat_info[2],
             )
 
         if primvars.HasPrimvar("st"):
@@ -640,14 +662,14 @@ class IsaacSimStageParser:
         self,
         prim_type: str,
         prim_path: str,
-        mat_info: Optional[MaterialInfo],
+        mat_info: Optional[MaterialContext],
     ) -> Optional[SimVisual]:
         rt_prim = self.rt_stage.GetPrimAtPath(prim_path)
         if not rt_prim or not rt_prim.IsValid():
             return None
 
         material = (
-            mat_info.sim_mat if mat_info is not None else create_material([1, 1, 1, 1])
+            mat_info[0] if mat_info is not None else create_material([1, 1, 1, 1])
         )
         identity = SimTransform(pos=[0, 0, 0], rot=[0, 0, 0, 1], scale=[1, 1, 1])
 
@@ -677,8 +699,12 @@ class IsaacSimStageParser:
         if prim_type == "Cube":
             cube_prim = RtGeom.Cube(rt_prim)
             cube_size = float(cube_prim.GetSizeAttr().Get())
-            scale_attr = rt_prim.GetAttribute("xformOp:scale").Get()
-            cube_scale = scale_attr if scale_attr is not None else [1.0, 1.0, 1.0]
+            scale_attr = rt_prim.GetAttribute("xformOp:scale")
+            cube_scale = [1.0, 1.0, 1.0]
+            if scale_attr and scale_attr.IsValid():
+                scale_val = scale_attr.Get()
+                if scale_val is not None:
+                    cube_scale = scale_val
             trans = SimTransform(
                 pos=[0, 0, 0],
                 rot=[0, 0, 0, 1],
