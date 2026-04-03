@@ -62,19 +62,8 @@ class XRCavns(ServerBase):
 
     def __init__(self, ip_addr: str = "127.0.0.1") -> None:
         self._trajectories: Dict[str, TrajectoryConfigDict] = {}
-        self.node_manager = pyzlc.LanComNode.get(ZLC_GROUP_NAME)
-        if self.node_manager is None:
-            super().__init__(server_name="XRCavns", ip_addr=ip_addr)
-        elif self.node_manager.node_ip != ip_addr:
-            raise ValueError(
-                f"LanComNode already initialized with IP {self.node_manager.node_ip},"
-                f"cannot reinitialize with different IP {ip_addr}"
-            )
-        self.xr_device_set: Set[HashIdentifier] = set()
-        pyzlc.submit_loop_task(self.search_xr_device(), group_name=ZLC_GROUP_NAME)
-        self.initialize()
+        super().__init__(server_name="XRCavns", ip_addr=ip_addr, start_web_server=False)
             
-
     def initialize(self) -> None:
         pass
 
@@ -99,8 +88,7 @@ class XRCavns(ServerBase):
                     xr_info.get("name", "Unknown"),
                     e
                 )
-                pyzlc.debug("Exception details:", exc_info=True)
-        pyzlc.info(
+        pyzlc.debug(
             "Current trajectories in registry: %s",
             list(self._trajectories.keys()),
         )

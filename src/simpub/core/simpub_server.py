@@ -33,12 +33,20 @@ def init_xr_node_manager(node_name: str, node_ip: str) -> LanComNode:
     return pyzlc.LanComNode.get_instance(ZLC_GROUP_NAME)
 
 class ServerBase(abc.ABC):
-    def __init__(self, server_name: str, ip_addr: str):
+    def __init__(self, server_name: str, ip_addr: str, start_web_server: bool = False) -> None:
         self.ip_addr: str = ip_addr
-        self.node_manager = init_xr_node_manager(server_name, ip_addr)
+        self.node_manager = pyzlc.LanComNode.get(ZLC_GROUP_NAME)
+        if self.node_manager is None:
+            self.node_manager = init_xr_node_manager(server_name, ip_addr)
+        elif self.node_manager.node_ip != ip_addr:
+            raise ValueError(
+                f"LanComNode already initialized with IP {self.node_manager.node_ip},"
+                f"cannot reinitialize with different IP {ip_addr}"
+            )
         self.web_server: Optional[SimPubWebServer] = None
         self.web_server_future: Optional[concurrent.futures.Future] = None
-        self._start_web_server()
+        if start_web_server:
+            self._start_web_server()
         self.xr_device_set: Set[HashIdentifier] = set()
         pyzlc.submit_loop_task(self.search_xr_device(), group_name=ZLC_GROUP_NAME)
         self.initialize()
@@ -73,7 +81,6 @@ class ServerBase(abc.ABC):
                 f"Failed to start web dashboard on 127.0.0.1:5000: {e}"
             )
             traceback.print_exc()
-
 
     def spin(self):
         pyzlc.spin(ZLC_GROUP_NAME)
@@ -115,7 +122,7 @@ class SimPublisher(ServerBase):
             self.no_tracked_objects = []
         else:
             self.no_tracked_objects = no_tracked_objects
-        super().__init__(sim_scene.name, ip_addr)
+        super().__init__(sim_scene.name, ip_addr, start_web_server=True)
 
     def initialize(self) -> None:
         self.scene_update_streamer = Streamer(
@@ -157,7 +164,9 @@ class SimPublisher(ServerBase):
             return
         scene_prefix = f"{node_prefix}/{self.sim_scene.name}"
         await pyzlc.wait_for_service_async(
-            f"{scene_prefix}/SubscribeRigidObjectsController", timeout=1.0, group_name=ZLC_GROUP_NAME
+            f"{scene_prefix}/SubscribeRigidObjectsController",
+            timeout=1.0,
+            group_name=ZLC_GROUP_NAME
         )
         await pyzlc.async_call(
             f"{scene_prefix}/SubscribeRigidObjectsController",
