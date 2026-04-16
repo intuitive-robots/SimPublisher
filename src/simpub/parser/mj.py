@@ -4,8 +4,8 @@ import mujoco
 import numpy as np
 import trimesh
 from trimesh.visual import TextureVisuals
+import pyzlc
 
-from ..core.log import logger
 from .simdata import (
     SimMaterial,
     TreeNode,
@@ -116,7 +116,7 @@ class MjModelParser:
         )
         self.sim_scene.lights = self.process_lights(mj_model)
 
-    def parse_model(self, mj_model):
+    def parse_model(self, mj_model) -> SimScene:
         sim_scene = self.sim_scene
         # create a dictionary to store the body hierarchy
         body_hierarchy: Dict[int, Tuple[int, TreeNode]] = {}
@@ -266,7 +266,7 @@ class MjModelParser:
         elif isinstance(tex_id, np.ndarray):
             tex_id = int(tex_id[1])
         else:
-            logger.warning(
+            pyzlc.warning(
                 f"Texture id is of type {type(tex_id)},"
                 "which is not supported."
             )
@@ -330,7 +330,7 @@ class MjModelParser:
             elif light_mode == 2:
                 l_type = "Point"
             else:
-                logger.warning(
+                pyzlc.warning(
                     f"Unsupported light mode {light_mode} for light {light_name}, defaulting to Point."
                 )
                 l_type = "Point"

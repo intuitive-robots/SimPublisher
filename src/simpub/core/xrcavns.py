@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, TypedDict, Union, Any
-
+from typing import Dict, List, Optional, TypedDict, Union, Any, Set
 import pyzlc
 
-from .log import logger
 from .simpub_server import ServerBase
-from .utils import XRNodeInfo
-
+from .utils import XRNodeInfo, HashIdentifier
+from .utils import ZLC_GROUP_NAME
 
 class TrajectoryWaypointDict(TypedDict):
     pos: List[float]  # [x, y, z]
@@ -40,16 +38,12 @@ class XRTrajectory:
     def update(
         self,
         waypoints: Optional[List[TrajectoryWaypointDict]] = None,
-        points: Optional[List[List[Union[int, float]]]] = None,
-        color: Optional[List[Union[int, float]]] = None,
         width: Optional[Union[int, float]] = None,
         resolution: Optional[int] = None,
     ):
         self._cavns.update_trajectory(
             name=self.name,
             waypoints=waypoints,
-            points=points,
-            color=color,
             width=width,
             resolution=resolution,
         )
@@ -68,33 +62,33 @@ class XRCavns(ServerBase):
 
     def __init__(self, ip_addr: str = "127.0.0.1") -> None:
         self._trajectories: Dict[str, TrajectoryConfigDict] = {}
-        super().__init__(server_name="XRCavns", ip_addr=ip_addr)
-
+        super().__init__(server_name="XRCavns", ip_addr=ip_addr, start_web_server=False)
+            
     def initialize(self) -> None:
         pass
 
     async def on_new_device_found(self, xr_info: XRNodeInfo):
-        logger.info("New XR device found: %s", xr_info.get("name", "Unknown"))
+        pyzlc.info("New XR device found: %s", xr_info.get("name", "Unknown"))
         for trajectory_name, config in self._trajectories.items():
             try:
                 await pyzlc.async_call(
                     f"{xr_info['name']}/SpawnTrajectory",
                     config,
+                    group_name=ZLC_GROUP_NAME
                 )
-                logger.debug(
+                pyzlc.debug(
                     "Sent existing trajectory '%s' to new device '%s'",
                     trajectory_name,
                     xr_info.get("name", "Unknown"),
                 )
             except Exception as e:
-                logger.error(
+                pyzlc.error(
                     "Failed to send trajectory '%s' to device '%s': %s",
                     trajectory_name,
                     xr_info.get("name", "Unknown"),
-                    e,
+                    e
                 )
-                logger.debug("Exception details:", exc_info=True)
-        pyzlc.info(
+        pyzlc.debug(
             "Current trajectories in registry: %s",
             list(self._trajectories.keys()),
         )
@@ -106,13 +100,13 @@ class XRCavns(ServerBase):
             return [float(color[0]), float(color[1]), float(color[2]), 1.0]
         if len(color) >= 4:
             return [float(color[0]), float(color[1]), float(color[2]), float(color[3])]
-        logger.warning("Invalid color provided; using default [1,1,1,1].")
+        pyzlc.warning("Invalid color provided; using default [1,1,1,1].")
         return [1.0, 1.0, 1.0, 1.0]
 
     def _normalize_position(self, pos: List[Union[int, float]]) -> List[float]:
         if pos is None or len(pos) < 3:
             raise ValueError("Position must have at least 3 values [x, y, z].")
-        return [float(pos[0]), float(pos[1]), float(pos[2])]
+        return [-float(pos[1]), float(pos[2]), float(pos[0])]
 
     def _validate_waypoints(
         self, waypoints: List[TrajectoryWaypointDict]
@@ -131,23 +125,6 @@ class XRCavns(ServerBase):
             )
         return validated
 
-    def _points_to_waypoints(
-        self,
-        points: List[List[Union[int, float]]],
-        color: Optional[List[Union[int, float]]] = None,
-    ) -> List[TrajectoryWaypointDict]:
-        """Convert legacy points + color format to waypoints format."""
-        normalized_color = self._normalize_color(color)
-        waypoints: List[TrajectoryWaypointDict] = []
-        for point in points:
-            waypoints.append(
-                {
-                    "pos": self._normalize_position(point),
-                    "color": normalized_color,
-                }
-            )
-        return waypoints
-
     def _build_trajectory_config(
         self,
         name: str,
@@ -165,12 +142,12 @@ class XRCavns(ServerBase):
         }
 
     def _broadcast_trajectory_call(self, service_name: str, payload: Any):
-        for xr_info in pyzlc.get_nodes_info():
+        for xr_info in pyzlc.get_nodes_info(group_name=ZLC_GROUP_NAME):
             device_name = xr_info.get("name", "")
             try:
-                pyzlc.call(f"{device_name}/{service_name}", payload)
+                pyzlc.call(f"{device_name}/{service_name}", payload, group_name=ZLC_GROUP_NAME)
             except Exception as exc:
-                logger.error(
+                pyzlc.error(
                     "Trajectory service call failed for %s/%s: %s",
                     device_name,
                     service_name,
@@ -180,9 +157,7 @@ class XRCavns(ServerBase):
     def create_trajectory(
         self,
         name: str,
-        waypoints: Optional[List[TrajectoryWaypointDict]] = None,
-        points: Optional[List[List[Union[int, float]]]] = None,
-        color: Optional[List[Union[int, float]]] = None,
+        waypoints: List[TrajectoryWaypointDict],
         width: Union[int, float] = 0.01,
         resolution: int = 10,
     ) -> XRTrajectory:
@@ -190,22 +165,13 @@ class XRCavns(ServerBase):
 
         Args:
             name: Trajectory name
-            waypoints: List of waypoints with pos and color (new format)
-            points: List of [x,y,z] positions (legacy format, use with color)
-            color: Default color for all points (legacy format, used with points)
+            waypoints: List of waypoints with pos and color
             width: Line width
             resolution: Interpolation segments per control point
         """
-        if waypoints is not None:
-            final_waypoints = waypoints
-        elif points is not None:
-            final_waypoints = self._points_to_waypoints(points, color)
-        else:
-            raise ValueError("Must provide either 'waypoints' or 'points'.")
-
         config = self._build_trajectory_config(
             name=name,
-            waypoints=final_waypoints,
+            waypoints=waypoints,
             width=width,
             resolution=resolution,
         )
@@ -223,8 +189,6 @@ class XRCavns(ServerBase):
         self,
         name: str,
         waypoints: Optional[List[TrajectoryWaypointDict]] = None,
-        points: Optional[List[List[Union[int, float]]]] = None,
-        color: Optional[List[Union[int, float]]] = None,
         width: Optional[Union[int, float]] = None,
         resolution: Optional[int] = None,
     ):
@@ -233,15 +197,7 @@ class XRCavns(ServerBase):
             return
 
         current = self._trajectories[name]
-
-        # Determine waypoints
-        if waypoints is not None:
-            final_waypoints = waypoints
-        elif points is not None:
-            final_waypoints = self._points_to_waypoints(points, color)
-        else:
-            final_waypoints = current["waypoints"]
-
+        final_waypoints = waypoints if waypoints is not None else current["waypoints"]
         next_width = width if width is not None else current["width"]
         next_resolution = (
             resolution if resolution is not None else current["resolution"]

@@ -44,7 +44,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 #     DifferentialInverseKinematicsActionCfg,
 # )
 
-from isaaclab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
+from isaaclab.devices import Se3Gamepad, Se3Keyboard, Se3KeyboardCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
@@ -154,11 +154,7 @@ def main():
         )
 
     # create controller
-    sensitivity = 10
-    teleop_interface = Se3Keyboard(
-        pos_sensitivity=0.005 * sensitivity,
-        rot_sensitivity=0.005 * sensitivity,
-    )
+    teleop_interface = Se3Keyboard(Se3KeyboardCfg())
 
     # add teleoperation key for env reset
     teleop_interface.add_callback("L", env.reset)
@@ -175,7 +171,7 @@ def main():
     if env.sim is not None and env.sim.stage is not None:
         print("parsing usd stage...")
         publisher = IsaacSimPublisher(
-            host="192.168.0.134", stage=env.sim.stage
+            host="192.168.0.117", stage=env.sim.stage
         )
         # publisher = IsaacSimPublisher(host="127.0.0.1", stage=env.sim.stage)
 
@@ -200,7 +196,7 @@ def main():
             # input_rot = Rotation.from_euler("XYZ", [0, 180, 0], degrees=True).as_quat()
 
             # get keyboard command
-            delta_pose, gripper_command = teleop_interface.advance()
+            # delta_pose = teleop_interface.advance()
 
             # # get command from meta quest 3
             # delta_pose = np.array(
@@ -217,15 +213,15 @@ def main():
             # print(delta_pose)
             # gripper_command = input_gripper
 
-            delta_pose = delta_pose.astype("float32")
-            # convert to torch
-            delta_pose = torch.tensor(
-                delta_pose, device=env.unwrapped.device
-            ).repeat(env.unwrapped.num_envs, 1)
-            # pre-process actions
-            actions = pre_process_actions(task, delta_pose, gripper_command)
+            # delta_pose = delta_pose.astype("float32")
+            # # convert to torch
+            # delta_pose = torch.tensor(
+            #     delta_pose, device=env.unwrapped.device
+            # ).repeat(env.unwrapped.num_envs, 1)
+            # # pre-process actions
+            # actions = pre_process_actions(task, delta_pose, gripper_command)
             # apply actions
-            env.step(actions)
+            env.step(teleop_interface.advance())
 
     # close the simulator
     env.close()

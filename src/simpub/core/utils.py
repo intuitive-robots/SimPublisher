@@ -2,7 +2,7 @@ import asyncio
 import enum
 import socket
 import time
-from dataclasses import dataclass, field
+import pyzlc
 from functools import wraps
 from traceback import print_exc
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
@@ -11,7 +11,7 @@ from pyzlc.utils.node_info import NodeInfo as XRNodeInfo
 import zmq
 import zmq.asyncio
 
-from .log import logger
+ZLC_GROUP_NAME = "IRIS"
 
 IPAddress = str
 Port = int
@@ -95,69 +95,27 @@ def print_node_info(node_info: XRNodeInfo):
         f"Topics   : {len(topics)}\n"
         f"{_format_topics(topics)}"
     )
-    logger.info("\n" + _box(content, title="Node Info"))
+    pyzlc.info("\n" + _box(content, title="Node Info"))
 
+def func_timing(func: Callable) -> Callable:
+    """Simple timing decorator that just logs total execution time"""
 
-# @dataclass
-# class XRNodeEntry:
-#     """Store XR node metadata alongside its last heartbeat."""
+    @wraps(func)
+    async def wrapper(*args, **kwargs) -> Any:
+        start_time = time.time()
+        try:
+            result = await func(*args, **kwargs)
+            total_time = time.time() - start_time
+            pyzlc.info(f"{func.__name__} took {total_time*1000:.2f}ms")
+            return result
+        except Exception as e:
+            total_time = time.time() - start_time
+            pyzlc.error(
+                f"{func.__name__} failed after {total_time*1000:.2f}ms: {e}"
+            )
+            raise
 
-#     info: Optional[XRNodeInfo] = None
-#     last_heartbeat: float = field(default_factory=lambda: 0.0)
-
-#     def touch(self) -> None:
-#         self.last_heartbeat = time.time()
-
-#     def update_info(self, info: XRNodeInfo) -> None:
-#         self.info = info
-#         self.touch()
-
-
-# class XRNodeRegistry:
-#     """Registry holding node information and heartbeat timestamps."""
-
-#     def __init__(self) -> None:
-#         self._records: Dict[str, XRNodeEntry] = {}
-
-#     def get(self, node_id: str) -> Optional[XRNodeEntry]:
-#         return self._records.get(node_id)
-
-#     def touch(self, node_id: str) -> XRNodeEntry:
-#         record = self._records.setdefault(node_id, XRNodeEntry())
-#         record.touch()
-#         return record
-
-#     def update_info(self, node_id: str, info: XRNodeInfo) -> XRNodeEntry:
-#         record = self._records.setdefault(node_id, XRNodeEntry())
-#         record.update_info(info)
-#         return record
-
-#     def remove(self, node_id: str) -> None:
-#         self._records.pop(node_id, None)
-
-#     def remove_offline(self, timeout: float) -> List[Tuple[str, XRNodeEntry]]:
-#         now = time.time()
-#         removed: List[Tuple[str, XRNodeEntry]] = []
-#         for node_id, record in list(self._records.items()):
-#             if record.last_heartbeat and now - record.last_heartbeat > timeout:
-#                 removed.append((node_id, record))
-#                 self._records.pop(node_id, None)
-#         return removed
-
-#     def items(self):
-#         return self._records.items()
-
-#     def values(self):
-#         return self._records.values()
-
-#     def registered_infos(self) -> List[XRNodeInfo]:
-#         return [
-#             record.info for record in self._records.values() if record.info
-#         ]
-
-#     def __contains__(self, node_id: str) -> bool:
-#         return node_id in self._records
-
+    return wrapper
 
 def request_log(func: Callable) -> Callable:
     """
@@ -196,7 +154,7 @@ def request_log(func: Callable) -> Callable:
             if result and isinstance(result, bytes):
                 output_size_kb = len(result) / 1024
 
-            logger.info(
+            pyzlc.info(
                 f"Request '{request_name}' took {total_time*1000:.2f}ms, "
                 f"sent: {input_size_kb:.2f}KB, "
                 f"speed: {input_size_kb / 1024 / total_time:.2f}MB/s, "
@@ -206,7 +164,7 @@ def request_log(func: Callable) -> Callable:
 
         except Exception as e:
             total_time = time.time() - start_time
-            logger.error(
+            pyzlc.error(
                 f"Request '{request_name}' failed after "
                 f"{total_time*1000:.2f}ms, "
                 f"sent: {input_size_kb:.2f}KB: {e}"
@@ -225,7 +183,7 @@ async def send_request_async(
         await req_socket.send_multipart(messages, copy=False)
         result = await asyncio.wait_for(req_socket.recv(), timeout=timeout)
     except Exception as e:
-        logger.error(
+        pyzlc.error(
             f"Error when sending message from send_message function in "
             f"simpub.core.utils: {e}"
         )
@@ -267,9 +225,9 @@ def send_raw_request_with_addr(
         req_socket.send_multipart(messages, copy=False)
         result = req_socket.recv().decode()
     except zmq.error.Again:
-        logger.error("Timeout reached while waiting for reply")
+        pyzlc.error("Timeout reached while waiting for reply")
     except Exception as e:
-        logger.error(
+        pyzlc.error(
             f"Error when sending message from send_message function in "
             f"simpub.core.utils: {e}"
         )

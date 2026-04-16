@@ -174,3 +174,4 @@ MUJOCO_LOG.TXT
 .textures
 
 !Scene.json
+.codex

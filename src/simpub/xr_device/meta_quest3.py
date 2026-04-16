@@ -1,8 +1,10 @@
 import enum
 import json
-from typing import Callable, Dict, List, Optional, TypedDict
+from typing import Callable, Dict, List, Literal, Optional, TypedDict
 
 import pyzlc
+
+from ..core.utils import ZLC_GROUP_NAME
 
 from .xr_device import XRDevice
 
@@ -30,6 +32,7 @@ class MetaQuest3MotionControllerData(TypedDict):
 #     hand: str
 #     amplitude: float
 
+TriggerType = Literal["hand_trigger", "index_trigger"]
 
 class MetaQuest3Bone(TypedDict):
     pos: List[float]
@@ -80,7 +83,7 @@ class MetaQuest3(XRDevice):
         self,
         device_name: str,
     ) -> None:
-        super().__init__(device_name)
+        super().__init__(device_type="Meta Quest 3", device_name=device_name)
         self.last_motion_controller_data: Optional[
             MetaQuest3MotionControllerData
         ] = None
@@ -88,10 +91,18 @@ class MetaQuest3(XRDevice):
             MetaQuest3MotionControllerData
         ] = None
         self.hand_tracking_data: Optional[MetaQuest3HandTrackingData] = None
-        pyzlc.register_subscriber_handler(f"{device_name}/MotionController", self.update_motion_controller)
-        pyzlc.register_subscriber_handler(f"{device_name}/HandTracking", self.update_hand_tracking)
-        # self.start_vib_pub = Publisher(f"{device_name}/StartVibration")
-        # self.stop_vib_pub = Publisher(f"{device_name}/StopVibration")
+        pyzlc.register_subscriber_handler(
+            f"{self.device_full_name}/MotionController",
+            self.update_motion_controller,
+            group_name=ZLC_GROUP_NAME
+        )
+        pyzlc.register_subscriber_handler(
+            f"{self.device_full_name}/HandTracking",
+            self.update_hand_tracking,
+            group_name=ZLC_GROUP_NAME
+        )
+        # self.start_vib_pub = Publisher(f"{self.device_full_name}/StartVibration")
+        # self.stop_vib_pub = Publisher(f"{self.device_full_name}/StopVibration")
         self.button_press_event: Dict[str, List[Callable]] = {
             "A": [],
             "B": [],
@@ -116,9 +127,9 @@ class MetaQuest3(XRDevice):
         }
         self.on_vibration = {"left": False, "right": False}
 
-    def update_motion_controller(self, data: str):
+    def update_motion_controller(self, data: MetaQuest3MotionControllerData):
         self.last_motion_controller_data = self.motion_controller_data
-        self.motion_controller_data = json.loads(data)
+        self.motion_controller_data = data
         if self.last_motion_controller_data is None:
             return
         if self.motion_controller_data is None:
@@ -132,18 +143,18 @@ class MetaQuest3(XRDevice):
         left_hand = self.motion_controller_data["left"]
         last_left_hand = self.last_motion_controller_data["left"]
         for trigger, callbacks in self.left_trigger_press_event.items():
-            if left_hand[trigger] and not last_left_hand[trigger]:
+            if left_hand[trigger] > 0.9 and last_left_hand[trigger] < 0.9:
                 [callback() for callback in callbacks]
         for trigger, callbacks in self.left_trigger_release_event.items():
-            if not left_hand[trigger] and last_left_hand[trigger]:
+            if left_hand[trigger] < 0.1 and last_left_hand[trigger] > 0.1:
                 [callback() for callback in callbacks]
         right_hand = self.motion_controller_data["right"]
         last_right_hand = self.last_motion_controller_data["right"]
         for trigger, callbacks in self.right_trigger_press_event.items():
-            if right_hand[trigger] and not last_right_hand[trigger]:
+            if right_hand[trigger] > 0.9 and last_right_hand[trigger] < 0.9:
                 [callback() for callback in callbacks]
         for trigger, callbacks in self.right_trigger_release_event.items():
-            if not right_hand[trigger] and last_right_hand[trigger]:
+            if right_hand[trigger] < 0.1 and last_right_hand[trigger] > 0.1:
                 [callback() for callback in callbacks]
 
     def register_button_press_event(self, button: str, callback: Callable):
@@ -151,7 +162,7 @@ class MetaQuest3(XRDevice):
         self.button_press_event[button].append(callback)
 
     def register_trigger_press_event(
-        self, trigger: str, hand: str, callback: Callable
+        self, trigger: TriggerType, hand: str, callback: Callable
     ):
         # hand should be one of left or right
         # trigger should be one of hand_trigger or index_trigger
@@ -163,7 +174,7 @@ class MetaQuest3(XRDevice):
             raise ValueError("Invalid hand")
 
     def register_trigger_release_event(
-        self, trigger: str, hand: str, callback: Callable
+        self, trigger: TriggerType, hand: str, callback: Callable
     ):
         # hand should be one of
         # left_hand, left_trigger, right_hand, right_trigger
@@ -177,8 +188,8 @@ class MetaQuest3(XRDevice):
     def get_controller_data(self) -> Optional[MetaQuest3MotionControllerData]:
         return self.motion_controller_data
 
-    def update_hand_tracking(self, data: str):
-        self.hand_tracking_data = json.loads(data)
+    def update_hand_tracking(self, data: MetaQuest3HandTrackingData):
+        self.hand_tracking_data = data
 
     def get_hand_tracking_data(self) -> Optional[MetaQuest3HandTrackingData]:
         return self.hand_tracking_data
