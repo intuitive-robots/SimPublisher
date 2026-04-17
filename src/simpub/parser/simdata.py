@@ -116,7 +116,10 @@ def create_mesh(trimesh_obj: trimesh.Trimesh, uvs: Optional[np.ndarray]) -> SimM
     vertices = vertices.astype(np.float32)
     num_vertices = vertices.shape[0]
     vertices = vertices[:, [1, 2, 0]]
-    vertices[:, 0] = -vertices[:, 0]
+    # Keep mesh geometry aligned with the legacy IsaacSim->Unity remap used by
+    # pose updates: [x, y, z] -> [y, z, -x]. Using [-y, z, x] rotates every
+    # spawned mesh 180 degrees around Unity's up axis while poses still update.
+    vertices[:, 2] = -vertices[:, 2]
     vertices = vertices.flatten()
     # Indices / faces
     indices = indices.astype(np.int32)
@@ -125,7 +128,7 @@ def create_mesh(trimesh_obj: trimesh.Trimesh, uvs: Optional[np.ndarray]) -> SimM
     # Normals
     normals = normals.astype(np.float32)
     normals = normals[:, [1, 2, 0]]
-    normals[:, 0] = -normals[:, 0]
+    normals[:, 2] = -normals[:, 2]
     normals = normals.flatten()
     assert normals.size == num_vertices * 3, (
         f"Number of vertex normals ({normals.shape[0]}) must be equal "
