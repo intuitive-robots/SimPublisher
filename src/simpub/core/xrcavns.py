@@ -106,7 +106,8 @@ class XRCavns(ServerBase):
     def _normalize_position(self, pos: List[Union[int, float]]) -> List[float]:
         if pos is None or len(pos) < 3:
             raise ValueError("Position must have at least 3 values [x, y, z].")
-        return [-float(pos[1]), float(pos[2]), float(pos[0])]
+        # Isaac Sim [X,Y,Z] -> Unity [Y, Z, -X] (matches pose convention in get_update)
+        return [float(pos[1]), float(pos[2]), -float(pos[0])]
 
     def _validate_waypoints(
         self, waypoints: List[TrajectoryWaypointDict]

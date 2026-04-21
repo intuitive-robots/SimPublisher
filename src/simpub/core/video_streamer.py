@@ -72,6 +72,19 @@ class VideoStreamerManager(ServerBase):
             print(f"Creating new video streamer for topic '{video_source_topic}'.")
             streamer = VideoStreamer(video_source_topic, width, height)
             self.streamers[video_source_topic] = streamer
+            # Notify already-connected XR devices about this new streamer
+            # (handles the case where device was discovered before streamer was created)
+            for xr_info in pyzlc.get_nodes_info(ZLC_GROUP_NAME):
+                if not xr_info["name"].startswith("IRIS/Device/"):
+                    continue
+                try:
+                    pyzlc.call(
+                        f"{xr_info['name']}/SpawnVideoReceiver",
+                        streamer.config,
+                        group_name=ZLC_GROUP_NAME,
+                    )
+                except Exception as e:
+                    print(f"Failed to notify {xr_info['name']} about video stream '{video_source_topic}': {e}")
             return streamer
 
     def get_streamer(self, video_source_topic: str) -> Optional[VideoStreamer]:
